@@ -1,7 +1,9 @@
-name: PR — Lint, Typecheck, Test, Build
+name: CI — Lint, Typecheck, Test, Build
 
 on:
   pull_request:
+    branches: [main, develop]
+  push:
     branches: [main, develop]
 
 env:
@@ -16,10 +18,10 @@ jobs:
         ports:
           - 8000:8000
         options: >-
-          --health-cmd "curl -s http://localhost:8000"
-          --health-interval 10s
+          --health-cmd "curl -sf http://localhost:8000/shell/ || exit 1"
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
       localstack:
         image: localstack/localstack:3.7
         ports:
@@ -27,6 +29,11 @@ jobs:
         env:
           SERVICES: s3,sqs
           DEFAULT_REGION: ap-southeast-2
+        options: >-
+          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -68,4 +75,4 @@ jobs:
           SQS_ENDPOINT: http://localhost:4566
 
       - name: Docker build (smoke)
-        run: docker build -t esg-data-service:pr-${{ github.sha }} .
+        run: docker build -t esg-data-service:ci-${{ github.sha }} .
