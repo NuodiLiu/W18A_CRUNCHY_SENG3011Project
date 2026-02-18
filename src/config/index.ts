@@ -1,12 +1,4 @@
-/**
- * Application configuration — loaded from environment variables.
- *
- * All AWS resource names use a PROJECT_PREFIX so they can be
- * overridden per environment (dev / staging / prod).
- */
-
 export interface AppConfig {
-  /** "api" | "worker" */
   appMode: string;
   port: number;
 

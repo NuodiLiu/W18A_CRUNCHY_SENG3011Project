@@ -13,6 +13,7 @@ import {
 import { ConnectorState } from "../../domain/models/connectorState.js";
 import { SourceSpec } from "../../domain/models/jobConfig.js";
 import { AppConfig } from "../../config/index.js";
+import { UnprocessableError } from "../../domain/errors.js";
 
 export class EsgCsvBatchConnector implements Connector {
   private readonly s3: S3Client;
@@ -67,10 +68,7 @@ export class EsgCsvBatchConnector implements Connector {
     return { records: allRecords, new_state: newState };
   }
 
-  /**
-   * Resolve concrete S3 object keys from source_spec.
-   * Supports s3_uris (explicit list) or s3_prefix (list all under prefix).
-   */
+  // resolve s3 object keys from s3_uris or s3_prefix
   private async resolveObjectKeys(spec: SourceSpec): Promise<string[]> {
     if (spec.s3_uris && spec.s3_uris.length > 0) {
       return spec.s3_uris;
@@ -101,12 +99,10 @@ export class EsgCsvBatchConnector implements Connector {
       return keys.sort();
     }
 
-    throw new Error("source_spec must provide either s3_uris or s3_prefix");
+    throw new UnprocessableError("source_spec must provide either s3_uris or s3_prefix");
   }
 
-  /**
-   * Download a single CSV object from S3 and parse it into row objects.
-   */
+  // download and parse a single csv from s3
   private async readCsv(
     bucket: string,
     key: string,
@@ -124,7 +120,7 @@ export class EsgCsvBatchConnector implements Connector {
       const parser = csvParse({
         delimiter,
         columns: hasHeader
-          ? true // use first row as header keys
+          ? true
           : (header: string[]) =>
               header.map((_: string, i: number) => `col_${i}`),
         skip_empty_lines: true,

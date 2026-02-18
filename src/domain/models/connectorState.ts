@@ -1,9 +1,4 @@
-/**
- * Domain model: Connector state for incremental ingestion.
- *
- * TODO: Real incremental cursor semantics to be refined in future sprints.
- *       Currently uses placeholder fields.
- */
+// TODO: real incremental cursor semantics to be refined in future sprints
 
 export interface ConnectorState {
   connection_id: string;

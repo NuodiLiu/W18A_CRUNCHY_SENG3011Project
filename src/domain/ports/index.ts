@@ -1,7 +1,3 @@
-/**
- * Barrel export for all domain port interfaces.
- */
-
 export type { JobRepository } from "./jobRepository.js";
 export type { StateStore } from "./stateStore.js";
 export type { ConfigStore } from "./configStore.js";
