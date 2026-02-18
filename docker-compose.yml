@@ -1,45 +1,103 @@
-# Docker Compose — local development infrastructure
-# DynamoDB Local + LocalStack (S3 + SQS)
+# ─────────────────────────────────────────────────────────────
+# Docker Compose — one-click local dev environment
+#
+# Usage:
+#   docker compose up -d          # start everything
+#   docker compose logs -f api    # tail API logs
+#   docker compose down -v        # teardown + remove volumes
+#
+# Architecture:
+#   ┌──────────┐  ┌──────────┐      (simulated AWS)
+#   │   API    │  │  Worker  │   ┌──────────────────────┐
+#   │ :3000    │  │ SQS poll │   │  DynamoDB Local :8000│
+#   └────┬─────┘  └────┬─────┘   │  LocalStack    :4566│
+#        └──────┬───────┘         │   └─ S3             │
+#               └─────────────────│   └─ SQS            │
+#                                 └──────────────────────┘
+# ─────────────────────────────────────────────────────────────
 
 services:
+  # ── Simulated AWS infrastructure ───────────────────────────
   dynamodb-local:
     image: amazon/dynamodb-local:2.5.3
     container_name: esg-dynamodb-local
     ports:
       - "8000:8000"
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/shell/ || exit 1"]
+      interval: 5s
+      retries: 10
 
   localstack:
     image: localstack/localstack:3.7
     container_name: esg-localstack
     ports:
-      - "4566:4566"      # gateway
+      - "4566:4566"
     environment:
       - SERVICES=s3,sqs
       - DEFAULT_REGION=ap-southeast-2
-      - DOCKER_HOST=unix:///var/run/docker.sock
-    volumes:
-      - localstack-data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
+      interval: 5s
+      retries: 10
 
-  # ── Optional: run API in container ──
-  # api:
-  #   build: .
-  #   ports:
-  #     - "3000:3000"
-  #   env_file: .env.example
-  #   depends_on:
-  #     - dynamodb-local
-  #     - localstack
-  #   command: ["node", "dist/main.js"]
+  # ── Bootstrap: create DynamoDB tables, S3 buckets, SQS queue ──
+  infra-init:
+    build: .
+    container_name: esg-infra-init
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      - AWS_REGION=ap-southeast-2
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - S3_ENDPOINT=http://localstack:4566
+      - SQS_ENDPOINT=http://localstack:4566
+      - PROJECT_PREFIX=esgpipeline
+    command: ["node", "dist/scripts/init-local-infra.js"]
+    # exits after init; api & worker wait for it
+    restart: "no"
 
-  # ── Optional: run Worker in container ──
-  # worker:
-  #   build: .
-  #   env_file: .env.example
-  #   depends_on:
-  #     - dynamodb-local
-  #     - localstack
-  #   command: ["node", "dist/worker.js"]
+  # ── Application: API server ────────────────────────────────
+  api:
+    build: .
+    container_name: esg-api
+    ports:
+      - "3000:3000"
+    depends_on:
+      infra-init:
+        condition: service_completed_successfully
+    environment:
+      - APP_MODE=api
+      - PORT=3000
+      - AWS_REGION=ap-southeast-2
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - S3_ENDPOINT=http://localstack:4566
+      - SQS_ENDPOINT=http://localstack:4566
+      - PROJECT_PREFIX=esgpipeline
+    command: ["node", "dist/main.js"]
 
-volumes:
-  localstack-data:
+  # ── Application: Worker (SQS consumer) ─────────────────────
+  worker:
+    build: .
+    container_name: esg-worker
+    depends_on:
+      infra-init:
+        condition: service_completed_successfully
+    environment:
+      - APP_MODE=worker
+      - AWS_REGION=ap-southeast-2
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - S3_ENDPOINT=http://localstack:4566
+      - SQS_ENDPOINT=http://localstack:4566
+      - PROJECT_PREFIX=esgpipeline
+    command: ["node", "dist/worker.js"]
