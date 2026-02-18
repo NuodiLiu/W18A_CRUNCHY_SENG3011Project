@@ -3,10 +3,11 @@ import { JobRepository } from "../../domain/ports/jobRepository.js";
 import { ConfigStore } from "../../domain/ports/configStore.js";
 import { StateStore } from "../../domain/ports/stateStore.js";
 import { DataLakeWriter } from "../../domain/ports/dataLakeWriter.js";
-import { Connector, RawRecord } from "../../domain/ports/connector.js";
+import { Connector } from "../../domain/ports/connector.js";
 import { ConnectorState } from "../../domain/models/connectorState.js";
-import { EventDataset, EventRecord } from "../../domain/models/event.js";
+import { EventDataset } from "../../domain/models/event.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
+import { getNormalizer } from "../normalizers/index.js";
 
 export interface RunJobDeps {
   jobRepo: JobRepository;
@@ -40,7 +41,8 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
     );
 
     const runTimestamp = new Date().toISOString();
-    const events = normalizeRecords(records, config, runTimestamp);
+    const normalize = getNormalizer(config.connector_type);
+    const events = normalize(records, config, runTimestamp);
 
     const datasetId = uuidv4();
     const dataset: EventDataset = {
@@ -68,36 +70,4 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
     await deps.jobRepo.updateStatus(jobId, "FAILED", { error: message });
     throw err; // let caller decide whether to delete sqs message
   }
-}
-
-// converts raw csv records into event records
-// TODO: implement real field mapping based on mapping_profile
-function normalizeRecords(
-  records: RawRecord[],
-  config: JobConfig,
-  runTimestamp: string,
-): EventRecord[] {
-  const timeColumn = config.source_spec.time_column;
-
-  return records.map((r) => {
-    // use time_column value if specified and present, otherwise fall back to run time
-    let timestamp = runTimestamp;
-    if (timeColumn && r.raw_row[timeColumn]) {
-      timestamp = r.raw_row[timeColumn];
-    }
-
-    return {
-      time_object: {
-        timestamp,
-        duration: 1,
-        duration_unit: "second",
-        timezone: config.timezone,
-      },
-      event_type: "esg_record",
-      attribute: {
-        __PLACEHOLDER__: true as const,
-        raw_row: r.raw_row,
-      },
-    };
-  });
 }

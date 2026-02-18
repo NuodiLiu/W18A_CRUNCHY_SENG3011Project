@@ -1,6 +1,3 @@
-// TODO: implement real field mapping based on mapping_profile in a future sprint.
-// currently each CSV row is stored as attribute.raw_row; event_type is hardcoded to "esg_record".
-
 export interface TimeObject {
   timestamp: string;
   timezone: string;
@@ -8,14 +5,29 @@ export interface TimeObject {
   duration_unit?: string;
 }
 
+export interface EsgMetricAttribute {
+  permid: string;
+  company_name: string;
+  metric_name: string;
+  metric_value: number | null;
+  metric_year: number;
+  metric_unit: string;
+  metric_description: string;
+  pillar: string;
+  industry: string;
+  headquarter_country: string;
+  data_type: string;
+  disclosure: string;
+  provider_name: string;
+  nb_points_of_observations: number | null;
+  reported_date: string | null;
+  metric_period: string | null;
+}
+
 export interface EventRecord {
   time_object: TimeObject;
   event_type: string;
-  attribute: {
-    __PLACEHOLDER__: true;
-    raw_row: Record<string, string>;
-    [key: string]: unknown;
-  };
+  attribute: EsgMetricAttribute;
 }
 
 export interface EventDataset {
