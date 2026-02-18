@@ -1,0 +1,71 @@
+name: PR — Lint, Typecheck, Test, Build
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      dynamodb-local:
+        image: amazon/dynamodb-local:2.5.3
+        ports:
+          - 8000:8000
+        options: >-
+          --health-cmd "curl -s http://localhost:8000"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      localstack:
+        image: localstack/localstack:3.7
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,sqs
+          DEFAULT_REGION: ap-southeast-2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Init local infra
+        run: npm run infra:local:init
+        env:
+          AWS_ACCESS_KEY_ID: local
+          AWS_SECRET_ACCESS_KEY: local
+          AWS_REGION: ap-southeast-2
+          DYNAMODB_ENDPOINT: http://localhost:8000
+          S3_ENDPOINT: http://localhost:4566
+          SQS_ENDPOINT: http://localhost:4566
+
+      - name: Integration tests
+        run: npm run test:integration
+        env:
+          AWS_ACCESS_KEY_ID: local
+          AWS_SECRET_ACCESS_KEY: local
+          AWS_REGION: ap-southeast-2
+          DYNAMODB_ENDPOINT: http://localhost:8000
+          S3_ENDPOINT: http://localhost:4566
+          SQS_ENDPOINT: http://localhost:4566
+
+      - name: Docker build (smoke)
+        run: docker build -t esg-data-service:pr-${{ github.sha }} .
