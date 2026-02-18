@@ -1,0 +1,65 @@
+{
+  "family": "esg-data-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "${EXECUTION_ROLE_ARN}",
+  "taskRoleArn": "${TASK_ROLE_ARN}",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.ap-southeast-2.amazonaws.com/esg-data-service:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "command": ["node", "dist/main.js"],
+      "environment": [
+        { "name": "APP_MODE", "value": "api" },
+        { "name": "PORT", "value": "3000" },
+        { "name": "AWS_REGION", "value": "ap-southeast-2" },
+        { "name": "PROJECT_PREFIX", "value": "esgpipeline" },
+        { "name": "ENV_SUFFIX", "value": "prod" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/esg-data-service/api",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "api"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    },
+    {
+      "name": "worker",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.ap-southeast-2.amazonaws.com/esg-data-service:latest",
+      "essential": true,
+      "command": ["node", "dist/worker.js"],
+      "environment": [
+        { "name": "APP_MODE", "value": "worker" },
+        { "name": "AWS_REGION", "value": "ap-southeast-2" },
+        { "name": "PROJECT_PREFIX", "value": "esgpipeline" },
+        { "name": "ENV_SUFFIX", "value": "prod" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/esg-data-service/worker",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "worker"
+        }
+      }
+    }
+  ]
+}
