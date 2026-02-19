@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 
 /** @openapi
- * /retrieval/health:
+ * /api/v1/retrieval/health:
  *   get:
  *     summary: Retrieval domain health check
  *     tags: [Retrieval]

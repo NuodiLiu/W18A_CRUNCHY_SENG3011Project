@@ -16,7 +16,7 @@ function asyncHandler(
 }
 
 /** @openapi
- * /collection/imports:
+ * /api/v1/collection/imports:
  *   post:
  *     summary: Submit a new ESG CSV import job
  *     tags: [Collection]
@@ -31,7 +31,7 @@ function asyncHandler(
  *         description: Job accepted
  *       400:
  *         description: Validation error
- * /collection/jobs/{jobId}:
+ * /api/v1/collection/jobs/{jobId}:
  *   get:
  *     summary: Get job status
  *     tags: [Collection]

@@ -162,4 +162,93 @@ describe("normalizeEsgMetrics", () => {
     const events = normalizeEsgMetrics([], baseConfig, RUN_TS);
     expect(events).toEqual([]);
   });
+
+  it("extracts permid from PK column (strips COMP# prefix)", () => {
+    const events = normalizeEsgMetrics(
+      [makeRawRecord({ PK: "COMP#4298015915", permid: "" })],
+      baseConfig,
+      RUN_TS,
+    );
+    expect(events[0].attribute.permid).toBe("4298015915");
+  });
+
+  it("prefers PK over permid when both exist", () => {
+    const events = normalizeEsgMetrics(
+      [makeRawRecord({ PK: "COMP#999", permid: "111" })],
+      baseConfig,
+      RUN_TS,
+    );
+    expect(events[0].attribute.permid).toBe("999");
+  });
+
+  it("treats string 'null' as null for reported_date and metric_period", () => {
+    const events = normalizeEsgMetrics(
+      [makeRawRecord({ reported_date: "null", metric_period: "null" })],
+      baseConfig,
+      RUN_TS,
+    );
+    expect(events[0].attribute.reported_date).toBeNull();
+    expect(events[0].attribute.metric_period).toBeNull();
+  });
+
+  it("treats string 'null' as null for metric_value", () => {
+    const events = normalizeEsgMetrics(
+      [makeRawRecord({ metric_value: "null" })],
+      baseConfig,
+      RUN_TS,
+    );
+    expect(events[0].attribute.metric_value).toBeNull();
+  });
+
+  it("treats string 'null' as null for nb_points_of_observations", () => {
+    const events = normalizeEsgMetrics(
+      [makeRawRecord({ nb_points_of_observations: "null" })],
+      baseConfig,
+      RUN_TS,
+    );
+    expect(events[0].attribute.nb_points_of_observations).toBeNull();
+  });
+
+  it("handles real DynamoDB CSV row format", () => {
+    const dynamoRow: RawRecord = {
+      raw_row: {
+        PK: "COMP#4298015915",
+        SK: "YEAR#2016#METRIC#CO2DIRECTSCOPE1",
+        company_name: "Trans Canada Gold Corp",
+        data_type: "float",
+        disclosure: "ESTIMATED",
+        headquarter_country: "Canada",
+        industry: "Metals & Mining",
+        metric_description: "Scope 1 emissions",
+        metric_name: "CO2DIRECTSCOPE1",
+        metric_period: "null",
+        metric_unit: "Tons CO2e",
+        metric_value: "27",
+        metric_year: "2016",
+        nb_points_of_observations: "88",
+        pillar: "E",
+        provider_name: "Clarity AI",
+        reported_date: "null",
+      },
+      source_file: "s3://bucket/ESGRawDataSample.csv",
+      row_number: 1,
+    };
+    const events = normalizeEsgMetrics([dynamoRow], baseConfig, RUN_TS);
+    const e = events[0];
+
+    expect(e.attribute.permid).toBe("4298015915");
+    expect(e.attribute.company_name).toBe("Trans Canada Gold Corp");
+    expect(e.attribute.metric_name).toBe("CO2DIRECTSCOPE1");
+    expect(e.attribute.metric_value).toBe(27);
+    expect(e.attribute.metric_year).toBe(2016);
+    expect(e.attribute.metric_unit).toBe("Tons CO2e");
+    expect(e.attribute.pillar).toBe("E");
+    expect(e.attribute.industry).toBe("Metals & Mining");
+    expect(e.attribute.headquarter_country).toBe("Canada");
+    expect(e.attribute.nb_points_of_observations).toBe(88);
+    expect(e.attribute.reported_date).toBeNull();
+    expect(e.attribute.metric_period).toBeNull();
+    expect(e.time_object.timestamp).toBe("2016-01-01T00:00:00Z");
+    expect(e.event_type).toBe("esg_metric");
+  });
 });

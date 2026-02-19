@@ -4,7 +4,7 @@ export interface JobRepository {
   create(job: JobRecord): Promise<void>;
   findById(jobId: string): Promise<JobRecord | undefined>;
 
-  // conditional update PENDING -> RUNNING; returns false if already claimed
+  // conditional update PENDING to RUNNING; returns false if already claimed
   claimJob(jobId: string, leaseUntil: string): Promise<boolean>;
 
   updateStatus(

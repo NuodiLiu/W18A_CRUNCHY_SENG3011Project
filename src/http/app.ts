@@ -20,9 +20,9 @@ export function createApp(deps: AppDeps): Express {
   });
 
   // ── Domain routers ────────────────────────────────
-  app.use("/collection", createCollectionRouter(deps));
-  app.use("/retrieval", createRetrievalRouter());
-  app.use("/preprocessing", createPreprocessingRouter());
+  app.use("/api/v1/collection", createCollectionRouter(deps));
+  app.use("/api/v1/retrieval", createRetrievalRouter());
+  app.use("/api/v1/preprocessing", createPreprocessingRouter());
 
   // ── Swagger UI (auto-generated from JSDoc) ────────
   const swaggerSpec = swaggerJsdoc({

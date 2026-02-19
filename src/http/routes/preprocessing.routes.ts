@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 
 /** @openapi
- * /preprocessing/health:
+ * /api/v1/preprocessing/health:
  *   get:
  *     summary: Preprocessing domain health check
  *     tags: [Preprocessing]
