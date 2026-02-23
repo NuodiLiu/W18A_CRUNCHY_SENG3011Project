@@ -1,0 +1,57 @@
+{
+  "name": "esg-data-service",
+  "version": "0.1.0",
+  "description": "ESG CSV Ingestion, Retrieval & Preprocessing — single-container multi-domain API + SQS Worker",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev:api": "tsx watch src/main.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "start:api": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
+    "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
+    "lint:fix": "eslint 'src/**/*.ts' 'tests/**/*.ts' --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --config jest.config.ts --testPathPattern='tests/unit'",
+    "test:integration": "jest --config jest.config.ts --testPathPattern='tests/integration' --runInBand",
+    "test:all": "jest --config jest.config.ts --runInBand",
+    "infra:local:init": "tsx scripts/init-local-infra.ts",
+    "docker:build": "docker build -t esg-data-service .",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down -v"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/client-sqs": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "@aws-sdk/s3-request-presigner": "^3.600.0",
+    "csv-parse": "^5.5.0",
+    "express": "^4.21.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.0",
+    "@types/supertest": "^6.0.2",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.6",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}
