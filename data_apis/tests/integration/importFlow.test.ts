@@ -71,21 +71,21 @@ beforeEach(async () => {
 
 // --- tests ---
 
-describe("POST /collection/imports — integration", () => {
+describe("POST /api/v1/collection/imports — integration", () => {
   it("returns 202 with job_id, connection_id, status_url", async () => {
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
     expect(res.body.job_id).toBeDefined();
     expect(res.body.connection_id).toBeDefined();
-    expect(res.body.status_url).toMatch(/^\/collection\/jobs\//);
+    expect(res.body.status_url).toMatch(/^\/api\/v1\/collection\/jobs\//);
   });
 
   it("creates a PENDING job record in DynamoDB", async () => {
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
@@ -103,7 +103,7 @@ describe("POST /collection/imports — integration", () => {
 
   it("persists job config to S3", async () => {
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
@@ -123,7 +123,7 @@ describe("POST /collection/imports — integration", () => {
 
   it("sends a message to SQS with job_id", async () => {
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
@@ -147,7 +147,7 @@ describe("POST /collection/imports — integration", () => {
   it("returns 400 for missing connector_type", async () => {
     const { connector_type: _ct, ...badBody } = validBody;
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(badBody)
       .expect(400);
 
@@ -161,7 +161,7 @@ describe("POST /collection/imports — integration", () => {
       source_spec: { timezone: "UTC" },
     };
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(badBody)
       .expect(400);
 
@@ -169,15 +169,15 @@ describe("POST /collection/imports — integration", () => {
   });
 });
 
-describe("GET /collection/jobs/:jobId — integration", () => {
+describe("GET /api/v1/collection/jobs/:jobId — integration", () => {
   it("returns the job after creation", async () => {
     const createRes = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
     const jobRes = await request(app)
-      .get(`/collection/jobs/${createRes.body.job_id}`)
+      .get(`/api/v1/collection/jobs/${createRes.body.job_id}`)
       .expect(200);
 
     expect(jobRes.body.job_id).toBe(createRes.body.job_id);
@@ -186,7 +186,7 @@ describe("GET /collection/jobs/:jobId — integration", () => {
 
   it("returns 404 for non-existent job", async () => {
     await request(app)
-      .get("/collection/jobs/non-existent-id")
+      .get("/api/v1/collection/jobs/non-existent-id")
       .expect(404);
   });
 });

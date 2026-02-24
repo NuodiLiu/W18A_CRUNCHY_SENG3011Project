@@ -63,7 +63,7 @@ describe("POST /collection/imports", () => {
 
     expect(res.body.job_id).toBeDefined();
     expect(res.body.connection_id).toBeDefined();
-    expect(res.body.status_url).toMatch(/^\/collection\/jobs\//);
+    expect(res.body.status_url).toMatch(/^\/api\/v1\/collection\/jobs\//);
   });
 
   it("calls jobRepo.create with PENDING status", async () => {

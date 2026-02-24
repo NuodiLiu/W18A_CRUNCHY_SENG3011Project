@@ -95,7 +95,7 @@ export async function createImportJob(
   return {
     job_id: jobId,
     connection_id: connectionId,
-    status_url: `/collection/jobs/${jobId}`,
+    status_url: `/api/v1/collection/jobs/${jobId}`,
   };
 }
 

@@ -20,6 +20,7 @@ export function createApp(deps: AppDeps): Express {
   });
 
   // ── Domain routers ────────────────────────────────
+  app.use("/api/v1/collection", createCollectionRouter(deps));
   app.use("/api/v1/retrieval", createRetrievalRouter());
   app.use("/api/v1/preprocessing", createPreprocessingRouter());
 

@@ -20,18 +20,14 @@ services:
   # ── Simulated AWS infrastructure ───────────────────────────
   dynamodb-local:
     image: amazon/dynamodb-local:2.5.3
-    container_name: esg-dynamodb-local
+    container_name: data-dynamodb-local
     ports:
       - "8000:8000"
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/shell/ || exit 1"]
-      interval: 5s
-      retries: 10
 
   localstack:
     image: localstack/localstack:3.7
-    container_name: esg-localstack
+    container_name: data-localstack
     ports:
       - "4566:4566"
     environment:
@@ -45,10 +41,10 @@ services:
   # ── Bootstrap: create DynamoDB tables, S3 buckets, SQS queue ──
   infra-init:
     build: .
-    container_name: esg-infra-init
+    container_name: data-infra-init
     depends_on:
       dynamodb-local:
-        condition: service_healthy
+        condition: service_started
       localstack:
         condition: service_healthy
     environment:
@@ -66,7 +62,7 @@ services:
   # ── Application: API server ────────────────────────────────
   api:
     build: .
-    container_name: esg-api
+    container_name: data-api
     ports:
       - "3000:3000"
     depends_on:
@@ -87,7 +83,7 @@ services:
   # ── Application: Worker (SQS consumer) ─────────────────────
   worker:
     build: .
-    container_name: esg-worker
+    container_name: data-worker
     depends_on:
       infra-init:
         condition: service_completed_successfully
