@@ -1,14 +1,13 @@
 import express, { Express, Request, Response } from "express";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
-import { createCollectionRouter, CollectionRouteDeps } from "./routes/collection.routes.js";
 import { createRetrievalRouter } from "./routes/retrieval.routes.js";
 import { createPreprocessingRouter } from "./routes/preprocessing.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
-export interface AppDeps extends CollectionRouteDeps {}
+export interface AppDeps {}
 
-export function createApp(deps: AppDeps): Express {
+export function createApp(_deps: AppDeps = {}): Express {
   const app = express();
 
   // ── Body parsing ──────────────────────────────────
@@ -20,7 +19,6 @@ export function createApp(deps: AppDeps): Express {
   });
 
   // ── Domain routers ────────────────────────────────
-  app.use("/api/v1/collection", createCollectionRouter(deps));
   app.use("/api/v1/retrieval", createRetrievalRouter());
   app.use("/api/v1/preprocessing", createPreprocessingRouter());
 
