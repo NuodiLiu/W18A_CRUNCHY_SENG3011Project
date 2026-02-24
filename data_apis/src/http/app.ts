@@ -1,13 +1,14 @@
 import express, { Express, Request, Response } from "express";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
+import { createCollectionRouter, CollectionRouteDeps } from "./routes/collection.routes.js";
 import { createRetrievalRouter } from "./routes/retrieval.routes.js";
 import { createPreprocessingRouter } from "./routes/preprocessing.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
-export interface AppDeps {}
+export interface AppDeps extends CollectionRouteDeps {}
 
-export function createApp(_deps: AppDeps = {}): Express {
+export function createApp(deps: AppDeps): Express {
   const app = express();
 
   // ── Body parsing ──────────────────────────────────
