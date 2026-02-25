@@ -1,7 +1,5 @@
-import express from "express";
 import request from "supertest";
-import { createCollectionRouter } from "../../src/http/routes/collection.routes";
-import { errorHandler } from "../../src/http/middleware/errorHandler";
+import { createApp } from "../../src/http/app";
 import { JobRecord } from "../../src/domain/models/job";
 
 const fakeJobRecord: JobRecord = {
@@ -33,10 +31,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 
-  const app = express();
-  app.use(express.json());
-  app.use("/collection", createCollectionRouter(deps));
-  app.use(errorHandler);
+  const app = createApp(deps as Parameters<typeof createApp>[0]);
 
   return { app, deps };
 }
@@ -53,11 +48,11 @@ const validBody = {
   ingestion_mode: "full_refresh",
 };
 
-describe("POST /collection/imports", () => {
+describe("POST /api/v1/collection/imports", () => {
   it("returns 202 with valid body", async () => {
     const { app } = buildApp();
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
@@ -69,7 +64,7 @@ describe("POST /collection/imports", () => {
   it("calls jobRepo.create with PENDING status", async () => {
     const { app, deps } = buildApp();
     await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
@@ -81,7 +76,7 @@ describe("POST /collection/imports", () => {
   it("calls configStore.putConfig", async () => {
     const { app, deps } = buildApp();
     await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
@@ -95,7 +90,7 @@ describe("POST /collection/imports", () => {
   it("calls queue.sendMessage with job_id", async () => {
     const { app, deps } = buildApp();
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(validBody)
       .expect(202);
 
@@ -108,7 +103,7 @@ describe("POST /collection/imports", () => {
     const { app } = buildApp();
     const { connector_type: _connector_type, ...bad } = validBody;
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send(bad)
       .expect(400);
 
@@ -118,7 +113,7 @@ describe("POST /collection/imports", () => {
   it("returns 400 for empty body", async () => {
     const { app } = buildApp();
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send({})
       .expect(400);
 
@@ -128,7 +123,7 @@ describe("POST /collection/imports", () => {
   it("returns 400 when source_spec has no s3_uris or s3_prefix", async () => {
     const { app } = buildApp();
     const res = await request(app)
-      .post("/collection/imports")
+      .post("/api/v1/collection/imports")
       .send({
         ...validBody,
         source_spec: { timezone: "UTC" },
@@ -139,11 +134,11 @@ describe("POST /collection/imports", () => {
   });
 });
 
-describe("GET /collection/jobs/:jobId", () => {
+describe("GET /api/v1/collection/jobs/:jobId", () => {
   it("returns 200 with job details when job exists", async () => {
     const { app } = buildApp();
     const res = await request(app)
-      .get("/collection/jobs/j-100")
+      .get("/api/v1/collection/jobs/j-100")
       .expect(200);
 
     expect(res.body.job_id).toBe("j-100");
@@ -162,7 +157,7 @@ describe("GET /collection/jobs/:jobId", () => {
     });
 
     const res = await request(app)
-      .get("/collection/jobs/nonexistent")
+      .get("/api/v1/collection/jobs/nonexistent")
       .expect(404);
 
     expect(res.body.error.code).toBe("NOT_FOUND");
@@ -170,7 +165,7 @@ describe("GET /collection/jobs/:jobId", () => {
 
   it("calls jobRepo.findById with the path parameter", async () => {
     const { app, deps } = buildApp();
-    await request(app).get("/collection/jobs/j-100").expect(200);
+    await request(app).get("/api/v1/collection/jobs/j-100").expect(200);
     expect(deps.jobRepo.findById).toHaveBeenCalledWith("j-100");
   });
 });

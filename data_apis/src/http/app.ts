@@ -1,12 +1,18 @@
 import express, { Express, Request, Response } from "express";
-import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
-import { createCollectionRouter, CollectionRouteDeps } from "./routes/collection.routes.js";
-import { createRetrievalRouter } from "./routes/retrieval.routes.js";
-import { createPreprocessingRouter } from "./routes/preprocessing.routes.js";
+import { RegisterRoutes } from "./generated/routes.js";
+import { initDeps, AppDeps } from "./ioc.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-export interface AppDeps extends CollectionRouteDeps {}
+// tsoa generates swagger.json into src/docs/ at build time.
+// process.cwd() is the project root (data_apis/) in both dev and prod.
+const swaggerDocument = JSON.parse(
+  readFileSync(join(process.cwd(), "src/docs/swagger.json"), "utf-8")
+) as object;
+
+export type { AppDeps };
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
@@ -14,33 +20,16 @@ export function createApp(deps: AppDeps): Express {
   // ── Body parsing ──────────────────────────────────
   app.use(express.json());
 
-  // ── Health check ──────────────────────────────────
-  app.get("/health", (_req: Request, res: Response) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
+  // ── Wire tsoa IoC container ───────────────────────
+  initDeps(deps);
 
-  // ── Domain routers ────────────────────────────────
-  app.use("/api/v1/collection", createCollectionRouter(deps));
-  app.use("/api/v1/retrieval", createRetrievalRouter());
-  app.use("/api/v1/preprocessing", createPreprocessingRouter());
+  // ── Register tsoa-generated routes ───────────────
+  RegisterRoutes(app);
 
-  // ── Swagger UI (auto-generated from JSDoc) ────────
-  const swaggerSpec = swaggerJsdoc({
-    definition: {
-      openapi: "3.0.3",
-      info: {
-        title: "ESG Data Service API",
-        version: "0.1.0",
-        description:
-          "Collection, Retrieval & Preprocessing APIs — single container.",
-      },
-      servers: [{ url: "/" }],
-    },
-    apis: ["./src/http/routes/*.ts", "./dist/http/routes/*.js"],
-  });
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  // ── Swagger UI ────────────────────────────────────
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   app.get("/api-docs.json", (_req: Request, res: Response) => {
-    res.json(swaggerSpec);
+    res.json(swaggerDocument);
   });
 
   // ── Error handler (must be last) ──────────────────

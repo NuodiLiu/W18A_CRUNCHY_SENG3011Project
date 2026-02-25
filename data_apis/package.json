@@ -7,8 +7,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev:api": "tsx watch src/main.ts",
+    "tsoa": "tsoa spec-and-routes",
+    "build": "npm run tsoa && tsc -p tsconfig.json",
+    "dev:api": "npm run tsoa && tsx watch src/main.ts",
     "dev:worker": "tsx watch src/worker.ts",
     "start:api": "node dist/main.js",
     "start:worker": "node dist/worker.js",
@@ -31,8 +32,9 @@
     "@aws-sdk/s3-request-presigner": "^3.600.0",
     "csv-parse": "^5.5.0",
     "express": "^4.21.0",
-    "swagger-jsdoc": "^6.2.8",
+    "reflect-metadata": "^0.2.2",
     "swagger-ui-express": "^5.0.0",
+    "tsoa": "^7.0.0-alpha.0",
     "uuid": "^10.0.0",
     "zod": "^3.23.0"
   },
@@ -41,7 +43,6 @@
     "@types/jest": "^29.5.12",
     "@types/node": "^20.14.0",
     "@types/supertest": "^6.0.2",
-    "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.6",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
