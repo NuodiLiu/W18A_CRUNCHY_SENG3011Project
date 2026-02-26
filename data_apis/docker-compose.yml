@@ -19,7 +19,7 @@
 services:
   # ── Simulated AWS infrastructure ───────────────────────────
   dynamodb-local:
-    image: amazon/dynamodb-local:2.5.3
+    image: amazon/dynamodb-local:latest
     container_name: data-dynamodb-local
     ports:
       - "8000:8000"
