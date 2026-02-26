@@ -12,6 +12,9 @@ env:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: data_apis
 
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +23,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+          cache-dependency-path: data_apis/package-lock.json
 
       - run: npm ci
 
