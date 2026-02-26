@@ -17,11 +17,8 @@ jobs:
         image: amazon/dynamodb-local:2.5.3
         ports:
           - 8000:8000
-        options: >-
-          --health-cmd "curl -sf http://localhost:8000/shell/ || exit 1"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+        # No health-check options: the dynamodb-local image has no curl/wget,
+        # so health-cmd would always fail. Readiness is probed via a runner step below.
       localstack:
         image: localstack/localstack:3.7
         ports:
@@ -44,6 +41,30 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Wait for service containers
+        run: |
+          echo "Waiting for DynamoDB Local on :8000..."
+          for i in $(seq 1 30); do
+            # DynamoDB Local returns 400 for bare requests — that still means it's up
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 || true)
+            if [ "$STATUS" != "000" ]; then
+              echo "DynamoDB Local ready (HTTP $STATUS)"
+              break
+            fi
+            echo "  attempt $i — not ready yet, waiting 2s"
+            sleep 2
+          done
+
+          echo "Waiting for LocalStack on :4566..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; then
+              echo "LocalStack ready"
+              break
+            fi
+            echo "  attempt $i — not ready yet, waiting 2s"
+            sleep 2
+          done
 
       - name: Lint
         run: npm run lint
