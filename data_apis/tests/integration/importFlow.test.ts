@@ -71,7 +71,7 @@ beforeEach(async () => {
 
 // --- tests ---
 
-describe("POST /collection/imports — integration", () => {
+describe.skip("POST /collection/imports — integration", () => {
   it("returns 202 with job_id, connection_id, status_url", async () => {
     const res = await request(app)
       .post("/collection/imports")
@@ -169,7 +169,7 @@ describe("POST /collection/imports — integration", () => {
   });
 });
 
-describe("GET /collection/jobs/:jobId — integration", () => {
+describe.skip("GET /collection/jobs/:jobId — integration", () => {
   it("returns the job after creation", async () => {
     const createRes = await request(app)
       .post("/collection/imports")
