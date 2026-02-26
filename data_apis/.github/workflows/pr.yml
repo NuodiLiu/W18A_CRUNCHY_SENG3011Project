@@ -12,23 +12,6 @@ env:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    services:
-      dynamodb-local:
-        image: amazon/dynamodb-local:latest
-        ports:
-          - 8000:8000
-      localstack:
-        image: localstack/localstack:3.7
-        ports:
-          - 4566:4566
-        env:
-          SERVICES: s3,sqs
-          DEFAULT_REGION: ap-southeast-2
-        options: >-
-          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -40,17 +23,40 @@ jobs:
 
       - run: npm ci
 
-      - name: Wait for service containers
+      # ── Fast checks first (no containers needed) ──
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # ── Start containers only for integration tests ──
+      - name: Start DynamoDB Local
+        run: |
+          docker run -d --name dynamodb-local -p 8000:8000 \
+            amazon/dynamodb-local:3.3.0 \
+            -jar DynamoDBLocal.jar -sharedDb -inMemory
+
+      - name: Start LocalStack
+        run: |
+          docker run -d --name localstack -p 4566:4566 \
+            -e SERVICES=s3,sqs \
+            -e DEFAULT_REGION=ap-southeast-2 \
+            localstack/localstack:3.7
+
+      - name: Wait for services
         run: |
           echo "Waiting for DynamoDB Local on :8000..."
           for i in $(seq 1 30); do
-            # DynamoDB Local returns 400 for bare requests — that still means it's up
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 || true)
             if [ "$STATUS" != "000" ]; then
               echo "DynamoDB Local ready (HTTP $STATUS)"
               break
             fi
-            echo "  attempt $i — not ready yet, waiting 2s"
+            if [ "$i" -eq 30 ]; then echo "DynamoDB Local failed to start"; docker logs dynamodb-local; exit 1; fi
             sleep 2
           done
 
@@ -60,18 +66,9 @@ jobs:
               echo "LocalStack ready"
               break
             fi
-            echo "  attempt $i — not ready yet, waiting 2s"
+            if [ "$i" -eq 30 ]; then echo "LocalStack failed to start"; docker logs localstack; exit 1; fi
             sleep 2
           done
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
 
       - name: Init local infra
         run: npm run infra:local:init
@@ -95,3 +92,8 @@ jobs:
 
       - name: Docker build (smoke)
         run: docker build -t esg-data-service:ci-${{ github.sha }} .
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker rm -f dynamodb-local localstack 2>/dev/null || true
