@@ -19,11 +19,16 @@
 services:
   # ── Simulated AWS infrastructure ───────────────────────────
   dynamodb-local:
-    image: amazon/dynamodb-local:2.5.3
+    image: amazon/dynamodb-local:3.3.0
     container_name: data-dynamodb-local
     ports:
       - "8000:8000"
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8000 | grep -q '400'"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   localstack:
     image: localstack/localstack:3.7
