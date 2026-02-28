@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts
 
-COPY tsconfig.json tsconfig.scripts.json* ./
+COPY tsconfig.json tsconfig.scripts.json* tsoa.json ./
 COPY src/ src/
 COPY scripts/ scripts/
 
@@ -25,6 +25,7 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=builder /app/dist dist/
 COPY --from=builder /app/dist/scripts dist/scripts/
+COPY --from=builder /app/src/docs/swagger.json src/docs/swagger.json
 COPY src/mappings/ dist/mappings/
 
 # Default entrypoint = API; override via CMD or ECS task definition

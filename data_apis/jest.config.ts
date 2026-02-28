@@ -1,13 +1,11 @@
 import type { Config } from "jest";
 
-const config: Config = {
+const shared = {
   preset: "ts-jest",
   testEnvironment: "node",
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { diagnostics: { ignoreCodes: [151002] } }],
   },
-  roots: ["<rootDir>/tests"],
-  setupFiles: ["dotenv/config"],
   moduleNameMapper: {
     "^@config/(.*)$": "<rootDir>/src/config/$1",
     "^@http/(.*)$": "<rootDir>/src/http/$1",
@@ -22,7 +20,24 @@ const config: Config = {
     "!src/worker.ts",
   ],
   coverageDirectory: "coverage",
+} satisfies Partial<Config>;
+
+const config: Config = {
   testTimeout: 30_000,
+  projects: [
+    {
+      ...shared,
+      displayName: "unit",
+      roots: ["<rootDir>/tests/unit"],
+      // No setupFiles — unit tests must run with a clean environment
+    },
+    {
+      ...shared,
+      displayName: "integration",
+      roots: ["<rootDir>/tests/integration"],
+      setupFiles: ["dotenv/config"], // loads .env for LocalStack endpoints
+    },
+  ],
 };
 
 export default config;
