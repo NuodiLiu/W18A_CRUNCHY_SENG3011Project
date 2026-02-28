@@ -7,6 +7,7 @@ const config: Config = {
     "^.+\\.tsx?$": ["ts-jest", { diagnostics: { ignoreCodes: [151002] } }],
   },
   roots: ["<rootDir>/tests"],
+  setupFiles: ["dotenv/config"],
   moduleNameMapper: {
     "^@config/(.*)$": "<rootDir>/src/config/$1",
     "^@http/(.*)$": "<rootDir>/src/http/$1",
