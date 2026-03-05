@@ -52,3 +52,10 @@ export class InternalError extends AppError {
     super(message, 500, "INTERNAL_ERROR");
   }
 }
+
+// 501
+export class NotImplementedError extends AppError {
+  constructor(endpoint: string) {
+    super(`Not implemented: ${endpoint}`, 501, "NOT_IMPLEMENTED");
+  }
+}

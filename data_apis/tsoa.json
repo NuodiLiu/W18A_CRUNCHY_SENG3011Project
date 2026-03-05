@@ -1,0 +1,19 @@
+{
+  "entryFile": "src/main.ts",
+  "noImplicitAdditionalProperties": "ignore",
+  "controllerPathGlobs": ["src/http/controllers/**/*.ts"],
+  "spec": {
+    "outputDirectory": "src/docs",
+    "specVersion": 3,
+    "info": {
+      "title": "ESG Data Service API",
+      "version": "0.1.0",
+      "description": "Collection, Retrieval & Preprocessing APIs — single container."
+    },
+    "servers": [{ "url": "/" }]
+  },
+  "routes": {
+    "routesDir": "src/http/generated",
+    "iocModule": "src/http/ioc"
+  }
+}

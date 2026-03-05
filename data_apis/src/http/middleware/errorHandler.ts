@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { ValidateError } from "tsoa";
 import { AppError } from "../../domain/errors.js";
 
 interface ErrorResponse {
@@ -16,6 +17,18 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  // tsoa request-validation error → normalise to our VALIDATION_ERROR shape
+  if (err instanceof ValidateError) {
+    res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Request validation failed",
+        details: err.fields,
+      },
+    } satisfies ErrorResponse);
+    return;
+  }
+
   if (err instanceof AppError) {
     const body: ErrorResponse = {
       error: {
