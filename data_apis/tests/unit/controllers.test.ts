@@ -11,6 +11,12 @@ const fakeJobRecord: JobRecord = {
   updated_at: "2026-01-01T00:00:00Z",
 };
 
+const fakePresignResult = {
+  upload_url: "https://s3.example.com/bucket/raw-uploads/uuid/file.csv?sig=abc",
+  s3_uri: "s3://bucket/raw-uploads/uuid/file.csv",
+  expires_in: 900,
+};
+
 function buildApp(overrides: Record<string, unknown> = {}) {
   const deps = {
     jobRepo: {
@@ -27,6 +33,9 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       sendMessage: jest.fn(),
       receiveMessages: jest.fn(),
       deleteMessage: jest.fn(),
+    },
+    fileUploadService: {
+      presignPut: jest.fn().mockResolvedValue(fakePresignResult),
     },
     ...overrides,
   };
@@ -167,5 +176,76 @@ describe("GET /api/v1/collection/jobs/:jobId", () => {
     const { app, deps } = buildApp();
     await request(app).get("/api/v1/collection/jobs/j-100").expect(200);
     expect(deps.jobRepo.findById).toHaveBeenCalledWith("j-100");
+  });
+});
+
+describe("POST /api/v1/collection/uploads/presign", () => {
+  const validBody = { filename: "data.csv", content_type: "text/csv" };
+
+  it("returns 200 with upload_url, s3_uri, expires_in", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send(validBody)
+      .expect(200);
+
+    expect(res.body.upload_url).toBe(fakePresignResult.upload_url);
+    expect(res.body.s3_uri).toBe(fakePresignResult.s3_uri);
+    expect(res.body.expires_in).toBe(900);
+  });
+
+  it("delegates filename and content_type to fileUploadService", async () => {
+    const { app, deps } = buildApp();
+    await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send({ filename: "report.csv", content_type: "application/octet-stream" })
+      .expect(200);
+
+    expect(deps.fileUploadService.presignPut).toHaveBeenCalledWith(
+      "report.csv",
+      "application/octet-stream"
+    );
+  });
+
+  it("returns 400 when filename does not end in .csv", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send({ filename: "data.xlsx", content_type: "text/csv" })
+      .expect(400);
+
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 for unsupported content_type", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send({ filename: "data.csv", content_type: "application/json" })
+      .expect(400);
+
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 for empty body", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send({})
+      .expect(400);
+
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 500 when fileUploadService throws", async () => {
+    const { app } = buildApp({
+      fileUploadService: {
+        presignPut: jest.fn().mockRejectedValue(new Error("S3 error")),
+      },
+    });
+    await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send(validBody)
+      .expect(500);
   });
 });

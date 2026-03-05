@@ -537,6 +537,48 @@
 				"type": "object",
 				"additionalProperties": true
 			},
+			"PresignResponse": {
+				"properties": {
+					"upload_url": {
+						"type": "string",
+						"description": "pre-signed S3 PUT URL valid for expires_in seconds"
+					},
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri to pass to POST /collection/imports as source_spec.s3_uris"
+					},
+					"expires_in": {
+						"type": "number",
+						"format": "double",
+						"description": "seconds until upload_url expires"
+					}
+				},
+				"required": [
+					"upload_url",
+					"s3_uri",
+					"expires_in"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"PresignRequestBody": {
+				"properties": {
+					"filename": {
+						"type": "string",
+						"description": "original filename, must end in .csv"
+					},
+					"content_type": {
+						"type": "string",
+						"description": "MIME type of the file being uploaded"
+					}
+				},
+				"required": [
+					"filename",
+					"content_type"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
 			"JobStatusResponse": {
 				"properties": {
 					"job_id": {
@@ -1020,6 +1062,49 @@
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/CreateImportBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/uploads/presign": {
+			"post": {
+				"operationId": "PresignUpload",
+				"responses": {
+					"200": {
+						"description": "Pre-signed URL generated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PresignResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate a pre-signed S3 PUT URL for uploading a CSV file.\nUse the returned s3_uri in POST /collection/imports as source_spec.s3_uris.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PresignRequestBody"
 							}
 						}
 					}

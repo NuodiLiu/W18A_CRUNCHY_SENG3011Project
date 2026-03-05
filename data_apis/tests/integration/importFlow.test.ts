@@ -16,6 +16,7 @@ import { createApp } from "../../src/http/app";
 import { DynamoJobRepository } from "../../src/infra/aws/dynamoJobRepository";
 import { S3ConfigStore } from "../../src/infra/aws/s3ConfigStore";
 import { SQSQueueService } from "../../src/infra/aws/sqsQueueService";
+import { S3PresignService } from "../../src/infra/aws/s3PresignService";
 
 // --- setup ---
 
@@ -23,7 +24,8 @@ const config = loadConfig();
 const jobRepo = new DynamoJobRepository(config);
 const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
-const app = createApp({ jobRepo, configStore, queue });
+const fileUploadService = new S3PresignService(config);
+const app = createApp({ jobRepo, configStore, queue, fileUploadService });
 
 const ddb = DynamoDBDocumentClient.from(
   new DynamoDBClient({
@@ -188,5 +190,91 @@ describe("GET /api/v1/collection/jobs/:jobId — integration", () => {
     await request(app)
       .get("/api/v1/collection/jobs/non-existent-id")
       .expect(404);
+  });
+});
+
+describe("POST /api/v1/collection/uploads/presign — integration", () => {
+  const validBody = { filename: "esg.csv", content_type: "text/csv" };
+
+  it("returns 200 with upload_url, s3_uri, expires_in", async () => {
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send(validBody)
+      .expect(200);
+
+    expect(res.body.upload_url).toBeDefined();
+    expect(res.body.s3_uri).toMatch(/^s3:\/\//);  
+    expect(res.body.expires_in).toBe(900);
+  });
+
+  it("s3_uri points to raw-uploads prefix in datalake bucket", async () => {
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send(validBody)
+      .expect(200);
+
+    expect(res.body.s3_uri).toContain(`s3://${config.s3DatalakeBucket}/raw-uploads/`);
+    expect(res.body.s3_uri).toContain("/esg.csv");
+  });
+
+  it("each presign call returns a unique s3_uri (uuid in key)", async () => {
+    const [res1, res2] = await Promise.all([
+      request(app).post("/api/v1/collection/uploads/presign").send(validBody),
+      request(app).post("/api/v1/collection/uploads/presign").send(validBody),
+    ]);
+
+    expect(res1.body.s3_uri).not.toBe(res2.body.s3_uri);
+  });
+
+  it("upload_url is a valid HTTPS URL", async () => {
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send(validBody)
+      .expect(200);
+
+    expect(() => new URL(res.body.upload_url)).not.toThrow();
+    expect(res.body.upload_url).toMatch(/^https?:\/\//); 
+  });
+
+  it("returned s3_uri is accepted as source_spec.s3_uris in /imports", async () => {
+    const presignRes = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send(validBody)
+      .expect(200);
+
+    const importRes = await request(app)
+      .post("/api/v1/collection/imports")
+      .send({
+        connector_type: "esg_csv_batch",
+        source_spec: {
+          s3_uris: [presignRes.body.s3_uri],
+          timezone: "UTC",
+        },
+        mapping_profile: "esg_v1",
+        data_source: "clarity_ai",
+        dataset_type: "esg_metrics",
+        ingestion_mode: "full_refresh",
+      })
+      .expect(202);
+
+    expect(importRes.body.job_id).toBeDefined();
+  });
+
+  it("returns 400 for filename without .csv extension", async () => {
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send({ filename: "data.xlsx", content_type: "text/csv" })
+      .expect(400);
+
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 for unsupported content_type", async () => {
+    const res = await request(app)
+      .post("/api/v1/collection/uploads/presign")
+      .send({ filename: "data.csv", content_type: "image/png" })
+      .expect(400);
+
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 });
