@@ -1,20 +1,23 @@
 import "reflect-metadata";
 import { Controller, Post, Get, Route, Tags, Body, Path, Response, SuccessResponse } from "tsoa";
 import { importRequestSchema } from "../validators/importRequest.js";
+import { presignRequestSchema } from "../validators/presignRequest.js";
 import {
   createImportJob,
   CreateImportJobDeps,
 } from "../../application/ingestion/createImportJob.js";
 import { getJobStatus, GetJobStatusDeps } from "../../application/ingestion/getJobStatus.js";
+import { presignUpload, PresignUploadDeps } from "../../application/uploads/presignUpload.js";
 import { ValidationError, NotFoundError } from "../../domain/errors.js";
 import {
   CreateImportBody,
   CreateImportResponse,
   JobStatusResponse,
 } from "../types/collection.types.js";
+import { PresignRequestBody, PresignResponse } from "../types/upload.types.js";
 import { ErrorBody } from "../types/common.types.js";
 
-export interface CollectionControllerDeps extends CreateImportJobDeps, GetJobStatusDeps {}
+export interface CollectionControllerDeps extends CreateImportJobDeps, GetJobStatusDeps, PresignUploadDeps {}
 
 /** @Route("api/v1/collection") is handled by tsoa for Express routing */
 @Route("api/v1/collection")
@@ -49,6 +52,24 @@ export class CollectionController extends Controller {
       connection_id: result.connection_id,
       status_url: result.status_url,
     };
+  }
+
+  /**
+   * Generate a pre-signed S3 PUT URL for uploading a CSV file.
+   * Use the returned s3_uri in POST /collection/imports as source_spec.s3_uris.
+   */
+  @Post("uploads/presign")
+  @SuccessResponse(200, "Pre-signed URL generated")
+  @Response<ErrorBody>(400, "Validation error")
+  public async presignUpload(@Body() body: PresignRequestBody): Promise<PresignResponse> {
+    const parsed = presignRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new ValidationError(
+        "Presign request validation failed",
+        parsed.error.flatten().fieldErrors
+      );
+    }
+    return presignUpload(parsed.data.filename, parsed.data.content_type, this.deps);
   }
 
   /**

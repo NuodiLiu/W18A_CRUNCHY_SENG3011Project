@@ -8,8 +8,10 @@ import { CollectionController, CollectionControllerDeps } from "./controllers/Co
 import { EventsController } from "./controllers/EventsController.js";
 import { PreprocessingController } from "./controllers/PreprocessingController.js";
 import { HealthController } from "./controllers/HealthController.js";
+import { FileUploadService } from "../domain/ports/fileUploadService.js";
 
 export type AppDeps = CollectionControllerDeps;
+export type { FileUploadService };
 
 let _deps: AppDeps;
 
