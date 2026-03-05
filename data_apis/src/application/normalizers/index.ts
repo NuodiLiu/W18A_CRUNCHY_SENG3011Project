@@ -3,6 +3,7 @@ import { EventRecord } from "../../domain/models/event.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
 import { UnprocessableError } from "../../domain/errors.js";
 import { normalizeEsgMetrics } from "./normalizeEsgMetrics.js";
+import { normalizeHousingSales } from "./normalizeHousingSales.js";
 
 export type NormalizeFn = (
   records: RawRecord[],
@@ -10,15 +11,16 @@ export type NormalizeFn = (
   runTimestamp: string,
 ) => EventRecord[];
 
+// keyed by mapping_profile so the same connector can serve multiple dataset types
 const registry: Record<string, NormalizeFn> = {
-  esg_csv_batch: normalizeEsgMetrics,
+  esg_v1: normalizeEsgMetrics,
+  housing_v1: normalizeHousingSales,
 };
 
-// returns the normalizer for a given connector type
-export function getNormalizer(connectorType: string): NormalizeFn {
-  const fn = registry[connectorType];
+export function getNormalizer(mappingProfile: string): NormalizeFn {
+  const fn = registry[mappingProfile];
   if (!fn) {
-    throw new UnprocessableError(`no normalizer registered for connector type: ${connectorType}`);
+    throw new UnprocessableError(`no normalizer registered for mapping profile: ${mappingProfile}`);
   }
   return fn;
 }
