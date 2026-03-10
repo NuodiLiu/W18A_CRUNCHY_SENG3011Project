@@ -46,8 +46,6 @@ export interface JobStatusResponse {
   connection_id: string;
   /** Current lifecycle state: PENDING | RUNNING | DONE | FAILED */
   status: string;
-  /** S3 URI reference to the stored job config. */
-  config_ref: string;
   /** Dataset ID written to the data lake (populated on success). */
   dataset_id?: string;
   /** Failure reason (populated on failure). */

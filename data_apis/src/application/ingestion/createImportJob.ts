@@ -5,7 +5,15 @@ import { JobConfig, SourceSpec } from "../../domain/models/jobConfig.js";
 import { JobRepository } from "../../domain/ports/jobRepository.js";
 import { ConfigStore } from "../../domain/ports/configStore.js";
 import { QueueService } from "../../domain/ports/queueService.js";
-import { ImportRequestBody } from "../../http/validators/importRequest.js";
+
+export interface CreateImportJobCommand {
+  connector_type: string;
+  source_spec: SourceSpec;
+  mapping_profile: string;
+  data_source: string;
+  dataset_type: string;
+  ingestion_mode: "incremental" | "full_refresh";
+}
 
 export interface CreateImportJobDeps {
   jobRepo: JobRepository;
@@ -49,28 +57,28 @@ function computeConnectionId(
 }
 
 export async function createImportJob(
-  body: ImportRequestBody,
+  cmd: CreateImportJobCommand,
   deps: CreateImportJobDeps
 ): Promise<CreateImportJobResult> {
   const jobId = uuidv4();
-  const canonicalSpec = canonicalizeSourceSpec(body.source_spec as SourceSpec);
+  const canonicalSpec = canonicalizeSourceSpec(cmd.source_spec);
   const connectionId = computeConnectionId(
-    body.connector_type,
+    cmd.connector_type,
     canonicalSpec,
-    body.mapping_profile,
-    body.dataset_type
+    cmd.mapping_profile,
+    cmd.dataset_type
   );
 
   const jobConfig: JobConfig = {
     job_id: jobId,
     connection_id: connectionId,
-    connector_type: body.connector_type,
+    connector_type: cmd.connector_type,
     source_spec: canonicalSpec,
-    mapping_profile: body.mapping_profile,
-    data_source: body.data_source,
-    dataset_type: body.dataset_type,
+    mapping_profile: cmd.mapping_profile,
+    data_source: cmd.data_source,
+    dataset_type: cmd.dataset_type,
     timezone: canonicalSpec.timezone,
-    ingestion_mode: body.ingestion_mode,
+    ingestion_mode: cmd.ingestion_mode,
   };
 
   const configRef = await deps.configStore.putConfig(
