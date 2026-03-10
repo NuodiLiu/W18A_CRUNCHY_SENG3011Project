@@ -41,7 +41,7 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
     );
 
     const runTimestamp = new Date().toISOString();
-    const normalize = getNormalizer(config.connector_type);
+    const normalize = getNormalizer(config.mapping_profile);
     const events = normalize(records, config, runTimestamp);
 
     const datasetId = uuidv4();

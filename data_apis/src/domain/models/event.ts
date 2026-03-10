@@ -24,10 +24,31 @@ export interface EsgMetricAttribute {
   metric_period: string | null;
 }
 
-export interface EventRecord {
+export interface HousingSaleAttribute {
+  property_id: string;
+  dealing_number: number | null;
+  unit_number: string;
+  street_number: string;
+  street_name: string;
+  suburb: string;
+  postcode: number | null;
+  purchase_price: number;
+  legal_description: string;
+  area: number | null;
+  area_type: string;
+  contract_date: string;
+  settlement_date: string;
+  district_code: number;
+  zoning: string;
+  nature_of_property: string;
+  primary_purpose: string;
+}
+
+// generic over attribute shape; defaults to open object for runtime flexibility
+export interface EventRecord<T = Record<string, unknown>> {
   time_object: TimeObject;
   event_type: string;
-  attribute: EsgMetricAttribute;
+  attribute: T;
 }
 
 export interface EventDataset {
