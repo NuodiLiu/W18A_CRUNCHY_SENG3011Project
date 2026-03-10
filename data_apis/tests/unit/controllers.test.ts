@@ -36,6 +36,8 @@ function buildApp(overrides: Record<string, unknown> = {}) {
     },
     fileUploadService: {
       presignPut: jest.fn().mockResolvedValue(fakePresignResult),
+      initMultipart: jest.fn(),
+      completeMultipart: jest.fn(),
     },
     ...overrides,
   };
@@ -241,6 +243,8 @@ describe("POST /api/v1/collection/uploads/presign", () => {
     const { app } = buildApp({
       fileUploadService: {
         presignPut: jest.fn().mockRejectedValue(new Error("S3 error")),
+        initMultipart: jest.fn(),
+        completeMultipart: jest.fn(),
       },
     });
     await request(app)

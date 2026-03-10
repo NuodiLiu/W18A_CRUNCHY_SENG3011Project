@@ -9,6 +9,8 @@ function makeService(overrides: Partial<PresignResult> = {}): FileUploadService 
       expires_in: 900,
       ...overrides,
     }),
+    initMultipart: jest.fn(),
+    completeMultipart: jest.fn(),
   };
 }
 
@@ -39,6 +41,8 @@ describe("presignUpload", () => {
   it("propagates errors from the service", async () => {
     const svc: FileUploadService = {
       presignPut: jest.fn().mockRejectedValue(new Error("S3 unavailable")),
+      initMultipart: jest.fn(),
+      completeMultipart: jest.fn(),
     };
 
     await expect(
