@@ -3,16 +3,18 @@ import { createApp } from "./http/app.js";
 import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { S3ConfigStore } from "./infra/aws/s3ConfigStore.js";
 import { SQSQueueService } from "./infra/aws/sqsQueueService.js";
+import { S3PresignService } from "./infra/aws/s3PresignService.js";
 
 const config = loadConfig();
 
-// Wire infrastructure adapters
+// wire infrastructure adapters
 const jobRepo = new DynamoJobRepository(config);
 const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
+const fileUploadService = new S3PresignService(config);
 
-// Build Express app with dependencies injected
-const app = createApp({ jobRepo, configStore, queue });
+// build Express app with dependencies injected
+const app = createApp({ jobRepo, configStore, queue, fileUploadService });
 
 app.listen(config.port, () => {
   console.log(`[API] listening on :${config.port}`);

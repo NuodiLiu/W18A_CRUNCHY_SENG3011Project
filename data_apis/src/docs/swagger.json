@@ -537,6 +537,184 @@
 				"type": "object",
 				"additionalProperties": true
 			},
+			"PresignResponse": {
+				"properties": {
+					"upload_url": {
+						"type": "string",
+						"description": "pre-signed S3 PUT URL valid for expires_in seconds"
+					},
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri to pass to POST /collection/imports as source_spec.s3_uris"
+					},
+					"expires_in": {
+						"type": "number",
+						"format": "double",
+						"description": "seconds until upload_url expires"
+					}
+				},
+				"required": [
+					"upload_url",
+					"s3_uri",
+					"expires_in"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"PresignRequestBody": {
+				"properties": {
+					"filename": {
+						"type": "string",
+						"description": "original filename, must end in .csv"
+					},
+					"content_type": {
+						"type": "string",
+						"description": "MIME type of the file being uploaded"
+					}
+				},
+				"required": [
+					"filename",
+					"content_type"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartPart": {
+				"properties": {
+					"part_number": {
+						"type": "number",
+						"format": "double"
+					},
+					"upload_url": {
+						"type": "string",
+						"description": "pre-signed URL to PUT this specific part"
+					},
+					"byte_range": {
+						"type": "string",
+						"description": "inclusive byte range from the original file, e.g. 0-52428799"
+					}
+				},
+				"required": [
+					"part_number",
+					"upload_url",
+					"byte_range"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartInitResponse": {
+				"properties": {
+					"upload_id": {
+						"type": "string",
+						"description": "S3 multipart upload id, required for the complete step"
+					},
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri to use in collection imports after upload is complete"
+					},
+					"parts": {
+						"items": {
+							"$ref": "#/components/schemas/MultipartPart"
+						},
+						"type": "array",
+						"description": "ordered list of parts with individual pre-signed PUT URLs"
+					},
+					"expires_in": {
+						"type": "number",
+						"format": "double",
+						"description": "seconds until each part upload_url expires"
+					}
+				},
+				"required": [
+					"upload_id",
+					"s3_uri",
+					"parts",
+					"expires_in"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartInitRequestBody": {
+				"properties": {
+					"filename": {
+						"type": "string",
+						"description": "original filename, must end in .csv"
+					},
+					"content_type": {
+						"type": "string",
+						"description": "MIME type of the file being uploaded"
+					},
+					"file_size": {
+						"type": "number",
+						"format": "double",
+						"description": "total file size in bytes, used to calculate part count"
+					}
+				},
+				"required": [
+					"filename",
+					"content_type",
+					"file_size"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartCompleteResponse": {
+				"properties": {
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri of the assembled object, ready to use in collection imports"
+					}
+				},
+				"required": [
+					"s3_uri"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"CompletedPartBody": {
+				"properties": {
+					"part_number": {
+						"type": "number",
+						"format": "double"
+					},
+					"etag": {
+						"type": "string",
+						"description": "ETag value from the response header of each part PUT request"
+					}
+				},
+				"required": [
+					"part_number",
+					"etag"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartCompleteRequestBody": {
+				"properties": {
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri returned by POST uploads/multipart/init"
+					},
+					"upload_id": {
+						"type": "string",
+						"description": "upload id returned by POST uploads/multipart/init"
+					},
+					"parts": {
+						"items": {
+							"$ref": "#/components/schemas/CompletedPartBody"
+						},
+						"type": "array",
+						"description": "etag and number for each uploaded part"
+					}
+				},
+				"required": [
+					"s3_uri",
+					"upload_id",
+					"parts"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
 			"JobStatusResponse": {
 				"properties": {
 					"job_id": {
@@ -1020,6 +1198,135 @@
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/CreateImportBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/uploads/presign": {
+			"post": {
+				"operationId": "PresignUpload",
+				"responses": {
+					"200": {
+						"description": "Pre-signed URL generated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PresignResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate a pre-signed S3 PUT URL for uploading a CSV file.\nUse the returned s3_uri in POST /collection/imports as source_spec.s3_uris.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PresignRequestBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/uploads/multipart/init": {
+			"post": {
+				"operationId": "InitMultipartUpload",
+				"responses": {
+					"200": {
+						"description": "Multipart upload initiated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MultipartInitResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Initiate a multipart upload for files larger than 100 MB.\nReturns an upload_id and a pre-signed PUT URL for each part.\nUpload each part with a PUT request, then call uploads/multipart/complete.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MultipartInitRequestBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/uploads/multipart/complete": {
+			"post": {
+				"operationId": "CompleteMultipartUpload",
+				"responses": {
+					"200": {
+						"description": "Multipart upload completed",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MultipartCompleteResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Complete a multipart upload after all parts have been PUT to S3.\nProvide the etag from each part response header to let S3 assemble the final object.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MultipartCompleteRequestBody"
 							}
 						}
 					}
