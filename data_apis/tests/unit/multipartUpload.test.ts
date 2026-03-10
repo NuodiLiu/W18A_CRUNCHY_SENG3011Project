@@ -3,6 +3,9 @@ import request from "supertest";
 import { createApp } from "../../src/http/app";
 import { JobRecord } from "../../src/domain/models/job";
 
+beforeEach(() => jest.spyOn(console, "error").mockImplementation(() => {}));
+afterEach(() => jest.restoreAllMocks());
+
 const fakeJobRecord: JobRecord = {
   job_id: "j-1",
   connection_id: "c-1",
