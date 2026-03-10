@@ -1,6 +1,7 @@
 import { RawRecord } from "../../domain/ports/connector.js";
 import { EventRecord, HousingSaleAttribute } from "../../domain/models/event.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
+import { v4 as uuidv4 } from "uuid";
 
 function parseNum(val: string | undefined): number | null {
   if (!val || val.trim() === "") return null;
@@ -30,6 +31,7 @@ export const normalizeHousingSales = function normalizeHousingSales(
     const timestamp = rawDate ? `${rawDate}T00:00:00Z` : runTimestamp;
 
     results.push({
+      event_id: uuidv4(),
       time_object: {
         timestamp,
         timezone: config.timezone,
