@@ -250,6 +250,64 @@ const models: TsoaRoute.Models = {
         "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "MultipartPart": {
+        "dataType": "refObject",
+        "properties": {
+            "part_number": {"dataType":"double","required":true},
+            "upload_url": {"dataType":"string","required":true},
+            "byte_range": {"dataType":"string","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "MultipartInitResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "upload_id": {"dataType":"string","required":true},
+            "s3_uri": {"dataType":"string","required":true},
+            "parts": {"dataType":"array","array":{"dataType":"refObject","ref":"MultipartPart"},"required":true},
+            "expires_in": {"dataType":"double","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "MultipartInitRequestBody": {
+        "dataType": "refObject",
+        "properties": {
+            "filename": {"dataType":"string","required":true},
+            "content_type": {"dataType":"string","required":true},
+            "file_size": {"dataType":"double","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "MultipartCompleteResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "s3_uri": {"dataType":"string","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "CompletedPartBody": {
+        "dataType": "refObject",
+        "properties": {
+            "part_number": {"dataType":"double","required":true},
+            "etag": {"dataType":"string","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "MultipartCompleteRequestBody": {
+        "dataType": "refObject",
+        "properties": {
+            "s3_uri": {"dataType":"string","required":true},
+            "upload_id": {"dataType":"string","required":true},
+            "parts": {"dataType":"array","array":{"dataType":"refObject","ref":"CompletedPartBody"},"required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "JobStatusResponse": {
         "dataType": "refObject",
         "properties": {
@@ -625,6 +683,76 @@ export function RegisterRoutes(app: Router) {
 
               await templateService.apiHandler({
                 methodName: 'presignUpload',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCollectionController_initMultipartUpload: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"ref":"MultipartInitRequestBody"},
+        };
+        app.post('/api/v1/collection/uploads/multipart/init',
+            ...(fetchMiddlewares<RequestHandler>(CollectionController)),
+            ...(fetchMiddlewares<RequestHandler>(CollectionController.prototype.initMultipartUpload)),
+
+            async function CollectionController_initMultipartUpload(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCollectionController_initMultipartUpload, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<CollectionController>(CollectionController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'initMultipartUpload',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCollectionController_completeMultipartUpload: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"ref":"MultipartCompleteRequestBody"},
+        };
+        app.post('/api/v1/collection/uploads/multipart/complete',
+            ...(fetchMiddlewares<RequestHandler>(CollectionController)),
+            ...(fetchMiddlewares<RequestHandler>(CollectionController.prototype.completeMultipartUpload)),
+
+            async function CollectionController_completeMultipartUpload(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCollectionController_completeMultipartUpload, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<CollectionController>(CollectionController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'completeMultipartUpload',
                 controller,
                 response,
                 next,
