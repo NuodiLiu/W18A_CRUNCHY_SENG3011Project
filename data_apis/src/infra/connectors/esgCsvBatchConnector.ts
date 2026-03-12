@@ -8,12 +8,14 @@ import { Readable } from "node:stream";
 import {
   Connector,
   RawRecord,
-  FetchResult,
 } from "../../domain/ports/connector.js";
 import { ConnectorState } from "../../domain/models/connectorState.js";
 import { SourceSpec } from "../../domain/models/jobConfig.js";
 import { AppConfig } from "../../config/index.js";
 import { UnprocessableError } from "../../domain/errors.js";
+
+// Number of CSV rows yielded per batch to the caller.
+const BATCH_SIZE = 5_000;
 
 export class EsgCsvBatchConnector implements Connector {
   private readonly s3: S3Client;
@@ -30,8 +32,9 @@ export class EsgCsvBatchConnector implements Connector {
 
   async fetchIncremental(
     sourceSpec: SourceSpec,
-    prevState: ConnectorState | undefined
-  ): Promise<FetchResult> {
+    prevState: ConnectorState | undefined,
+    onBatch: (batch: RawRecord[]) => Promise<void>
+  ): Promise<Partial<ConnectorState>> {
     const objectKeys = await this.resolveObjectKeys(sourceSpec);
 
     // TODO: For incremental mode, filter out objects already processed
@@ -43,29 +46,18 @@ export class EsgCsvBatchConnector implements Connector {
 
     const delimiter = sourceSpec.delimiter ?? ",";
     const hasHeader = sourceSpec.has_header ?? true;
-    const allRecords: RawRecord[] = [];
     let lastKey: string | undefined;
 
     for (const objKey of filteredKeys) {
       const { bucket, key } = this.parseS3Uri(objKey);
-      const rows = await this.readCsv(bucket, key, delimiter, hasHeader);
-
-      for (let i = 0; i < rows.length; i++) {
-        allRecords.push({
-          raw_row: rows[i],
-          source_file: objKey,
-          row_number: i + 1,
-        });
-      }
+      await this.streamBatches(bucket, key, objKey, delimiter, hasHeader, onBatch);
       lastKey = objKey;
     }
 
-    const newState: Partial<ConnectorState> = {
+    return {
       ...(lastKey && { last_processed_object_key: lastKey }),
       updated_at: new Date().toISOString(),
     };
-
-    return { records: allRecords, new_state: newState };
   }
 
   // resolve s3 object keys from s3_uris or s3_prefix
@@ -102,39 +94,49 @@ export class EsgCsvBatchConnector implements Connector {
     throw new UnprocessableError("source_spec must provide either s3_uris or s3_prefix");
   }
 
-  // download and parse a single csv from s3
-  private async readCsv(
+  // streams a single S3 CSV object, calling onBatch every BATCH_SIZE rows.
+  private async streamBatches(
     bucket: string,
     key: string,
+    objKey: string,
     delimiter: string,
-    hasHeader: boolean
-  ): Promise<Record<string, string>[]> {
+    hasHeader: boolean,
+    onBatch: (batch: RawRecord[]) => Promise<void>
+  ): Promise<void> {
     const res = await this.s3.send(
       new GetObjectCommand({ Bucket: bucket, Key: key })
     );
 
     const stream = res.Body as Readable;
-    const rows: Record<string, string>[] = [];
-
-    return new Promise((resolve, reject) => {
-      const parser = csvParse({
-        delimiter,
-        columns: hasHeader
-          ? true
-          : (header: string[]) =>
-              header.map((_: string, i: number) => `col_${i}`),
-        skip_empty_lines: true,
-        relax_column_count: true,
-      });
-
-      stream.pipe(parser);
-
-      parser.on("data", (record: Record<string, string>) => {
-        rows.push(record);
-      });
-      parser.on("end", () => resolve(rows));
-      parser.on("error", (err: Error) => reject(err));
+    const parser = csvParse({
+      delimiter,
+      columns: hasHeader
+        ? true
+        : (header: string[]) =>
+            header.map((_: string, i: number) => `col_${i}`),
+      skip_empty_lines: true,
+      relax_column_count: true,
     });
+
+    stream.pipe(parser);
+
+    let batch: RawRecord[] = [];
+    let rowNumber = 0;
+
+    for await (const record of parser as AsyncIterable<Record<string, string>>) {
+      rowNumber++;
+      batch.push({ raw_row: record, source_file: objKey, row_number: rowNumber });
+
+      if (batch.length >= BATCH_SIZE) {
+        await onBatch(batch);
+        batch = [];
+      }
+    }
+
+    // flush any remaining rows that didn't fill a full batch
+    if (batch.length > 0) {
+      await onBatch(batch);
+    }
   }
 
   private parseS3Uri(uri: string): { bucket: string; key: string } {

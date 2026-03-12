@@ -1,15 +1,13 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { EventDataset, EventRecord } from "../../domain/models/event.js";
-import { DataLakeWriter } from "../../domain/ports/dataLakeWriter.js";
+import { EventRecord } from "../../domain/models/event.js";
+import { DataLakeWriter, DatasetMetadata } from "../../domain/ports/dataLakeWriter.js";
 import { AppConfig } from "../../config/index.js";
-
-const SEGMENT_MAX_EVENTS = 10_000;
 
 interface ManifestJson {
   dataset_id: string;
   data_source: string;
   dataset_type: string;
-  time_object: EventDataset["time_object"];
+  time_object: DatasetMetadata["time_object"];
   total_events: number;
   segments: string[];
   created_at: string;
@@ -18,6 +16,10 @@ interface ManifestJson {
 export class S3DataLakeWriter implements DataLakeWriter {
   private readonly s3: S3Client;
   private readonly bucket: string;
+
+  // Per-dataset state kept across writeChunk() calls until finalise()
+  private readonly segmentKeys = new Map<string, string[]>();
+  private readonly segmentCounters = new Map<string, number>();
 
   constructor(config: AppConfig) {
     this.s3 = new S3Client({
@@ -30,41 +32,42 @@ export class S3DataLakeWriter implements DataLakeWriter {
     this.bucket = config.s3DatalakeBucket;
   }
 
-  async writeDataset(
-    dataset: EventDataset,
-    datasetId: string
-  ): Promise<string> {
-    const prefix = `datasets/${datasetId}`;
-    const segmentKeys: string[] = [];
+  async writeChunk(events: EventRecord[], datasetId: string): Promise<void> {
+    const index = this.segmentCounters.get(datasetId) ?? 0;
+    const segKey = `datasets/${datasetId}/segments/part-${String(index + 1).padStart(5, "0")}.jsonl`;
+    const jsonl = events.map((e) => JSON.stringify(e)).join("\n") + "\n";
 
-    // Split events into segments
-    const chunks = this.chunk(dataset.events, SEGMENT_MAX_EVENTS);
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: segKey,
+        Body: jsonl,
+        ContentType: "application/x-ndjson",
+      })
+    );
 
-    for (let i = 0; i < chunks.length; i++) {
-      const segKey = `${prefix}/segments/part-${String(i + 1).padStart(5, "0")}.jsonl`;
-      const jsonl = chunks[i].map((e) => JSON.stringify(e)).join("\n") + "\n";
+    const keys = this.segmentKeys.get(datasetId) ?? [];
+    keys.push(`s3://${this.bucket}/${segKey}`);
+    this.segmentKeys.set(datasetId, keys);
+    this.segmentCounters.set(datasetId, index + 1);
+  }
 
-      await this.s3.send(
-        new PutObjectCommand({
-          Bucket: this.bucket,
-          Key: segKey,
-          Body: jsonl,
-          ContentType: "application/x-ndjson",
-        })
-      );
-      segmentKeys.push(`s3://${this.bucket}/${segKey}`);
-    }
+  async finalise(datasetId: string, metadata: DatasetMetadata): Promise<string> {
+    const segmentKeys = this.segmentKeys.get(datasetId) ?? [];
 
-    // Write manifest
-    const manifestKey = `${prefix}/manifest.json`;
+    // clear per-dataset state
+    this.segmentKeys.delete(datasetId);
+    this.segmentCounters.delete(datasetId);
+
+    const manifestKey = `datasets/${datasetId}/manifest.json`;
     const datasetUri = `s3://${this.bucket}/${manifestKey}`;
 
     const manifest: ManifestJson = {
       dataset_id: datasetUri,
-      data_source: dataset.data_source,
-      dataset_type: dataset.dataset_type,
-      time_object: dataset.time_object,
-      total_events: dataset.events.length,
+      data_source: metadata.data_source,
+      dataset_type: metadata.dataset_type,
+      time_object: metadata.time_object,
+      total_events: metadata.total_events,
       segments: segmentKeys,
       created_at: new Date().toISOString(),
     };
@@ -79,14 +82,5 @@ export class S3DataLakeWriter implements DataLakeWriter {
     );
 
     return datasetUri;
-  }
-
-  private chunk(arr: EventRecord[], size: number): EventRecord[][] {
-    if (arr.length === 0) return [[]];
-    const result: EventRecord[][] = [];
-    for (let i = 0; i < arr.length; i += size) {
-      result.push(arr.slice(i, i + size));
-    }
-    return result;
   }
 }
