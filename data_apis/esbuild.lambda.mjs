@@ -3,11 +3,6 @@
  *
  * Bundles Lambda handlers into single self-contained JS files (CommonJS).
  * Copies non-bundleable static assets (swagger.json, mappings) alongside.
- *
- * Usage:
- *   node esbuild.lambda.mjs
- * or via npm:
- *   npm run build:lambda
  */
 
 import { build } from "esbuild";
