@@ -1,5 +1,5 @@
 import { RawRecord } from "../../domain/ports/connector.js";
-import { EventRecord, HousingSaleAttribute } from "../../domain/models/event.js";
+import { EventRecord } from "../../domain/models/event.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
 import { v4 as uuidv4 } from "uuid";
 

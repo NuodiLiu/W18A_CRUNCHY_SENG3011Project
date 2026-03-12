@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import "reflect-metadata";
 import { Controller, Get, Route, Tags, Path, Query, Response, SuccessResponse } from "tsoa";
 import { NotImplementedError } from "../../domain/errors.js";
