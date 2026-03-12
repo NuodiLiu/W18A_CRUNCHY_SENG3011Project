@@ -177,6 +177,12 @@ if aws sqs get-queue-url \
     --queue-name "$QUEUE_NAME" \
     --region "$REGION" \
     --query QueueUrl --output text)
+  # Ensure visibility timeout is >= Lambda timeout even if queue already existed
+  aws sqs set-queue-attributes \
+    --queue-url "$QUEUE_URL" \
+    --attributes VisibilityTimeout=900 \
+    --region "$REGION"
+  ok "$QUEUE_NAME  visibility timeout ensured = 900 s"
 else
   REDRIVE="{\"deadLetterTargetArn\":\"${DLQ_ARN}\",\"maxReceiveCount\":\"3\"}"
   QUEUE_URL=$(aws sqs create-queue \
@@ -317,7 +323,7 @@ else
     --zip-file "fileb://${TMPZIP}/handler.zip" \
     --timeout 30 \
     --memory-size 512 \
-    --environment "Variables={APP_MODE=api,PORT=3000,AWS_REGION=${REGION},PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV}}" \
+    --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV}}" \
     --description "ESG Data Service — HTTP API (Lambda)" \
     --region "$REGION" \
     --output text > /dev/null
@@ -339,7 +345,7 @@ else
     --zip-file "fileb://${TMPZIP}/handler.zip" \
     --timeout 900 \
     --memory-size 1024 \
-    --environment "Variables={APP_MODE=worker,AWS_REGION=${REGION},PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV}}" \
+    --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV}}" \
     --description "ESG Data Service — SQS Worker (Lambda)" \
     --region "$REGION" \
     --output text > /dev/null
