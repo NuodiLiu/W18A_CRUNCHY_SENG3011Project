@@ -3,7 +3,7 @@
 # ───────────────────────────────────────────────────
 
 .PHONY: help install build clean \
-        up down infra-up infra-init \
+        up down down-clean infra-up infra-init \
         dev-api dev-worker \
         lint typecheck check \
         test test-integration \
@@ -33,7 +33,10 @@ setup: install build ## Install deps + build (first-time setup)
 up: ## Start all containers (infra + api + worker)
 	docker compose up -d --build
 
-down: ## Stop all containers and remove volumes
+down: ## Stop all containers (keep volumes/data)
+	docker compose down
+
+down-clean: ## Stop all containers and remove volumes (full reset)
 	docker compose down -v
 
 infra-up: ## Start only infra (DynamoDB Local + LocalStack)
