@@ -1,6 +1,7 @@
 import { RawRecord } from "../../domain/ports/connector.js";
 import { EventRecord } from "../../domain/models/event.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
+import { randomUUID } from "node:crypto";
 
 // converts raw csv rows into typed esg_metric event records
 export function normalizeEsgMetrics(
@@ -17,6 +18,7 @@ export function normalizeEsgMetrics(
     const permid = (row.PK ?? row.permid ?? "").replace(/^COMP#/, "");
 
     return {
+      event_id: randomUUID(),
       time_object: {
         timestamp,
         duration: 1,

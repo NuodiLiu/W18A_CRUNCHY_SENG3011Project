@@ -46,6 +46,7 @@ export interface HousingSaleAttribute {
 
 // generic over attribute shape; defaults to open object for runtime flexibility
 export interface EventRecord<T = Record<string, unknown>> {
+  event_id: string;
   time_object: TimeObject;
   event_type: string;
   attribute: T;

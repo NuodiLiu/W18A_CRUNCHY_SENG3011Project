@@ -17,6 +17,63 @@ const fakePresignResult = {
   expires_in: 900,
 };
 
+const fakeHousingEvents = [
+  {
+    event_id: "h-1",
+    time_object: {
+      timestamp: "2024-04-10T00:00:00Z",
+      timezone: "UTC",
+    },
+    event_type: "housing_sale",
+    attribute: {
+      property_id: "P001",
+      dealing_number: 1001,
+      unit_number: "2",
+      street_number: "10",
+      street_name: "George St",
+      suburb: "Sydney",
+      postcode: 2000,
+      purchase_price: 1500000,
+      legal_description: "Lot 1 DP123456",
+      area: 120,
+      area_type: "sqm",
+      contract_date: "2024-04-10",
+      settlement_date: "2024-05-01",
+      district_code: 7,
+      zoning: "R1",
+      nature_of_property: "Residential",
+      primary_purpose: "Dwelling",
+    },
+  },
+  {
+    event_id: "h-2",
+    time_object: {
+      timestamp: "2024-04-15T00:00:00Z",
+      timezone: "UTC",
+    },
+    event_type: "housing_sale",
+    attribute: {
+      property_id: "P002",
+      dealing_number: 1002,
+      unit_number: "",
+      street_number: "20",
+      street_name: "King St",
+      suburb: "Parramatta",
+      postcode: 2150,
+      purchase_price: 980000,
+      legal_description: "Lot 2 DP654321",
+      area: 95,
+      area_type: "sqm",
+      contract_date: "2024-04-15",
+      settlement_date: "2024-05-10",
+      district_code: 9,
+      zoning: "R2",
+      nature_of_property: "Residential",
+      primary_purpose: "Investment",
+    },
+  },
+];
+
 function buildApp(overrides: Record<string, unknown> = {}) {
   const deps = {
     jobRepo: {
@@ -38,6 +95,9 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       presignPut: jest.fn().mockResolvedValue(fakePresignResult),
       initMultipart: jest.fn(),
       completeMultipart: jest.fn(),
+    },
+    dataLakeReader: {
+      getAllEvents: jest.fn().mockResolvedValue(fakeHousingEvents),
     },
     ...overrides,
   };
@@ -251,5 +311,118 @@ describe("POST /api/v1/collection/uploads/presign", () => {
       .post("/api/v1/collection/uploads/presign")
       .send(validBody)
       .expect(500);
+  });
+});
+
+describe("GET /api/v1/events/:eventId", () => {
+  it("returns 200 with housing event if it exists", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events/h-1")
+      .expect(200);
+
+    expect(res.body.event_id).toBe("h-1");
+    expect(res.body.event_type).toBe("housing_sale");
+    expect(res.body.attribute.property_id).toBe("P001");
+    expect(res.body.attribute.suburb).toBe("Sydney");
+  });
+
+  it("returns 404 if housing event does not exist", async () => {
+    const { app } = buildApp();
+
+    await request(app)
+      .get("/api/v1/events/missing-id")
+      .expect(404);
+  });
+});
+
+describe("GET /api/v1/events/stats", () => {
+  it("returns total_events and groups", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events/stats")
+      .expect(200);
+
+    expect(res.body.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "housing_sale", count: 2 }),
+      ])
+    );
+  });
+
+  it("group by suburb", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events/stats?group_by=suburb")
+      .expect(200);
+
+    expect(res.body.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "Sydney", count: 1 }),
+        expect.objectContaining({ key: "Parramatta", count: 1 }),
+      ])
+    );
+  });
+
+  it("group by postcode", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events/stats?group_by=postcode")
+      .expect(200);
+
+    expect(res.body.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "2000", count: 1 }),
+        expect.objectContaining({ key: "2150", count: 1 }),
+      ])
+    );
+  });
+
+  it("group by zoning", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events/stats?group_by=zoning")
+      .expect(200);
+
+    expect(res.body.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "R1", count: 1 }),
+        expect.objectContaining({ key: "R2", count: 1 }),
+      ])
+    );
+  });
+
+  it("group by contract year", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events/stats?group_by=contract_year")
+      .expect(200);
+
+    expect(res.body.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "2024", count: 2 }),
+      ])
+    );
+  });
+
+  it("returns empty groups for empty dataset", async () => {
+    const { app } = buildApp({
+      dataLakeReader: {
+        getAllEvents: jest.fn().mockResolvedValue([]),
+      },
+    });
+  
+    const res = await request(app)
+      .get("/api/v1/events/stats")
+      .expect(200);
+  
+    expect(res.body.total_events).toBe(0);
+    expect(res.body.groups).toEqual([]);
   });
 });
