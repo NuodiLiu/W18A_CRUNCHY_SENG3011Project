@@ -26,6 +26,17 @@ import {
   MultipartCompleteResponse,
 } from "../types/upload.types.js";
 import { ErrorBody } from "../types/common.types.js";
+import {
+  toCreateImportJobCommand,
+  toCreateImportResponse,
+  toJobStatusResponse,
+} from "../mappers/jobMapper.js";
+import {
+  toCompletedParts,
+  toMultipartCompleteResponse,
+  toPresignResponse,
+  toMultipartInitResponse,
+} from "../mappers/uploadMapper.js";
 
 export interface CollectionControllerDeps extends CreateImportJobDeps, GetJobStatusDeps, PresignUploadDeps, MultipartInitDeps, MultipartCompleteDeps {}
 
@@ -55,13 +66,9 @@ export class CollectionController extends Controller {
       );
     }
 
-    const result = await createImportJob(parsed.data, this.deps);
+    const result = await createImportJob(toCreateImportJobCommand(parsed.data), this.deps);
     this.setStatus(202);
-    return {
-      job_id: result.job_id,
-      connection_id: result.connection_id,
-      status_url: result.status_url,
-    };
+    return toCreateImportResponse(result);
   }
 
   /**
@@ -79,7 +86,8 @@ export class CollectionController extends Controller {
         parsed.error.flatten().fieldErrors
       );
     }
-    return presignUpload(parsed.data.filename, parsed.data.content_type, this.deps);
+    const presignResult = await presignUpload(parsed.data.filename, parsed.data.content_type, this.deps);
+    return toPresignResponse(presignResult);
   }
 
   /**
@@ -98,7 +106,8 @@ export class CollectionController extends Controller {
         parsed.error.flatten().fieldErrors
       );
     }
-    return initMultipartUpload(parsed.data.filename, parsed.data.content_type, parsed.data.file_size, this.deps);
+    const initResult = await initMultipartUpload(parsed.data.filename, parsed.data.content_type, parsed.data.file_size, this.deps);
+    return toMultipartInitResponse(initResult);
   }
 
   /**
@@ -116,7 +125,13 @@ export class CollectionController extends Controller {
         parsed.error.flatten().fieldErrors
       );
     }
-    return completeMultipartUpload(parsed.data.s3_uri, parsed.data.upload_id, parsed.data.parts, this.deps);
+    const completeResult = await completeMultipartUpload(
+      parsed.data.s3_uri,
+      parsed.data.upload_id,
+      toCompletedParts(parsed.data.parts),
+      this.deps
+    );
+    return toMultipartCompleteResponse(completeResult);
   }
 
   /**
@@ -130,6 +145,6 @@ export class CollectionController extends Controller {
     if (!result) {
       throw new NotFoundError("Job", jobId);
     }
-    return result;
+    return toJobStatusResponse(result);
   }
 }
