@@ -1,0 +1,24 @@
+{
+  "profile_name": "housing_v1",
+  "version": "1.0.0",
+  "description": "NSW Valuer General property sales data.",
+  "field_map": {
+    "property_id":       "property_id",
+    "dealing_number":    "dealing_number",
+    "unit_number":       "unit_number",
+    "street_number":     "street_number",
+    "street_name":       "street_name",
+    "suburb":            "suburb",
+    "postcode":          "postcode",
+    "purchase_price":    "purchase_price",
+    "legal_description": "legal_description",
+    "area":              "area",
+    "area_type":         "area_type",
+    "contract_date":     "contract_date",
+    "settlement_date":   "settlement_date",
+    "district_code":     "district_code",
+    "zoning":            "zoning",
+    "nature_of_property":"nature_of_property",
+    "primary_purpose":   "primary_purpose"
+  }
+}
