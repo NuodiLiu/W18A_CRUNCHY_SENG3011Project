@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import "reflect-metadata";
 import { Controller, Get, Route, Tags, Path, Query, Response, SuccessResponse } from "tsoa";
-import { NotImplementedError } from "../../domain/errors.js";
+import { NotImplementedError, NotFoundError } from "../../domain/errors.js";
 import {
   EventDatasetResponse,
   EventTypesResponse,
@@ -63,7 +63,6 @@ export class EventsController extends Controller {
    */
   @Get("stats")
   @SuccessResponse(200, "Aggregated statistics")
-  @Response<ErrorBody>(501, "Not yet implemented")
   public async getEventStats(
     /** Dimension to group by: pillar | company_name | metric_year | industry */
     @Query() group_by?: string
@@ -78,15 +77,13 @@ export class EventsController extends Controller {
   @Get("{eventId}")
   @SuccessResponse(200, "A single ESG metric event record")
   @Response<ErrorBody>(404, "Event not found")
-  @Response<ErrorBody>(501, "Not yet implemented")
   public async getEventById(
     @Path() eventId: string
   ): Promise<EventRecordResponse> {
     const event = await getEventById(eventId, this.deps);
 
     if (!event) {
-      this.setStatus(404);
-      throw new Error(`Event not found: ${eventId}`);
+      throw new NotFoundError("Event", eventId);
     }
 
     return event as EventRecordResponse;

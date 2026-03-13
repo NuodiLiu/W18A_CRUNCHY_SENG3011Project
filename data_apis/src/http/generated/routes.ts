@@ -303,7 +303,6 @@ const models: TsoaRoute.Models = {
             "job_id": {"dataType":"string","required":true},
             "connection_id": {"dataType":"string","required":true},
             "status": {"dataType":"string","required":true},
-            "config_ref": {"dataType":"string","required":true},
             "dataset_id": {"dataType":"string"},
             "error": {"dataType":"string"},
             "created_at": {"dataType":"string","required":true},
