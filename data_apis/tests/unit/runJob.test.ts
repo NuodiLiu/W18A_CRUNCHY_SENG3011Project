@@ -1,7 +1,7 @@
 import { runJob, RunJobDeps } from "../../src/application/worker/runJob";
 import { JobRecord } from "../../src/domain/models/job";
 import { JobConfig } from "../../src/domain/models/jobConfig";
-import { RawRecord, FetchResult } from "../../src/domain/ports/connector";
+import { RawRecord } from "../../src/domain/ports/connector";
 
 // --- helpers ---
 
@@ -73,13 +73,16 @@ function makeDeps(overrides: Partial<RunJobDeps> = {}): RunJobDeps {
       saveState: jest.fn(),
     },
     dataLakeWriter: {
-      writeDataset: jest.fn().mockResolvedValue("s3://datalake/datasets/ds-1/manifest.json"),
+      writeChunk: jest.fn().mockResolvedValue(undefined),
+      finalise: jest.fn().mockResolvedValue("s3://datalake/datasets/ds-1/manifest.json"),
     },
     connectorFactory: jest.fn().mockReturnValue({
-      fetchIncremental: jest.fn().mockResolvedValue({
-        records: fakeRawRecords,
-        new_state: { updated_at: "2026-01-01T00:00:00Z" },
-      } as FetchResult),
+      fetchIncremental: jest.fn().mockImplementation(
+        async (_spec: unknown, _state: unknown, onBatch: (b: RawRecord[]) => Promise<void>) => {
+          await onBatch(fakeRawRecords);
+          return { updated_at: "2026-01-01T00:00:00Z" };
+        },
+      ),
     }),
     ...overrides,
   };
@@ -114,15 +117,15 @@ describe("runJob", () => {
     // fetch data
     expect(deps.connectorFactory).toHaveBeenCalledWith("esg_csv_batch");
     // write dataset
-    expect(deps.dataLakeWriter.writeDataset).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data_source: "clarity_ai",
-        dataset_type: "esg_metrics",
-        events: expect.arrayContaining([
-          expect.objectContaining({ event_type: "esg_metric" }),
-        ]),
-      }),
+    expect(deps.dataLakeWriter.writeChunk).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ event_type: "esg_metric" }),
+      ]),
       expect.any(String),
+    );
+    expect(deps.dataLakeWriter.finalise).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ data_source: "clarity_ai", dataset_type: "esg_metrics" }),
     );
     // mark done
     expect(deps.jobRepo.updateStatus).toHaveBeenCalledWith(JOB_ID, "DONE", {
@@ -135,7 +138,7 @@ describe("runJob", () => {
     const deps = makeDeps({
       connectorFactory: jest.fn().mockReturnValue({
         fetchIncremental: jest.fn().mockRejectedValue(error),
-      }),
+      } as unknown as ReturnType<RunJobDeps["connectorFactory"]>),
     });
 
     await expect(runJob(JOB_ID, deps)).rejects.toThrow("S3 access denied");
@@ -148,7 +151,8 @@ describe("runJob", () => {
   it("marks job FAILED when dataLakeWriter throws", async () => {
     const deps = makeDeps({
       dataLakeWriter: {
-        writeDataset: jest.fn().mockRejectedValue(new Error("write failed")),
+        writeChunk: jest.fn().mockRejectedValue(new Error("write failed")),
+        finalise: jest.fn().mockResolvedValue("s3://datalake/datasets/ds-1/manifest.json"),
       },
     });
 
@@ -189,11 +193,11 @@ describe("runJob", () => {
     const deps = makeDeps();
     await runJob(JOB_ID, deps);
 
-    const writeCall = (deps.dataLakeWriter.writeDataset as jest.Mock).mock.calls[0];
-    const dataset = writeCall[0];
-    expect(dataset.events).toHaveLength(1);
-    expect(dataset.events[0].event_type).toBe("esg_metric");
-    expect(dataset.events[0].attribute.permid).toBe("111");
-    expect(dataset.events[0].attribute.metric_value).toBe(100);
+    const writeChunkCall = (deps.dataLakeWriter.writeChunk as jest.Mock).mock.calls[0];
+    const events = writeChunkCall[0];
+    expect(events).toHaveLength(1);
+    expect(events[0].event_type).toBe("esg_metric");
+    expect(events[0].attribute.permid).toBe("111");
+    expect(events[0].attribute.metric_value).toBe(100);
   });
 });

@@ -8,14 +8,14 @@ export interface RawRecord {
   row_number: number;
 }
 
-export interface FetchResult {
-  records: RawRecord[];
-  new_state: Partial<ConnectorState>;
-}
-
 export interface Connector {
+  /**
+   * Streams records from the source in batches, calling `onBatch` for each.
+   * Returns the new connector state after all records are processed.
+   */
   fetchIncremental(
     sourceSpec: SourceSpec,
-    prevState: ConnectorState | undefined
-  ): Promise<FetchResult>;
+    prevState: ConnectorState | undefined,
+    onBatch: (batch: RawRecord[]) => Promise<void>
+  ): Promise<Partial<ConnectorState>>;
 }

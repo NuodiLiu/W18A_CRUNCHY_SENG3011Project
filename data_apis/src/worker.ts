@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { loadConfig } from "./config/index.js";
 import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { DynamoStateStore } from "./infra/aws/dynamoStateStore.js";

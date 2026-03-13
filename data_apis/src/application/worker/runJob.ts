@@ -5,7 +5,6 @@ import { StateStore } from "../../domain/ports/stateStore.js";
 import { DataLakeWriter } from "../../domain/ports/dataLakeWriter.js";
 import { Connector } from "../../domain/ports/connector.js";
 import { ConnectorState } from "../../domain/models/connectorState.js";
-import { EventDataset } from "../../domain/models/event.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
 import { getNormalizer } from "../normalizers/index.js";
 
@@ -17,7 +16,7 @@ export interface RunJobDeps {
   connectorFactory: (connectorType: string) => Connector;
 }
 
-const LEASE_DURATION_MS = 5 * 60 * 1000; // 5 min
+const LEASE_DURATION_MS = 10 * 60 * 1000; // 10 min — covers up to ~2 min of 1 GB CSV processing
 
 // orchestrates a single import job end-to-end
 export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
@@ -35,31 +34,35 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
       : undefined;
 
     const connector = deps.connectorFactory(config.connector_type);
-    const { records, new_state } = await connector.fetchIncremental(
-      config.source_spec,
-      prevState,
-    );
-
+    const datasetId = uuidv4();
     const runTimestamp = new Date().toISOString();
     const normalize = getNormalizer(config.mapping_profile);
-    const events = normalize(records, config, runTimestamp);
+    let totalEvents = 0;
 
-    const datasetId = uuidv4();
-    const dataset: EventDataset = {
+    // Stream records in batches: fetch → normalize → write one segment at a time.
+    // Peak memory ≈ one batch of rows, not the full dataset.
+    const newState = await connector.fetchIncremental(
+      config.source_spec,
+      prevState,
+      async (batch) => {
+        const events = normalize(batch, config, runTimestamp);
+        await deps.dataLakeWriter.writeChunk(events, datasetId);
+        totalEvents += events.length;
+      },
+    );
+
+    const datasetUri = await deps.dataLakeWriter.finalise(datasetId, {
       data_source: config.data_source,
       dataset_type: config.dataset_type,
-      dataset_id: "", // filled by writer
       time_object: { timestamp: runTimestamp, timezone: config.timezone },
-      events,
-    };
-
-    const datasetUri = await deps.dataLakeWriter.writeDataset(dataset, datasetId);
+      total_events: totalEvents,
+    });
 
     // persist new connector state
     if (config.ingestion_mode === "incremental") {
       await deps.stateStore.saveState({
         connection_id: config.connection_id,
-        ...new_state,
+        ...newState,
         updated_at: new Date().toISOString(),
       } as ConnectorState);
     }
