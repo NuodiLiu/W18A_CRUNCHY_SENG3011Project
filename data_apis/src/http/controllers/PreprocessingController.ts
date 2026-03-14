@@ -9,6 +9,7 @@ import {
   PipelinesResponse,
 } from "../types/preprocessing.types.js";
 import { ErrorBody } from "../types/common.types.js";
+import { getPipelines } from "../../application/preprocessing/getPipelines.js";
 
 @Route("api/v1/preprocessing")
 @Tags("Preprocessing")
@@ -48,8 +49,7 @@ export class PreprocessingController extends Controller {
    */
   @Get("pipelines")
   @SuccessResponse(200, "List of available pipeline templates")
-  @Response<ErrorBody>(501, "Not yet implemented")
   public async getPipelines(): Promise<PipelinesResponse> {
-    throw new NotImplementedError("GET /api/v1/preprocessing/pipelines");
+    return { pipelines: getPipelines() };
   }
 }
