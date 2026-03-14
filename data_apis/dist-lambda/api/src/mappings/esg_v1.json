@@ -1,7 +1,0 @@
-{
-  "_comment": "Placeholder mapping profile for ESG v1. Real field mapping is NOT implemented this sprint.",
-  "profile_name": "esg_v1",
-  "version": "1.0.0",
-  "description": "Maps raw CSV columns to ESG event attributes. Currently uses raw_row passthrough.",
-  "field_map": {}
-}
