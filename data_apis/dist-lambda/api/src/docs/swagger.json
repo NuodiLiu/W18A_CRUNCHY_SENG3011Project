@@ -1,0 +1,1327 @@
+{
+	"openapi": "3.0.0",
+	"components": {
+		"examples": {},
+		"headers": {},
+		"parameters": {},
+		"requestBodies": {},
+		"responses": {},
+		"schemas": {
+			"PreprocessJobAccepted": {
+				"properties": {
+					"job_id": {
+						"type": "string"
+					},
+					"status_url": {
+						"type": "string",
+						"description": "URL to poll for job status."
+					}
+				},
+				"required": [
+					"job_id",
+					"status_url"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"ErrorBody": {
+				"description": "Standard error response body returned by the error handler middleware.",
+				"properties": {
+					"error": {
+						"properties": {
+							"details": {},
+							"message": {
+								"type": "string"
+							},
+							"code": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"message",
+							"code"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"error"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"Record_string.unknown_": {
+				"properties": {},
+				"additionalProperties": {},
+				"type": "object",
+				"description": "Construct a type with a set of properties K of type T"
+			},
+			"PreprocessJobRequest": {
+				"properties": {
+					"input_s3_uri": {
+						"type": "string",
+						"description": "S3 URI of the raw input file or prefix to preprocess."
+					},
+					"pipeline": {
+						"type": "string",
+						"description": "Name of the built-in pipeline template to apply (e.g. \"esg_clean_v1\")."
+					},
+					"params": {
+						"$ref": "#/components/schemas/Record_string.unknown_",
+						"description": "Optional pipeline-specific parameters."
+					},
+					"idempotency_key": {
+						"type": "string",
+						"description": "Optional idempotency key — re-submitting the same key returns the existing job."
+					}
+				},
+				"required": [
+					"input_s3_uri",
+					"pipeline"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"PreprocessJobStatusValue": {
+				"type": "string",
+				"enum": [
+					"pending",
+					"running",
+					"succeeded",
+					"failed"
+				]
+			},
+			"PreprocessJobStatusResponse": {
+				"properties": {
+					"job_id": {
+						"type": "string"
+					},
+					"status": {
+						"$ref": "#/components/schemas/PreprocessJobStatusValue"
+					},
+					"pipeline": {
+						"type": "string"
+					},
+					"input_s3_uri": {
+						"type": "string"
+					},
+					"output_s3_uri": {
+						"type": "string",
+						"nullable": true,
+						"description": "S3 URI of the cleaned output file (populated on success)."
+					},
+					"manifest_uri": {
+						"type": "string",
+						"nullable": true,
+						"description": "S3 URI of the job manifest JSON (populated on success)."
+					},
+					"quality_report_uri": {
+						"type": "string",
+						"nullable": true,
+						"description": "S3 URI of the data quality report (populated on success)."
+					},
+					"error": {
+						"type": "string",
+						"nullable": true,
+						"description": "Failure reason (populated on failure)."
+					},
+					"created_at": {
+						"type": "string"
+					},
+					"updated_at": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"job_id",
+					"status",
+					"pipeline",
+					"input_s3_uri",
+					"output_s3_uri",
+					"manifest_uri",
+					"quality_report_uri",
+					"error",
+					"created_at",
+					"updated_at"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"PipelineParamsSchema": {
+				"properties": {},
+				"type": "object",
+				"additionalProperties": {}
+			},
+			"PipelineTemplate": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string",
+						"enum": [
+							"general",
+							"time_series",
+							"text",
+							"esg"
+						],
+						"description": "Pipeline category: general | time_series | text | esg"
+					},
+					"params_schema": {
+						"$ref": "#/components/schemas/PipelineParamsSchema",
+						"description": "JSON Schema describing accepted params for this pipeline."
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"description",
+					"category",
+					"params_schema"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"PipelinesResponse": {
+				"properties": {
+					"pipelines": {
+						"items": {
+							"$ref": "#/components/schemas/PipelineTemplate"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"pipelines"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"HealthResponse": {
+				"properties": {
+					"status": {
+						"type": "string"
+					},
+					"version": {
+						"type": "string"
+					},
+					"timestamp": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"status",
+					"version",
+					"timestamp"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"TimeObjectResponse": {
+				"properties": {
+					"timestamp": {
+						"type": "string"
+					},
+					"timezone": {
+						"type": "string"
+					},
+					"duration": {
+						"type": "number",
+						"format": "double"
+					},
+					"duration_unit": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"timestamp",
+					"timezone"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"EventRecordResponse_Record_string.unknown__": {
+				"properties": {
+					"event_id": {
+						"type": "string"
+					},
+					"time_object": {
+						"$ref": "#/components/schemas/TimeObjectResponse"
+					},
+					"event_type": {
+						"type": "string"
+					},
+					"attribute": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"event_id",
+					"time_object",
+					"event_type",
+					"attribute"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"EventDatasetResponse": {
+				"properties": {
+					"data_source": {
+						"type": "string"
+					},
+					"dataset_type": {
+						"type": "string"
+					},
+					"dataset_id": {
+						"type": "string"
+					},
+					"time_object": {
+						"$ref": "#/components/schemas/TimeObjectResponse"
+					},
+					"events": {
+						"items": {
+							"$ref": "#/components/schemas/EventRecordResponse_Record_string.unknown__"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"data_source",
+					"dataset_type",
+					"dataset_id",
+					"time_object",
+					"events"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"EventTypesResponse": {
+				"properties": {
+					"event_types": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"event_types"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"EventStatGroup": {
+				"properties": {
+					"key": {
+						"type": "string"
+					},
+					"count": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"key",
+					"count"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"EventStatsResponse": {
+				"properties": {
+					"total_events": {
+						"type": "number",
+						"format": "double"
+					},
+					"groups": {
+						"items": {
+							"$ref": "#/components/schemas/EventStatGroup"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"total_events",
+					"groups"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"EventRecordResponse": {
+				"properties": {
+					"event_id": {
+						"type": "string"
+					},
+					"time_object": {
+						"$ref": "#/components/schemas/TimeObjectResponse"
+					},
+					"event_type": {
+						"type": "string"
+					},
+					"attribute": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"event_id",
+					"time_object",
+					"event_type",
+					"attribute"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"CreateImportResponse": {
+				"properties": {
+					"job_id": {
+						"type": "string",
+						"description": "UUID of the created import job."
+					},
+					"connection_id": {
+						"type": "string",
+						"description": "Deterministic SHA-256 hash identifying the connection (source config)."
+					},
+					"status_url": {
+						"type": "string",
+						"description": "URL to poll for job status."
+					}
+				},
+				"required": [
+					"job_id",
+					"connection_id",
+					"status_url"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"SourceSpecBody": {
+				"properties": {
+					"s3_uris": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "One or more S3 URIs pointing to the CSV files to import. Required if s3_prefix is not provided."
+					},
+					"s3_prefix": {
+						"type": "string",
+						"description": "S3 URI prefix to scan recursively for CSV files. Required if s3_uris is not provided."
+					},
+					"delimiter": {
+						"type": "string",
+						"description": "Column delimiter character. Defaults to comma."
+					},
+					"has_header": {
+						"type": "boolean",
+						"description": "Whether the CSV file has a header row. Defaults to true."
+					},
+					"timezone": {
+						"type": "string",
+						"description": "IANA timezone string for timestamps in the source file (e.g. \"UTC\", \"Australia/Sydney\")."
+					},
+					"time_column": {
+						"type": "string",
+						"description": "Name of the column to use as the event timestamp."
+					}
+				},
+				"required": [
+					"timezone"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"CreateImportBody": {
+				"properties": {
+					"connector_type": {
+						"type": "string",
+						"enum": [
+							"esg_csv_batch"
+						],
+						"nullable": false,
+						"description": "Must be \"esg_csv_batch\" for this connector."
+					},
+					"source_spec": {
+						"$ref": "#/components/schemas/SourceSpecBody"
+					},
+					"mapping_profile": {
+						"type": "string",
+						"description": "Mapping profile name to apply during normalisation (e.g. \"esg_v1\")."
+					},
+					"data_source": {
+						"type": "string",
+						"description": "Human-readable data source label (e.g. \"Refinitiv\")."
+					},
+					"dataset_type": {
+						"type": "string",
+						"description": "Dataset type tag (e.g. \"ESG\")."
+					},
+					"ingestion_mode": {
+						"type": "string",
+						"enum": [
+							"incremental",
+							"full_refresh"
+						],
+						"description": "\"incremental\" only processes new/updated rows; \"full_refresh\" replaces the dataset."
+					},
+					"idempotency_key": {
+						"type": "string",
+						"description": "Optional idempotency key — re-submitting the same key returns the original job."
+					}
+				},
+				"required": [
+					"connector_type",
+					"source_spec",
+					"mapping_profile",
+					"data_source",
+					"dataset_type",
+					"ingestion_mode"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"PresignResponse": {
+				"properties": {
+					"upload_url": {
+						"type": "string",
+						"description": "pre-signed S3 PUT URL valid for expires_in seconds"
+					},
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri to pass to POST /collection/imports as source_spec.s3_uris"
+					},
+					"expires_in": {
+						"type": "number",
+						"format": "double",
+						"description": "seconds until upload_url expires"
+					}
+				},
+				"required": [
+					"upload_url",
+					"s3_uri",
+					"expires_in"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"PresignRequestBody": {
+				"properties": {
+					"filename": {
+						"type": "string",
+						"description": "original filename, must end in .csv"
+					},
+					"content_type": {
+						"type": "string",
+						"description": "MIME type of the file being uploaded"
+					}
+				},
+				"required": [
+					"filename",
+					"content_type"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartPart": {
+				"properties": {
+					"part_number": {
+						"type": "number",
+						"format": "double"
+					},
+					"upload_url": {
+						"type": "string",
+						"description": "pre-signed URL to PUT this specific part"
+					},
+					"byte_range": {
+						"type": "string",
+						"description": "inclusive byte range from the original file, e.g. 0-52428799"
+					}
+				},
+				"required": [
+					"part_number",
+					"upload_url",
+					"byte_range"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartInitResponse": {
+				"properties": {
+					"upload_id": {
+						"type": "string",
+						"description": "S3 multipart upload id, required for the complete step"
+					},
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri to use in collection imports after upload is complete"
+					},
+					"parts": {
+						"items": {
+							"$ref": "#/components/schemas/MultipartPart"
+						},
+						"type": "array",
+						"description": "ordered list of parts with individual pre-signed PUT URLs"
+					},
+					"expires_in": {
+						"type": "number",
+						"format": "double",
+						"description": "seconds until each part upload_url expires"
+					}
+				},
+				"required": [
+					"upload_id",
+					"s3_uri",
+					"parts",
+					"expires_in"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartInitRequestBody": {
+				"properties": {
+					"filename": {
+						"type": "string",
+						"description": "original filename, must end in .csv"
+					},
+					"content_type": {
+						"type": "string",
+						"description": "MIME type of the file being uploaded"
+					},
+					"file_size": {
+						"type": "number",
+						"format": "double",
+						"description": "total file size in bytes, used to calculate part count"
+					}
+				},
+				"required": [
+					"filename",
+					"content_type",
+					"file_size"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartCompleteResponse": {
+				"properties": {
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri of the assembled object, ready to use in collection imports"
+					}
+				},
+				"required": [
+					"s3_uri"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"CompletedPartBody": {
+				"properties": {
+					"part_number": {
+						"type": "number",
+						"format": "double"
+					},
+					"etag": {
+						"type": "string",
+						"description": "ETag value from the response header of each part PUT request"
+					}
+				},
+				"required": [
+					"part_number",
+					"etag"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"MultipartCompleteRequestBody": {
+				"properties": {
+					"s3_uri": {
+						"type": "string",
+						"description": "s3 uri returned by POST uploads/multipart/init"
+					},
+					"upload_id": {
+						"type": "string",
+						"description": "upload id returned by POST uploads/multipart/init"
+					},
+					"parts": {
+						"items": {
+							"$ref": "#/components/schemas/CompletedPartBody"
+						},
+						"type": "array",
+						"description": "etag and number for each uploaded part"
+					}
+				},
+				"required": [
+					"s3_uri",
+					"upload_id",
+					"parts"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"JobStatusResponse": {
+				"properties": {
+					"job_id": {
+						"type": "string"
+					},
+					"connection_id": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"description": "Current lifecycle state: PENDING | RUNNING | DONE | FAILED"
+					},
+					"dataset_id": {
+						"type": "string",
+						"description": "Dataset ID written to the data lake (populated on success)."
+					},
+					"error": {
+						"type": "string",
+						"description": "Failure reason (populated on failure)."
+					},
+					"created_at": {
+						"type": "string"
+					},
+					"updated_at": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"job_id",
+					"connection_id",
+					"status",
+					"created_at",
+					"updated_at"
+				],
+				"type": "object",
+				"additionalProperties": true
+			}
+		},
+		"securitySchemes": {}
+	},
+	"info": {
+		"title": "esg-data-service",
+		"version": "0.1.0",
+		"description": "ESG CSV Ingestion, Retrieval & Preprocessing — single-container multi-domain API + SQS Worker",
+		"contact": {}
+	},
+	"paths": {
+		"/api/v1/preprocessing/jobs": {
+			"post": {
+				"operationId": "CreateJob",
+				"responses": {
+					"202": {
+						"description": "Job accepted and enqueued",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PreprocessJobAccepted"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error — missing required fields or unknown pipeline",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "Not yet implemented",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Submit an asynchronous preprocessing job.\nAccepts an S3 input URI and a pipeline name with optional parameters.\nReturns a job_id immediately for status polling.",
+				"tags": [
+					"Preprocessing"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PreprocessJobRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/preprocessing/jobs/{jobId}": {
+			"get": {
+				"operationId": "GetJob",
+				"responses": {
+					"200": {
+						"description": "Job status and result locations",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PreprocessJobStatusResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Job not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "Not yet implemented",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Query the status and result locations of a submitted preprocessing job.\nReturns output_s3_uri, manifest_uri, and quality_report_uri on success,\nor an error message on failure.",
+				"tags": [
+					"Preprocessing"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "jobId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/api/v1/preprocessing/pipelines": {
+			"get": {
+				"operationId": "GetPipelines",
+				"responses": {
+					"200": {
+						"description": "List of available pipeline templates",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PipelinesResponse"
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "Not yet implemented",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns the catalogue of built-in pipeline templates.\nEach entry includes a unique id, human-readable name, category, and\na JSON Schema describing its accepted params.",
+				"tags": [
+					"Preprocessing"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/health": {
+			"get": {
+				"operationId": "GetHealth",
+				"responses": {
+					"200": {
+						"description": "Service is healthy",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HealthResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns service health status, version, and current server timestamp.\nIntended for load balancers, CI pipelines, and third-party monitoring.",
+				"tags": [
+					"Health"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/api/v1/events": {
+			"get": {
+				"operationId": "GetEvents",
+				"responses": {
+					"200": {
+						"description": "List of ESG metric events",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/EventDatasetResponse"
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "Not yet implemented",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Query normalized ESG metric events from the data lake.\nSupports filtering by company, metric name, ESG pillar, and year range.\nResults are paginated via limit/offset.",
+				"tags": [
+					"Events"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "company_name",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "permid",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "metric_name",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Environmental | Social | Governance",
+						"in": "query",
+						"name": "pillar",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "year_from",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "year_to",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"default": 0,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/api/v1/events/types": {
+			"get": {
+				"operationId": "GetEventTypes",
+				"responses": {
+					"200": {
+						"description": "Array of distinct event type strings",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/EventTypesResponse"
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "Not yet implemented",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns the list of distinct event_type values present in the ingested dataset.\nUseful for populating filter dropdowns in the reporting frontend.",
+				"tags": [
+					"Events"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/api/v1/events/stats": {
+			"get": {
+				"operationId": "GetEventStats",
+				"responses": {
+					"200": {
+						"description": "Aggregated statistics",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/EventStatsResponse"
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "Not yet implemented",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns aggregate statistics over the ESG event dataset.\nSupports grouping by pillar, company, year, or industry.",
+				"tags": [
+					"Events"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"description": "Dimension to group by: pillar | company_name | metric_year | industry",
+						"in": "query",
+						"name": "group_by",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/api/v1/events/{eventId}": {
+			"get": {
+				"operationId": "GetEventById",
+				"responses": {
+					"200": {
+						"description": "A single ESG metric event record",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/EventRecordResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Event not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					},
+					"501": {
+						"description": "Not yet implemented",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Retrieves a single ESG EventRecord by its unique identifier.\nReturns the time_object, event_type, and full ESG metric attribute payload.",
+				"tags": [
+					"Events"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "eventId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/api/v1/collection/imports": {
+			"post": {
+				"operationId": "CreateImport",
+				"responses": {
+					"202": {
+						"description": "Job accepted and enqueued",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateImportResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Submit a new ESG CSV batch import job.\nAccepts an S3 source location, connector config, and ingestion mode.\nReturns immediately with a job_id for asynchronous status polling.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateImportBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/uploads/presign": {
+			"post": {
+				"operationId": "PresignUpload",
+				"responses": {
+					"200": {
+						"description": "Pre-signed URL generated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PresignResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate a pre-signed S3 PUT URL for uploading a CSV file.\nUse the returned s3_uri in POST /collection/imports as source_spec.s3_uris.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PresignRequestBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/uploads/multipart/init": {
+			"post": {
+				"operationId": "InitMultipartUpload",
+				"responses": {
+					"200": {
+						"description": "Multipart upload initiated",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MultipartInitResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Initiate a multipart upload for files larger than 100 MB.\nReturns an upload_id and a pre-signed PUT URL for each part.\nUpload each part with a PUT request, then call uploads/multipart/complete.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MultipartInitRequestBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/uploads/multipart/complete": {
+			"post": {
+				"operationId": "CompleteMultipartUpload",
+				"responses": {
+					"200": {
+						"description": "Multipart upload completed",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/MultipartCompleteResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Complete a multipart upload after all parts have been PUT to S3.\nProvide the etag from each part response header to let S3 assemble the final object.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MultipartCompleteRequestBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/api/v1/collection/jobs/{jobId}": {
+			"get": {
+				"operationId": "GetJobStatus",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/JobStatusResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Job not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Poll the status of a previously submitted import job.\nReturns lifecycle fields including status, output location, and timestamps.",
+				"tags": [
+					"Collection"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "jobId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		}
+	},
+	"servers": [
+		{
+			"url": "https://[object Object]/"
+		}
+	]
+}

@@ -28,8 +28,8 @@ export class EventsController extends Controller {
     @Query() pillar?: string,
     @Query() year_from?: number,
     @Query() year_to?: number,
-    @Query() limit: number = 50,
-    @Query() offset: number = 0
+    @Query("limit") _limit: number = 50,
+    @Query("offset") _offset: number = 0
   ): Promise<EventDatasetResponse> {
     throw new NotImplementedError("GET /api/v1/events");
   }
@@ -54,7 +54,7 @@ export class EventsController extends Controller {
   @Response<ErrorBody>(501, "Not yet implemented")
   public async getEventStats(
     /** Dimension to group by: pillar | company_name | metric_year | industry */
-    @Query() group_by?: string
+    @Query("group_by") _group_by?: string
   ): Promise<EventStatsResponse> {
     throw new NotImplementedError("GET /api/v1/events/stats");
   }
@@ -67,7 +67,7 @@ export class EventsController extends Controller {
   @SuccessResponse(200, "A single ESG metric event record")
   @Response<ErrorBody>(404, "Event not found")
   @Response<ErrorBody>(501, "Not yet implemented")
-  public async getEventById(@Path() eventId: string): Promise<EventRecordResponse> {
+  public async getEventById(@Path("eventId") _eventId: string): Promise<EventRecordResponse> {
     throw new NotImplementedError("GET /api/v1/events/:eventId");
   }
 }

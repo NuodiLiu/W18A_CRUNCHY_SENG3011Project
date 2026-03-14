@@ -17,5 +17,6 @@ const fileUploadService = new S3PresignService(config);
 const app = createApp({ jobRepo, configStore, queue, fileUploadService });
 
 app.listen(config.port, () => {
+  // eslint-disable-next-line no-console
   console.log(`[API] listening on :${config.port}`);
 });
