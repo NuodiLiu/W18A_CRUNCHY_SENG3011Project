@@ -11,8 +11,8 @@ import {
 } from "../types/events.types.js";
 import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
-import { getEventById } from "@application/retrieval/getEventById.js";
-import { getEventStats } from "@application/retrieval/getEventStats.js";
+import { getEventById } from "../../application/retrieval/getEventById.js";
+import { getEventStats } from "../../application/retrieval/getEventStats.js";
 import { getEvents } from "../../application/retrieval/getEvents.js";
 import { getEventTypes } from "../../application/retrieval/getEventTypes.js";
 
@@ -31,14 +31,12 @@ export class EventsController extends Controller {
    * Supports filtering by company, metric name, ESG pillar, and year range.
    * Results are paginated via limit/offset.
    */
-  @Get("/")
-  @SuccessResponse(200, "List of ESG metric events")
+  @Get()
+  @SuccessResponse(200, "List of housing events")
   public async getEvents(
-    @Query() company_name?: string,
-    @Query() permid?: string,
-    @Query() metric_name?: string,
-    /** Environmental | Social | Governance */
-    @Query() pillar?: string,
+    @Query() suburb?: string,
+    @Query() postcode?: string | number,
+    @Query() zoning?: string,
     @Query() year_from?: number,
     @Query() year_to?: number,
     @Query() limit: number = 50,
@@ -46,14 +44,13 @@ export class EventsController extends Controller {
   ): Promise<EventDatasetResponse> {
     return getEvents(
     {
-      company_name,
-      permid,
-      metric_name,
-      pillar,
-      year_from,
-      year_to,
-      limit,
-      offset
+      suburb,
+      postcode,
+      zoning,
+      year_from: year_from ? Number(year_from) : undefined,
+      year_to: year_to ? Number(year_to) : undefined,
+      limit: Number(limit),
+      offset: Number(offset)
     },
     this.deps
   );

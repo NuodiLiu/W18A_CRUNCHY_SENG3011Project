@@ -467,10 +467,9 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsEventsController_getEvents: Record<string, TsoaRoute.ParameterSchema> = {
-                company_name: {"in":"query","name":"company_name","dataType":"string"},
-                permid: {"in":"query","name":"permid","dataType":"string"},
-                metric_name: {"in":"query","name":"metric_name","dataType":"string"},
-                pillar: {"in":"query","name":"pillar","dataType":"string"},
+                suburb: {"in":"query","name":"suburb","dataType":"string"},
+                postcode: {"in":"query","name":"postcode","dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"double"}]},
+                zoning: {"in":"query","name":"zoning","dataType":"string"},
                 year_from: {"in":"query","name":"year_from","dataType":"double"},
                 year_to: {"in":"query","name":"year_to","dataType":"double"},
                 limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
