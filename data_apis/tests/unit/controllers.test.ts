@@ -100,7 +100,11 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       completeMultipart: jest.fn(),
     },
     dataLakeReader: {
-      getAllEvents: jest.fn().mockResolvedValue(fakeHousingEvents),
+      queryEvents: jest.fn().mockResolvedValue({ events: fakeHousingEvents, total: fakeHousingEvents.length }),
+      findEventById: jest.fn().mockImplementation((id: string) =>
+        Promise.resolve(fakeHousingEvents.find((e: { event_id: string }) => e.event_id === id))
+      ),
+      getDistinctEventTypes: jest.fn().mockResolvedValue([...new Set(fakeHousingEvents.map((e: { event_type: string }) => e.event_type))]),
     },
     ...overrides,
   };
@@ -417,7 +421,9 @@ describe("GET /api/v1/events/stats", () => {
   it("returns empty groups for empty dataset", async () => {
     const { app } = buildApp({
       dataLakeReader: {
-        getAllEvents: jest.fn().mockResolvedValue([]),
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
       },
     });
   

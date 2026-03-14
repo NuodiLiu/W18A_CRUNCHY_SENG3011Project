@@ -1,7 +1,7 @@
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { AppConfig } from "../../config/index.js";
-import { EventRecord } from "../../domain/models/event.js";
-import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
+import { EventRecord, EsgMetricAttribute } from "../../domain/models/event.js";
+import { DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 
 interface ManifestJson {
   dataset_id: string;
@@ -22,44 +22,112 @@ export class S3DataLakeReader implements DataLakeReader {
   private readonly s3: S3Client;
   private readonly bucket: string;
 
+  // Simple TTL cache to avoid repeated S3 reads within the same Lambda warm container
+  private cachedEvents: EventRecord[] | null = null;
+  private cacheExpiry = 0;
+  private static readonly CACHE_TTL_MS = 60_000; // 60 seconds
+
   constructor(config: AppConfig) {
     this.s3 = new S3Client({
       region: config.region,
-
       ...(config.s3Endpoint && {
         endpoint: config.s3Endpoint,
         forcePathStyle: true,
       }),
     });
-
     this.bucket = config.s3DatalakeBucket;
   }
 
-  public async getAllEvents(): Promise<EventRecord[]> {
+  async queryEvents(query: EventQuery): Promise<EventQueryResult> {
+    const allEvents = await this.loadAllEvents();
+
+    let filtered = allEvents;
+
+    if (query.company_name) {
+      const name = query.company_name.toLowerCase();
+      filtered = filtered.filter((e) => {
+        const attr = e.attribute as Partial<EsgMetricAttribute>;
+        return attr.company_name?.toLowerCase().includes(name);
+      });
+    }
+    if (query.permid) {
+      filtered = filtered.filter((e) => {
+        const attr = e.attribute as Partial<EsgMetricAttribute>;
+        return attr.permid === query.permid;
+      });
+    }
+    if (query.metric_name) {
+      const name = query.metric_name.toLowerCase();
+      filtered = filtered.filter((e) => {
+        const attr = e.attribute as Partial<EsgMetricAttribute>;
+        return attr.metric_name?.toLowerCase().includes(name);
+      });
+    }
+    if (query.pillar) {
+      const pillar = query.pillar.toLowerCase();
+      filtered = filtered.filter((e) => {
+        const attr = e.attribute as Partial<EsgMetricAttribute>;
+        return attr.pillar?.toLowerCase() === pillar;
+      });
+    }
+    if (query.year_from != null) {
+      filtered = filtered.filter((e) => {
+        const attr = e.attribute as Partial<EsgMetricAttribute>;
+        return attr.metric_year != null && attr.metric_year >= query.year_from!;
+      });
+    }
+    if (query.year_to != null) {
+      filtered = filtered.filter((e) => {
+        const attr = e.attribute as Partial<EsgMetricAttribute>;
+        return attr.metric_year != null && attr.metric_year <= query.year_to!;
+      });
+    }
+
+    const total = filtered.length;
+    const offset = query.offset ?? 0;
+    const limit = query.limit ?? 50;
+    const paged = filtered.slice(offset, offset + limit);
+
+    return { events: paged, total };
+  }
+
+  async findEventById(eventId: string): Promise<EventRecord | undefined> {
+    const allEvents = await this.loadAllEvents();
+    return allEvents.find((e) => e.event_id === eventId);
+  }
+
+  async getDistinctEventTypes(): Promise<string[]> {
+    const allEvents = await this.loadAllEvents();
+    return [...new Set(allEvents.map((e) => e.event_type))];
+  }
+
+  // ── Internal helpers ──────────────────────────────────────────
+
+  private async loadAllEvents(): Promise<EventRecord[]> {
+    const now = Date.now();
+    if (this.cachedEvents && now < this.cacheExpiry) {
+      return this.cachedEvents;
+    }
 
     const manifestKeys = await this.listManifestKeys();
-
     const allEvents: EventRecord[] = [];
 
     for (const manifestKey of manifestKeys) {
-
       const manifest = await this.readJson<ManifestJson>(manifestKey);
-
       for (const segmentUri of manifest.segments) {
-        // Convert segment URI into S3 object key
         const segmentKey = this.getKeyFromS3Uri(segmentUri);
-        // Read events from file
         const events = await this.readJsonLines<EventRecord>(segmentKey);
-        // Add segment events into result
         allEvents.push(...events);
       }
     }
+
+    this.cachedEvents = allEvents;
+    this.cacheExpiry = Date.now() + S3DataLakeReader.CACHE_TTL_MS;
 
     return allEvents;
   }
 
   private async listManifestKeys(): Promise<string[]> {
-
     const manifestKeys: string[] = [];
     let continuationToken: string | undefined;
 
@@ -67,16 +135,12 @@ export class S3DataLakeReader implements DataLakeReader {
       const response = await this.s3.send(
         new ListObjectsV2Command({
           Bucket: this.bucket,
-
-          // Restrict to dataset objects
           Prefix: "datasets/",
           ContinuationToken: continuationToken,
         })
       );
 
       for (const item of response.Contents ?? []) {
-
-        // Keep only manifest files
         if (item.Key?.endsWith("/manifest.json")) {
           manifestKeys.push(item.Key);
         }
@@ -88,40 +152,23 @@ export class S3DataLakeReader implements DataLakeReader {
     return manifestKeys;
   }
 
-  // Parse object body as JSON
   private async readJson<T>(key: string): Promise<T> {
-
     const response = await this.s3.send(
-      new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      })
+      new GetObjectCommand({ Bucket: this.bucket, Key: key })
     );
-
     const body = await response.Body?.transformToString();
-
     if (!body) {
       throw new Error(`Empty object body for S3 key: ${key}`);
     }
-
     return JSON.parse(body) as T;
   }
 
-  // Parse one JSON object per line
   private async readJsonLines<T>(key: string): Promise<T[]> {
-
     const response = await this.s3.send(
-      new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      })
+      new GetObjectCommand({ Bucket: this.bucket, Key: key })
     );
-
     const body = await response.Body?.transformToString();
-
-    if (!body) {
-      return [];
-    }
+    if (!body) return [];
 
     return body
       .split("\n")
@@ -131,15 +178,10 @@ export class S3DataLakeReader implements DataLakeReader {
   }
 
   private getKeyFromS3Uri(uri: string): string {
-
     const prefix = `s3://${this.bucket}/`;
-  
-    // Reject segment URIs from other buckets
     if (!uri.startsWith(prefix)) {
       throw new Error(`S3 URI is not from the expected bucket: ${uri}`);
     }
-  
-    // Remove bucket prefix from URI
     return uri.slice(prefix.length);
   }
 }
