@@ -26,6 +26,7 @@ process.on("SIGTERM", () => { running = false; });
 process.on("SIGINT", () => { running = false; });
 
 async function pollLoop(): Promise<void> {
+  // eslint-disable-next-line no-console
   console.log("[worker] starting sqs poll loop");
 
   while (running) {
@@ -39,15 +40,18 @@ async function pollLoop(): Promise<void> {
         await queue.deleteMessage(msg.receiptHandle);
       } catch (err) {
         // don't delete message — sqs will redeliver after visibility timeout
+        // eslint-disable-next-line no-console
         console.error(`[worker] job ${job_id} failed:`, err);
       }
     }
   }
 
+  // eslint-disable-next-line no-console
   console.log("[worker] shutting down");
 }
 
 pollLoop().catch((err) => {
+  // eslint-disable-next-line no-console
   console.error("[worker] fatal:", err);
   process.exit(1);
 });
