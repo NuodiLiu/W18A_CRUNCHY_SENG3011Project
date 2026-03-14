@@ -47,6 +47,9 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       initMultipart: jest.fn().mockResolvedValue(fakeInitResult),
       completeMultipart: jest.fn().mockResolvedValue("s3://bucket/raw-uploads/uuid/large.csv"),
     },
+    dataLakeReader: {
+      getAllEvents: jest.fn().mockResolvedValue([]),
+    },
     ...overrides,
   };
 
