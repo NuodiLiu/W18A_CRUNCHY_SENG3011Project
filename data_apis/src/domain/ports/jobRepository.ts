@@ -10,6 +10,6 @@ export interface JobRepository {
   updateStatus(
     jobId: string,
     status: JobStatus,
-    extra?: Partial<Pick<JobRecord, "dataset_id" | "error">>
+    extra?: Partial<Pick<JobRecord, "dataset_id" | "error" | "quality_report">>
   ): Promise<void>;
 }

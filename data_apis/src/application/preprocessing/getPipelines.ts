@@ -5,44 +5,43 @@ export const PIPELINE_CATALOGUE: PipelineTemplate[] = [
     id: "housing_clean_v1",
     name: "Housing Sales Cleaner v1",
     description:
-      "Cleans NSW Valuer General property sales data. Filters out zero-price records, " +
-      "deduplicates by dealing number, standardises suburb casing, nullifies zero areas, " +
-      "and supports optional price/suburb/date/postcode filtering.",
-    category: "general",
+      "Cleans NSW Valuer General property sales data. Filters out zero-price transfers " +
+      "(~24.6% in sample), deduplicates by dealing number, standardises suburb casing, " +
+      "nullifies zero areas, fixes corrupted area_type values from CSV parse shift, " +
+      "and trims whitespace on string fields.",
+    category: "housing",
     params_schema: {
       type: "object",
       properties: {
-        suburb: {
-          type: "string",
-          description: "Only include sales in this suburb (case-insensitive).",
-        },
-        postcode: {
-          type: "number",
-          description: "Only include sales with this postcode.",
-        },
         price_min: {
           type: "number",
           default: 1,
           description: "Minimum purchase price (exclusive). Defaults to 1 (removes $0 records).",
         },
-        price_max: {
-          type: "number",
-          description: "Maximum purchase price (inclusive). Omit for no upper limit.",
-        },
-        date_from: {
-          type: "string",
-          format: "date",
-          description: "Earliest contract_date to include (YYYY-MM-DD, inclusive).",
-        },
-        date_to: {
-          type: "string",
-          format: "date",
-          description: "Latest contract_date to include (YYYY-MM-DD, inclusive).",
-        },
         dedup_by_dealing: {
           type: "boolean",
           default: true,
           description: "When true, keeps only the first occurrence of each dealing_number.",
+        },
+        normalize_suburb: {
+          type: "boolean",
+          default: true,
+          description: "When true, converts suburb names to UPPERCASE.",
+        },
+        nullify_zero_area: {
+          type: "boolean",
+          default: true,
+          description: "When true, converts area = 0 to null.",
+        },
+        fix_area_type: {
+          type: "boolean",
+          default: true,
+          description: "When true, resets invalid area_type values (e.g. numeric from CSV shift) to empty string.",
+        },
+        trim_whitespace: {
+          type: "boolean",
+          default: true,
+          description: "When true, trims leading/trailing whitespace on street_name, legal_description, suburb.",
         },
       },
       additionalProperties: false,

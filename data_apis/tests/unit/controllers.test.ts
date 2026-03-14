@@ -108,6 +108,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       getGroupProjection: jest.fn().mockResolvedValue(
         fakeHousingEvents.map((e) => ({ event_type: e.event_type, attribute: e.attribute }))
       ),
+      readDataset: jest.fn(),
     },
     ...overrides,
   };
