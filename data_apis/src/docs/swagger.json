@@ -876,7 +876,7 @@
 				"operationId": "GetEvents",
 				"responses": {
 					"200": {
-						"description": "List of housing events",
+						"description": "List of events",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -894,7 +894,7 @@
 				"parameters": [
 					{
 						"in": "query",
-						"name": "suburb",
+						"name": "company_name",
 						"required": false,
 						"schema": {
 							"type": "string"
@@ -902,13 +902,24 @@
 					},
 					{
 						"in": "query",
-						"name": "postcode",
+						"name": "permid",
 						"required": false,
-						"schema": {}
+						"schema": {
+							"type": "string"
+						}
 					},
 					{
 						"in": "query",
-						"name": "zoning",
+						"name": "metric_name",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Environmental | Social | Governance",
+						"in": "query",
+						"name": "pillar",
 						"required": false,
 						"schema": {
 							"type": "string"
@@ -993,14 +1004,14 @@
 						}
 					}
 				},
-				"description": "Returns aggregate statistics over the ESG event dataset.\nSupports grouping by pillar, company, year, or industry.",
+				"description": "Returns aggregate statistics over the event dataset.\nSupports grouping by ESG fields (pillar, company_name, metric_year, industry)\nor Housing fields (suburb, postcode, zoning, contract_year, etc.).",
 				"tags": [
 					"Events"
 				],
 				"security": [],
 				"parameters": [
 					{
-						"description": "Dimension to group by: pillar | company_name | metric_year | industry",
+						"description": "Dimension to group by: pillar | company_name | metric_year | industry | suburb | postcode | zoning | contract_year",
 						"in": "query",
 						"name": "group_by",
 						"required": false,
@@ -1016,7 +1027,7 @@
 				"operationId": "GetEventById",
 				"responses": {
 					"200": {
-						"description": "A single ESG metric event record",
+						"description": "A single event record",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -1036,7 +1047,7 @@
 						}
 					}
 				},
-				"description": "Retrieves a single ESG EventRecord by its unique identifier.\nReturns the time_object, event_type, and full ESG metric attribute payload.",
+				"description": "Retrieves a single EventRecord by its unique identifier.\nReturns the time_object, event_type, and full attribute payload.",
 				"tags": [
 					"Events"
 				],

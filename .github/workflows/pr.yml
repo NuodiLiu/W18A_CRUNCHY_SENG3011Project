@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, develop]
   push:
-    branches: [main, develop]
+    branches: [develop]  # main is handled by lambda-deploy.yml
 
 env:
   NODE_VERSION: "20"
@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: data_apis/package-lock.json
 
       - run: npm ci
 
@@ -34,6 +36,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Build Lambda bundles
+        run: npm run build:lambda
 
       # ── Start containers only for integration tests ──
       - name: Start DynamoDB Local
@@ -93,6 +98,7 @@ jobs:
           SQS_ENDPOINT: http://localhost:4566
 
       - name: Docker build (smoke)
+        if: github.base_ref == 'develop' || github.ref == 'refs/heads/develop'
         run: docker build -t esg-data-service:ci-${{ github.sha }} .
 
       - name: Cleanup containers

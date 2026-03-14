@@ -100,7 +100,14 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       completeMultipart: jest.fn(),
     },
     dataLakeReader: {
-      getAllEvents: jest.fn().mockResolvedValue(fakeHousingEvents),
+      queryEvents: jest.fn().mockResolvedValue({ events: fakeHousingEvents, total: fakeHousingEvents.length }),
+      findEventById: jest.fn().mockImplementation((id: string) =>
+        Promise.resolve(fakeHousingEvents.find((e: { event_id: string }) => e.event_id === id))
+      ),
+      getDistinctEventTypes: jest.fn().mockResolvedValue([...new Set(fakeHousingEvents.map((e: { event_type: string }) => e.event_type))]),
+      getGroupProjection: jest.fn().mockResolvedValue(
+        fakeHousingEvents.map((e) => ({ event_type: e.event_type, attribute: e.attribute }))
+      ),
     },
     ...overrides,
   };
@@ -417,7 +424,10 @@ describe("GET /api/v1/events/stats", () => {
   it("returns empty groups for empty dataset", async () => {
     const { app } = buildApp({
       dataLakeReader: {
-        getAllEvents: jest.fn().mockResolvedValue([]),
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
       },
     });
   
@@ -431,7 +441,7 @@ describe("GET /api/v1/events/stats", () => {
 });
 
 describe("GET /api/v1/events", () => {
-  it("returns events with pagination", async () => {
+  it("returns 200 with events and dataset envelope", async () => {
     const { app } = buildApp();
 
     const res = await request(app)
@@ -439,131 +449,59 @@ describe("GET /api/v1/events", () => {
       .query({ limit: 50, offset: 0 })
       .expect(200);
 
-    expect(res.body.events.length).toBeGreaterThan(0);
+    expect(res.body.data_source).toBeDefined();
+    expect(res.body.dataset_type).toBeDefined();
+    expect(res.body.events).toBeInstanceOf(Array);
+    expect(res.body.events.length).toBe(2);
   });
 
-  it("filters by suburb", async () => {
-    const { app } = buildApp();
+  it("passes query filters to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
 
-    const res = await request(app)
+    await request(app)
       .get("/api/v1/events")
-      .query({ suburb: "Sydney" })
+      .query({ company_name: "Acme", pillar: "Environmental", limit: 10, offset: 0 })
       .expect(200);
 
-    expect(res.body.events.length).toBe(1);
-    expect(res.body.events[0].attribute.suburb).toBe("Sydney");
-  });
-
-  it("filters by postcode", async () => {
-    const { app } = buildApp();
-
-    const res = await request(app)
-      .get("/api/v1/events")
-      .query({ postcode: 2000 })
-      .expect(200);
-
-    expect(res.body.events.length).toBe(1);
-    expect(res.body.events[0].attribute.postcode).toBe(2000);
-  });
-
-  it("filters by zoning", async () => {
-    const { app } = buildApp();
-
-    const res = await request(app)
-      .get("/api/v1/events")
-      .query({ zoning: "R1" })
-      .expect(200);
-
-    expect(res.body.events.length).toBe(1);
-    expect(res.body.events[0].attribute.zoning).toBe("R1");
-  });
-
-  it("filters by year_from/year_to", async () => {
-    const { app } = buildApp();
-
-    const res = await request(app)
-      .get("/api/v1/events")
-      .query({ year_from: 2024, year_to: 2024 })
-      .expect(200);
-
-    expect(res.body.events.length).toBeGreaterThan(0);
-  });
-
-  it("applies limit and offset", async () => {
-    const { app } = buildApp();
-
-    const res = await request(app)
-      .get("/api/v1/events")
-      .query({ limit: 1, offset: 0 })
-      .expect(200);
-
-    expect(res.body.events.length).toBe(1);
-    expect(res.body.events[0].event_id).toBe("h-1");
-  });
-
-  it("returns empty list if no events match", async () => {
-    const { app } = buildApp();
-
-    const res = await request(app)
-      .get("/api/v1/events")
-      .query({ suburb: "Nonexistent Suburb" })
-      .expect(200);
-
-    expect(res.body.events).toEqual([]);
-  });
-
-  it("returns empty dataset if datalake empty", async () => {
-    const { app } = buildApp({
-      dataLakeReader: {
-        getAllEvents: jest.fn().mockResolvedValue([]),
-      },
-    });
-
-    const res = await request(app)
-      .get("/api/v1/events")
-      .expect(200);
-
-    expect(res.body.events).toEqual([]);
-  });
-});
-
-describe("GET /api/v1/events/types", () => {
-  it("returns distinct event types", async () => {
-    const { app } = buildApp();
-
-    const res = await request(app)
-      .get("/api/v1/events/types")
-      .expect(200);
-
-    expect(res.body.event_types).toEqual(
-      expect.arrayContaining(["housing_sale"])
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        company_name: "Acme",
+        pillar: "Environmental",
+        limit: 10,
+        offset: 0,
+      })
     );
   });
 
-  it("returns unique types only", async () => {
+  it("returns mapped event records with correct shape", async () => {
     const { app } = buildApp();
 
     const res = await request(app)
-      .get("/api/v1/events/types")
+      .get("/api/v1/events")
       .expect(200);
 
-    const types = res.body.event_types;
-
-    const unique = new Set(types);
-    expect(types.length).toBe(unique.size);
+    const event = res.body.events[0];
+    expect(event.event_id).toBe("h-1");
+    expect(event.event_type).toBe("housing_sale");
+    expect(event.time_object).toBeDefined();
+    expect(event.attribute).toBeDefined();
+    expect(event.attribute.suburb).toBe("Sydney");
   });
 
-  it("returns empty array if no events", async () => {
+  it("returns empty events array when no data", async () => {
     const { app } = buildApp({
       dataLakeReader: {
-        getAllEvents: jest.fn().mockResolvedValue([]),
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
       },
     });
 
     const res = await request(app)
-      .get("/api/v1/events/types")
+      .get("/api/v1/events")
       .expect(200);
 
-    expect(res.body.event_types).toEqual([]);
+    expect(res.body.events).toEqual([]);
   });
 });

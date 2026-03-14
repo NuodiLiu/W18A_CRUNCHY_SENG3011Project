@@ -1,12 +1,25 @@
-import { EventRecord, TimeObject } from "../models/event.js";
+import { EventRecord } from "../models/event.js";
+
+export interface EventQuery {
+  company_name?: string;
+  permid?: string;
+  metric_name?: string;
+  pillar?: string;
+  year_from?: number;
+  year_to?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface EventQueryResult {
+  events: EventRecord[];
+  total: number;
+}
 
 export interface DataLakeReader {
-  getAllEvents(): Promise<EventRecord[]>;
-
-   getDatasetMetadata?(): Promise<{
-    dataset_id: string;
-    dataset_type: string;
-    data_source: string;
-    time_object: TimeObject;
-  }>;
+  queryEvents(query: EventQuery): Promise<EventQueryResult>;
+  findEventById(eventId: string): Promise<EventRecord | undefined>;
+  getDistinctEventTypes(): Promise<string[]>;
+  /** Project only the fields needed for aggregation (avoids full record transfer). */
+  getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]>;
 }

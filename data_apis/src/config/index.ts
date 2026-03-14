@@ -18,7 +18,7 @@ export interface AppConfig {
 }
 
 export function loadConfig(): AppConfig {
-  const prefix = env("PROJECT_PREFIX", "esgpipeline");
+  const prefix = env("PROJECT_PREFIX", "eia");
   const suffix = env("ENV_SUFFIX", "dev");
 
   return {

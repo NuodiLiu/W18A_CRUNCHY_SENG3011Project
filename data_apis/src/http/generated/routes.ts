@@ -329,7 +329,7 @@ export function RegisterRoutes(app: Router) {
 
     
         const argsPreprocessingController_createJob: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"ref":"PreprocessJobRequest"},
+                _body: {"in":"body","name":"_body","required":true,"ref":"PreprocessJobRequest"},
         };
         app.post('/api/v1/preprocessing/jobs',
             ...(fetchMiddlewares<RequestHandler>(PreprocessingController)),
@@ -364,7 +364,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsPreprocessingController_getJob: Record<string, TsoaRoute.ParameterSchema> = {
-                jobId: {"in":"path","name":"jobId","required":true,"dataType":"string"},
+                _jobId: {"in":"path","name":"jobId","required":true,"dataType":"string"},
         };
         app.get('/api/v1/preprocessing/jobs/:jobId',
             ...(fetchMiddlewares<RequestHandler>(PreprocessingController)),
@@ -467,13 +467,14 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsEventsController_getEvents: Record<string, TsoaRoute.ParameterSchema> = {
-                suburb: {"in":"query","name":"suburb","dataType":"string"},
-                postcode: {"in":"query","name":"postcode","dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"double"}]},
-                zoning: {"in":"query","name":"zoning","dataType":"string"},
+                company_name: {"in":"query","name":"company_name","dataType":"string"},
+                permid: {"in":"query","name":"permid","dataType":"string"},
+                metric_name: {"in":"query","name":"metric_name","dataType":"string"},
+                pillar: {"in":"query","name":"pillar","dataType":"string"},
                 year_from: {"in":"query","name":"year_from","dataType":"double"},
                 year_to: {"in":"query","name":"year_to","dataType":"double"},
-                limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
-                offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
+                _limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
+                _offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
         };
         app.get('/api/v1/events',
             ...(fetchMiddlewares<RequestHandler>(EventsController)),

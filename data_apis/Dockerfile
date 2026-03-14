@@ -1,3 +1,9 @@
+# ── LOCAL DEVELOPMENT ONLY ───────────────────────
+# This Dockerfile is for local dev / docker-compose only.
+# Production deployment uses Lambda ZIPs built by `npm run build:lambda`.
+# See .github/workflows/lambda-deploy.yml for the real deploy pipeline.
+# ─────────────────────────────────────────────────
+
 # ── Build stage ──────────────────────────────────
 FROM node:20-alpine AS builder
 

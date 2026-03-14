@@ -9,7 +9,5 @@ export async function getEventById(
   eventId: string,
   deps: GetEventByIdDeps
 ): Promise<EventRecord | undefined> {
-  const events = await deps.dataLakeReader.getAllEvents();
-
-  return events.find((event) => event.event_id === eventId);
+  return deps.dataLakeReader.findEventById(eventId);
 }

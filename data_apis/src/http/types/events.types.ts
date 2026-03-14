@@ -5,25 +5,25 @@ export interface TimeObjectResponse {
   duration_unit?: string;
 }
 
-// export interface EsgMetricAttributeResponse {
-//   permid: string;
-//   company_name: string;
-//   metric_name: string;
-//   metric_value: number | null;
-//   metric_year: number;
-//   metric_unit: string;
-//   metric_description: string;
-//   /** ESG pillar: Environmental | Social | Governance */
-//   pillar: string;
-//   industry: string;
-//   headquarter_country: string;
-//   data_type: string;
-//   disclosure: string;
-//   provider_name: string;
-//   nb_points_of_observations: number | null;
-//   reported_date: string | null;
-//   metric_period: string | null;
-// }
+export interface EsgMetricAttributeResponse {
+  permid: string;
+  company_name: string;
+  metric_name: string;
+  metric_value: number | null;
+  metric_year: number;
+  metric_unit: string;
+  metric_description: string;
+  /** ESG pillar: Environmental | Social | Governance */
+  pillar: string;
+  industry: string;
+  headquarter_country: string;
+  data_type: string;
+  disclosure: string;
+  provider_name: string;
+  nb_points_of_observations: number | null;
+  reported_date: string | null;
+  metric_period: string | null;
+}
 
 export interface EventRecordResponse<A = Record<string, unknown>> {
   event_id: string;
