@@ -5,7 +5,7 @@ import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { S3ConfigStore } from "./infra/aws/s3ConfigStore.js";
 import { SQSQueueService } from "./infra/aws/sqsQueueService.js";
 import { S3PresignService } from "./infra/aws/s3PresignService.js";
-import { S3DataLakeReader } from "@infra/aws/s3DataLakeReader.js";
+import { S3DataLakeReader } from "./infra/aws/s3DataLakeReader.js";
 
 const config = loadConfig();
 
