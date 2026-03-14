@@ -23,7 +23,9 @@ services:
     container_name: data-dynamodb-local
     ports:
       - "8000:8000"
-    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /data"
+    volumes:
+      - dynamodb-data:/data
     healthcheck:
       test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8000 | grep -q '400'"]
       interval: 3s
@@ -38,6 +40,9 @@ services:
     environment:
       - SERVICES=s3,sqs
       - DEFAULT_REGION=ap-southeast-2
+      - PERSISTENCE=1
+    volumes:
+      - localstack-data:/var/lib/localstack
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
       interval: 5s
@@ -102,3 +107,7 @@ services:
       - SQS_ENDPOINT=http://localstack:4566
       - PROJECT_PREFIX=eia
     command: ["node", "dist/worker.js"]
+
+volumes:
+  dynamodb-data:
+  localstack-data:

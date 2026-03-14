@@ -3,11 +3,16 @@
 # ───────────────────────────────────────────────────
 
 .PHONY: help install build clean \
-        up down infra-up infra-init \
+        up down down-clean infra-up infra-init \
         dev-api dev-worker \
         lint typecheck check \
         test test-integration \
         docker-build setup local
+
+# ── Variables ────────────────────────────────────
+
+DC       = docker compose
+DC_TEST  = docker compose -f docker-compose.yml -f docker-compose.test.yml
 
 # ── Default ──────────────────────────────────────
 
@@ -30,14 +35,17 @@ setup: install build ## Install deps + build (first-time setup)
 
 # ── Docker Compose ───────────────────────────────
 
-up: ## Start all containers (infra + api + worker)
-	docker compose up -d --build
+up: ## Start all containers (infra + api + worker) — persistent data
+	$(DC) up -d --build
 
-down: ## Stop all containers and remove volumes
-	docker compose down -v
+down: ## Stop all containers (keep volumes/data)
+	$(DC) down
 
-infra-up: ## Start only infra (DynamoDB Local + LocalStack)
-	docker compose up -d dynamodb-local localstack
+down-clean: ## Stop all containers and remove volumes (full reset)
+	$(DC) down -v
+
+infra-up: ## Start only infra (DynamoDB Local + LocalStack) — persistent
+	$(DC) up -d dynamodb-local localstack
 
 infra-init: ## Create local DynamoDB tables, S3 buckets, SQS queue
 	npm run infra:local:init
@@ -67,8 +75,11 @@ check: lint typecheck ## Lint + typecheck
 test: ## Run unit tests
 	npm test
 
-test-integration: infra-up infra-init ## Run integration tests (starts infra if needed)
+test-integration: ## Run integration tests (ephemeral in-memory infra)
+	$(DC_TEST) up -d dynamodb-local localstack
+	npm run infra:local:init
 	npm run test:integration
+	$(DC_TEST) down
 
 # ── Docker image ─────────────────────────────────
 
