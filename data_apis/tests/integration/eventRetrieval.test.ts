@@ -72,11 +72,23 @@ const sampleEvents = [
     event_type: "property_sale",
     time_object: { timestamp: "2024-02-01T00:00:00Z", timezone: "AEST" },
     attribute: {
+      property_id: "PROP-001",
+      dealing_number: 99001,
+      unit_number: "5",
+      street_number: "12",
+      street_name: "Anzac Pde",
       suburb: "Kensington",
-      postcode: "2033",
-      zoning: "residential",
-      contract_year: 2024,
-      price: 1500000,
+      postcode: 2033,
+      purchase_price: 1500000,
+      legal_description: "Lot 1 DP100200",
+      area: 85,
+      area_type: "sqm",
+      contract_date: "2024-02-01",
+      settlement_date: "2024-03-15",
+      district_code: 10,
+      zoning: "R1",
+      nature_of_property: "Residential",
+      primary_purpose: "Dwelling",
     },
   },
 ];
@@ -201,5 +213,45 @@ describe("GET /api/v1/events/stats — integration", () => {
     );
     expect(envGroup).toBeDefined();
     expect(envGroup.count).toBe(2);
+  });
+});
+
+describe("GET /api/v1/events — integration", () => {
+  it("returns events with dataset envelope", async () => {
+    const res = await request(app)
+      .get("/api/v1/events")
+      .expect(200);
+
+    expect(res.body.data_source).toBeDefined();
+    expect(res.body.dataset_type).toBeDefined();
+    expect(res.body.events).toBeInstanceOf(Array);
+    expect(res.body.events.length).toBe(3);
+  });
+
+  it("supports limit and offset pagination", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?limit=1&offset=0")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(1);
+  });
+
+  it("filters by company_name", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?company_name=TestCorp")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(2);
+    for (const evt of res.body.events) {
+      expect(evt.attribute.company_name).toBe("TestCorp");
+    }
+  });
+
+  it("returns empty events for non-matching filter", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?company_name=NonExistent")
+      .expect(200);
+
+    expect(res.body.events).toEqual([]);
   });
 });
