@@ -119,3 +119,16 @@ export function toHousingEventRecordResponse(
 ): EventRecordResponse<HousingSaleAttributeResponse> {
   return toEventRecordResponse(record, toHousingSaleAttributeResponse);
 }
+
+export function toEventRecordResponseAuto(
+  record: EventRecord
+): EventRecordResponse {
+  switch (record.event_type) {
+    case "esg_metric":
+      return toEsgEventRecordResponse(record as unknown as EventRecord<EsgMetricAttribute>) as unknown as EventRecordResponse;
+    case "housing_sale":
+      return toHousingEventRecordResponse(record as unknown as EventRecord<HousingSaleAttribute>) as unknown as EventRecordResponse;
+    default:
+      return toEventRecordResponse(record, (a) => a);
+  }
+}

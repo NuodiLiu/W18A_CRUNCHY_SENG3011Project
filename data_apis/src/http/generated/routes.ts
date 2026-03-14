@@ -123,35 +123,13 @@ const models: TsoaRoute.Models = {
         "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "EsgMetricAttributeResponse": {
+    "EventRecordResponse_Record_string.unknown__": {
         "dataType": "refObject",
         "properties": {
-            "permid": {"dataType":"string","required":true},
-            "company_name": {"dataType":"string","required":true},
-            "metric_name": {"dataType":"string","required":true},
-            "metric_value": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "metric_year": {"dataType":"double","required":true},
-            "metric_unit": {"dataType":"string","required":true},
-            "metric_description": {"dataType":"string","required":true},
-            "pillar": {"dataType":"string","required":true},
-            "industry": {"dataType":"string","required":true},
-            "headquarter_country": {"dataType":"string","required":true},
-            "data_type": {"dataType":"string","required":true},
-            "disclosure": {"dataType":"string","required":true},
-            "provider_name": {"dataType":"string","required":true},
-            "nb_points_of_observations": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "reported_date": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "metric_period": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-        },
-        "additionalProperties": true,
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "EventRecordResponse": {
-        "dataType": "refObject",
-        "properties": {
+            "event_id": {"dataType":"string","required":true},
             "time_object": {"ref":"TimeObjectResponse","required":true},
             "event_type": {"dataType":"string","required":true},
-            "attribute": {"ref":"EsgMetricAttributeResponse","required":true},
+            "attribute": {"ref":"Record_string.unknown_","required":true},
         },
         "additionalProperties": true,
     },
@@ -163,7 +141,7 @@ const models: TsoaRoute.Models = {
             "dataset_type": {"dataType":"string","required":true},
             "dataset_id": {"dataType":"string","required":true},
             "time_object": {"ref":"TimeObjectResponse","required":true},
-            "events": {"dataType":"array","array":{"dataType":"refObject","ref":"EventRecordResponse"},"required":true},
+            "events": {"dataType":"array","array":{"dataType":"refObject","ref":"EventRecordResponse_Record_string.unknown__"},"required":true},
         },
         "additionalProperties": true,
     },
@@ -190,6 +168,17 @@ const models: TsoaRoute.Models = {
         "properties": {
             "total_events": {"dataType":"double","required":true},
             "groups": {"dataType":"array","array":{"dataType":"refObject","ref":"EventStatGroup"},"required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "EventRecordResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "event_id": {"dataType":"string","required":true},
+            "time_object": {"ref":"TimeObjectResponse","required":true},
+            "event_type": {"dataType":"string","required":true},
+            "attribute": {"ref":"Record_string.unknown_","required":true},
         },
         "additionalProperties": true,
     },
@@ -314,7 +303,6 @@ const models: TsoaRoute.Models = {
             "job_id": {"dataType":"string","required":true},
             "connection_id": {"dataType":"string","required":true},
             "status": {"dataType":"string","required":true},
-            "config_ref": {"dataType":"string","required":true},
             "dataset_id": {"dataType":"string"},
             "error": {"dataType":"string"},
             "created_at": {"dataType":"string","required":true},
