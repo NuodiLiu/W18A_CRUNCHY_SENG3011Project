@@ -135,14 +135,25 @@ export class S3DataLakeReader implements DataLakeReader {
       return results.flat();
     }
 
-    // Fallback: read full records and project only needed fields
+    // Fallback: read full records and reconstruct nested projection structure
     const results = await Promise.all(
       segmentKeys.map((key) => this.readJsonLines<Record<string, unknown>>(key))
     );
     return results.flat().map((row) => {
       const projected: Record<string, unknown> = {};
       for (const f of fields) {
-        projected[f] = this.getNestedField(row, f);
+        const parts = f.split(".");
+        if (parts.length === 1) {
+          projected[f] = row[f];
+        } else {
+          // Rebuild nested object so consumers can traverse row.attribute.X
+          let cursor = projected;
+          for (let i = 0; i < parts.length - 1; i++) {
+            if (cursor[parts[i]] == null) cursor[parts[i]] = {};
+            cursor = cursor[parts[i]] as Record<string, unknown>;
+          }
+          cursor[parts[parts.length - 1]] = this.getNestedField(row, f);
+        }
       }
       return projected;
     });

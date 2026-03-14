@@ -5,7 +5,6 @@ import {
   CreateBucketCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
-  DeleteBucketCommand,
 } from "@aws-sdk/client-s3";
 import { loadConfig } from "../../src/config/index";
 import { createApp } from "../../src/http/app";

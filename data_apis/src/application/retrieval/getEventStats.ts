@@ -1,4 +1,3 @@
-import { EsgMetricAttribute, HousingSaleAttribute } from "../../domain/models/event.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 
 export interface EventStatGroup {
@@ -15,7 +14,7 @@ export interface GetEventStatsDeps {
   dataLakeReader: DataLakeReader;
 }
 
-// Map group_by param → the fields we need S3 Select to project
+// Map group_by param, the fields we need S3 Select to project
 function getProjectionFields(groupBy?: string): string[] {
   switch (groupBy) {
     case "pillar":

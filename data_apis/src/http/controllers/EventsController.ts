@@ -40,7 +40,9 @@ export class EventsController extends Controller {
     @Query() pillar?: string,
     @Query() year_from?: number,
     @Query() year_to?: number,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     @Query() limit: number = 50,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     @Query() offset: number = 0
   ): Promise<EventDatasetResponse> {
     throw new NotImplementedError("GET /api/v1/events");
