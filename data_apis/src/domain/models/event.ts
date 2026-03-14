@@ -42,6 +42,7 @@ export interface HousingSaleAttribute {
   zoning: string;
   nature_of_property: string;
   primary_purpose: string;
+  [key: string]: unknown; //so housingsaleattribute fits Record<string, unknown>
 }
 
 // generic over attribute shape; defaults to open object for runtime flexibility
