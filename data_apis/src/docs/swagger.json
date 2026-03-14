@@ -246,88 +246,11 @@
 				"type": "object",
 				"additionalProperties": true
 			},
-			"EsgMetricAttributeResponse": {
+			"EventRecordResponse_Record_string.unknown__": {
 				"properties": {
-					"permid": {
+					"event_id": {
 						"type": "string"
 					},
-					"company_name": {
-						"type": "string"
-					},
-					"metric_name": {
-						"type": "string"
-					},
-					"metric_value": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
-					},
-					"metric_year": {
-						"type": "number",
-						"format": "double"
-					},
-					"metric_unit": {
-						"type": "string"
-					},
-					"metric_description": {
-						"type": "string"
-					},
-					"pillar": {
-						"type": "string",
-						"description": "ESG pillar: Environmental | Social | Governance"
-					},
-					"industry": {
-						"type": "string"
-					},
-					"headquarter_country": {
-						"type": "string"
-					},
-					"data_type": {
-						"type": "string"
-					},
-					"disclosure": {
-						"type": "string"
-					},
-					"provider_name": {
-						"type": "string"
-					},
-					"nb_points_of_observations": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
-					},
-					"reported_date": {
-						"type": "string",
-						"nullable": true
-					},
-					"metric_period": {
-						"type": "string",
-						"nullable": true
-					}
-				},
-				"required": [
-					"permid",
-					"company_name",
-					"metric_name",
-					"metric_value",
-					"metric_year",
-					"metric_unit",
-					"metric_description",
-					"pillar",
-					"industry",
-					"headquarter_country",
-					"data_type",
-					"disclosure",
-					"provider_name",
-					"nb_points_of_observations",
-					"reported_date",
-					"metric_period"
-				],
-				"type": "object",
-				"additionalProperties": true
-			},
-			"EventRecordResponse": {
-				"properties": {
 					"time_object": {
 						"$ref": "#/components/schemas/TimeObjectResponse"
 					},
@@ -335,10 +258,11 @@
 						"type": "string"
 					},
 					"attribute": {
-						"$ref": "#/components/schemas/EsgMetricAttributeResponse"
+						"$ref": "#/components/schemas/Record_string.unknown_"
 					}
 				},
 				"required": [
+					"event_id",
 					"time_object",
 					"event_type",
 					"attribute"
@@ -362,7 +286,7 @@
 					},
 					"events": {
 						"items": {
-							"$ref": "#/components/schemas/EventRecordResponse"
+							"$ref": "#/components/schemas/EventRecordResponse_Record_string.unknown__"
 						},
 						"type": "array"
 					}
@@ -425,6 +349,30 @@
 				"required": [
 					"total_events",
 					"groups"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"EventRecordResponse": {
+				"properties": {
+					"event_id": {
+						"type": "string"
+					},
+					"time_object": {
+						"$ref": "#/components/schemas/TimeObjectResponse"
+					},
+					"event_type": {
+						"type": "string"
+					},
+					"attribute": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"event_id",
+					"time_object",
+					"event_type",
+					"attribute"
 				],
 				"type": "object",
 				"additionalProperties": true
@@ -727,10 +675,6 @@
 						"type": "string",
 						"description": "Current lifecycle state: PENDING | RUNNING | DONE | FAILED"
 					},
-					"config_ref": {
-						"type": "string",
-						"description": "S3 URI reference to the stored job config."
-					},
 					"dataset_id": {
 						"type": "string",
 						"description": "Dataset ID written to the data lake (populated on success)."
@@ -750,7 +694,6 @@
 					"job_id",
 					"connection_id",
 					"status",
-					"config_ref",
 					"created_at",
 					"updated_at"
 				],
@@ -941,16 +884,6 @@
 								}
 							}
 						}
-					},
-					"501": {
-						"description": "Not yet implemented",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorBody"
-								}
-							}
-						}
 					}
 				},
 				"description": "Query normalized ESG metric events from the data lake.\nSupports filtering by company, metric name, ESG pillar, and year range.\nResults are paginated via limit/offset.",
@@ -1046,16 +979,6 @@
 								}
 							}
 						}
-					},
-					"501": {
-						"description": "Not yet implemented",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorBody"
-								}
-							}
-						}
 					}
 				},
 				"description": "Returns the list of distinct event_type values present in the ingested dataset.\nUseful for populating filter dropdowns in the reporting frontend.",
@@ -1076,16 +999,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/EventStatsResponse"
-								}
-							}
-						}
-					},
-					"501": {
-						"description": "Not yet implemented",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorBody"
 								}
 							}
 						}
@@ -1125,16 +1038,6 @@
 					},
 					"404": {
 						"description": "Event not found",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorBody"
-								}
-							}
-						}
-					},
-					"501": {
-						"description": "Not yet implemented",
 						"content": {
 							"application/json": {
 								"schema": {
