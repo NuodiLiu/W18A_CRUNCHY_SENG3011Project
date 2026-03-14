@@ -1,18 +1,31 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import "reflect-metadata";
 import { Controller, Get, Route, Tags, Path, Query, Response, SuccessResponse } from "tsoa";
-import { NotImplementedError } from "../../domain/errors.js";
+import { NotImplementedError, NotFoundError } from "../../domain/errors.js";
 import {
   EventDatasetResponse,
   EventTypesResponse,
   EventStatsResponse,
   EventRecordResponse,
+  HousingSaleAttributeResponse
 } from "../types/events.types.js";
 import { ErrorBody } from "../types/common.types.js";
+import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
+import { getEventById } from "../../application/retrieval/getEventById.js";
+import { getEventStats } from "../../application/retrieval/getEventStats.js";
+import { getEvents } from "../../application/retrieval/getEvents.js";
+import { getEventTypes } from "../../application/retrieval/getEventTypes.js";
+
+export interface EventsControllerDeps {
+  dataLakeReader: DataLakeReader;
+}
 
 @Route("api/v1/events")
 @Tags("Events")
 export class EventsController extends Controller {
+  constructor(private readonly deps: EventsControllerDeps) {
+      super();
+    }
   /**
    * Query normalized ESG metric events from the data lake.
    * Supports filtering by company, metric name, ESG pillar, and year range.
@@ -20,7 +33,6 @@ export class EventsController extends Controller {
    */
   @Get("/")
   @SuccessResponse(200, "List of ESG metric events")
-  @Response<ErrorBody>(501, "Not yet implemented")
   public async getEvents(
     @Query() company_name?: string,
     @Query() permid?: string,
@@ -32,7 +44,19 @@ export class EventsController extends Controller {
     @Query() limit: number = 50,
     @Query() offset: number = 0
   ): Promise<EventDatasetResponse> {
-    throw new NotImplementedError("GET /api/v1/events");
+    return getEvents(
+    {
+      company_name,
+      permid,
+      metric_name,
+      pillar,
+      year_from,
+      year_to,
+      limit,
+      offset
+    },
+    this.deps
+  );
   }
 
   /**
@@ -41,9 +65,8 @@ export class EventsController extends Controller {
    */
   @Get("types")
   @SuccessResponse(200, "Array of distinct event type strings")
-  @Response<ErrorBody>(501, "Not yet implemented")
   public async getEventTypes(): Promise<EventTypesResponse> {
-    throw new NotImplementedError("GET /api/v1/events/types");
+    return getEventTypes(this.deps);
   }
 
   /**
@@ -52,12 +75,11 @@ export class EventsController extends Controller {
    */
   @Get("stats")
   @SuccessResponse(200, "Aggregated statistics")
-  @Response<ErrorBody>(501, "Not yet implemented")
   public async getEventStats(
     /** Dimension to group by: pillar | company_name | metric_year | industry */
     @Query() group_by?: string
   ): Promise<EventStatsResponse> {
-    throw new NotImplementedError("GET /api/v1/events/stats");
+    return getEventStats(group_by, this.deps);
   }
 
   /**
@@ -67,8 +89,15 @@ export class EventsController extends Controller {
   @Get("{eventId}")
   @SuccessResponse(200, "A single ESG metric event record")
   @Response<ErrorBody>(404, "Event not found")
-  @Response<ErrorBody>(501, "Not yet implemented")
-  public async getEventById(@Path() eventId: string): Promise<EventRecordResponse> {
-    throw new NotImplementedError("GET /api/v1/events/:eventId");
+  public async getEventById(
+    @Path() eventId: string
+  ): Promise<EventRecordResponse> {
+    const event = await getEventById(eventId, this.deps);
+
+    if (!event) {
+      throw new NotFoundError("Event", eventId);
+    }
+
+    return event as EventRecordResponse;
   }
 }
