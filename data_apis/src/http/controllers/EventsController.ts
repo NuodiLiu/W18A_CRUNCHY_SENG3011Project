@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { Controller, Get, Route, Tags, Path, Query, Response, SuccessResponse } from "tsoa";
-import { NotFoundError, NotImplementedError } from "../../domain/errors.js";
+import { NotFoundError } from "../../domain/errors.js";
 import {
   EventDatasetResponse,
   EventTypesResponse,
@@ -11,6 +11,7 @@ import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 import { getEventById } from "../../application/retrieval/getEventById.js";
 import { getEventStats } from "../../application/retrieval/getEventStats.js";
+import { getEvents } from "../../application/retrieval/getEvents.js";
 import { toEventRecordResponseAuto } from "../mappers/eventsMapper.js";
 
 export interface EventsControllerDeps {
@@ -30,8 +31,7 @@ export class EventsController extends Controller {
    * Results are paginated via limit/offset.
    */
   @Get("/")
-  @SuccessResponse(200, "List of ESG metric events")
-  @Response<ErrorBody>(501, "Not yet implemented")
+  @SuccessResponse(200, "List of events")
   public async getEvents(
     @Query() company_name?: string,
     @Query() permid?: string,
@@ -43,7 +43,26 @@ export class EventsController extends Controller {
     @Query("limit") _limit: number = 50,
     @Query("offset") _offset: number = 0
   ): Promise<EventDatasetResponse> {
-    throw new NotImplementedError("GET /api/v1/events");
+    const result = await getEvents(
+      {
+        company_name,
+        permid,
+        metric_name,
+        pillar,
+        year_from,
+        year_to,
+        limit: _limit,
+        offset: _offset,
+      },
+      this.deps
+    );
+    return {
+      data_source: "data_lake",
+      dataset_type: "mixed",
+      dataset_id: "query_result",
+      time_object: { timestamp: new Date().toISOString(), timezone: "UTC" },
+      events: result.events.map(toEventRecordResponseAuto),
+    };
   }
 
   /**

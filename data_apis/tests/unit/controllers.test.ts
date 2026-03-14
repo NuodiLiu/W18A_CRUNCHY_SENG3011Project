@@ -439,3 +439,69 @@ describe("GET /api/v1/events/stats", () => {
     expect(res.body.groups).toEqual([]);
   });
 });
+
+describe("GET /api/v1/events", () => {
+  it("returns 200 with events and dataset envelope", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events")
+      .query({ limit: 50, offset: 0 })
+      .expect(200);
+
+    expect(res.body.data_source).toBeDefined();
+    expect(res.body.dataset_type).toBeDefined();
+    expect(res.body.events).toBeInstanceOf(Array);
+    expect(res.body.events.length).toBe(2);
+  });
+
+  it("passes query filters to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
+
+    await request(app)
+      .get("/api/v1/events")
+      .query({ company_name: "Acme", pillar: "Environmental", limit: 10, offset: 0 })
+      .expect(200);
+
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        company_name: "Acme",
+        pillar: "Environmental",
+        limit: 10,
+        offset: 0,
+      })
+    );
+  });
+
+  it("returns mapped event records with correct shape", async () => {
+    const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events")
+      .expect(200);
+
+    const event = res.body.events[0];
+    expect(event.event_id).toBe("h-1");
+    expect(event.event_type).toBe("housing_sale");
+    expect(event.time_object).toBeDefined();
+    expect(event.attribute).toBeDefined();
+    expect(event.attribute.suburb).toBe("Sydney");
+  });
+
+  it("returns empty events array when no data", async () => {
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+      },
+    });
+
+    const res = await request(app)
+      .get("/api/v1/events")
+      .expect(200);
+
+    expect(res.body.events).toEqual([]);
+  });
+});
