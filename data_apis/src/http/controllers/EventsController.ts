@@ -11,8 +11,8 @@ import {
 } from "../types/events.types.js";
 import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
-import { getEventById } from "../../application/retrieval/getEventById.js";
-import { getEventStats } from "../../application/retrieval/getEventStats.js";
+import { getEventById } from "@application/retrieval/getEventById.js";
+import { getEventStats } from "@application/retrieval/getEventStats.js";
 import { getEvents } from "../../application/retrieval/getEvents.js";
 import { getEventTypes } from "../../application/retrieval/getEventTypes.js";
 
