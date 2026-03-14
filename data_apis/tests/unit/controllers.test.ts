@@ -27,7 +27,7 @@ const fakeHousingEvents = [
       timestamp: "2024-04-10T00:00:00Z",
       timezone: "UTC",
     },
-    event_type: "property_sale",
+    event_type: "housing_sale",
     attribute: {
       property_id: "P001",
       dealing_number: 1001,
@@ -54,7 +54,7 @@ const fakeHousingEvents = [
       timestamp: "2024-04-15T00:00:00Z",
       timezone: "UTC",
     },
-    event_type: "property_sale",
+    event_type: "housing_sale",
     attribute: {
       property_id: "P002",
       dealing_number: 1002,
@@ -333,7 +333,7 @@ describe("GET /api/v1/events/:eventId", () => {
       .expect(200);
 
     expect(res.body.event_id).toBe("h-1");
-    expect(res.body.event_type).toBe("property_sale");
+    expect(res.body.event_type).toBe("housing_sale");
     expect(res.body.attribute.property_id).toBe("P001");
     expect(res.body.attribute.suburb).toBe("Sydney");
   });
@@ -357,7 +357,7 @@ describe("GET /api/v1/events/stats", () => {
 
     expect(res.body.groups).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ key: "property_sale", count: 2 }),
+        expect.objectContaining({ key: "housing_sale", count: 2 }),
       ])
     );
   });
@@ -482,7 +482,7 @@ describe("GET /api/v1/events", () => {
 
     const event = res.body.events[0];
     expect(event.event_id).toBe("h-1");
-    expect(event.event_type).toBe("property_sale");
+    expect(event.event_type).toBe("housing_sale");
     expect(event.time_object).toBeDefined();
     expect(event.attribute).toBeDefined();
     expect(event.attribute.suburb).toBe("Sydney");
