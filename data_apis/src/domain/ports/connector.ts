@@ -1,6 +1,9 @@
 import { ConnectorState } from "../models/connectorState.js";
 import { SourceSpec } from "../models/jobConfig.js";
 
+/** The incremental state update returned by a connector after a fetch run. */
+export type FetchResult = Partial<ConnectorState>;
+
 export interface RawRecord {
   raw_row: Record<string, string>;
   raw_line?: string;
