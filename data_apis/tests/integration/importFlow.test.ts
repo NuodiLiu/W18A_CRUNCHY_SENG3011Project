@@ -3,11 +3,17 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import {
   S3Client,
+  CreateBucketCommand,
   GetObjectCommand,
   UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import {
+  CreateTableCommand,
+  ResourceInUseException,
+} from "@aws-sdk/client-dynamodb";
+import {
   SQSClient,
+  CreateQueueCommand,
   ReceiveMessageCommand,
   PurgeQueueCommand,
   GetQueueUrlCommand,
@@ -18,6 +24,7 @@ import { DynamoJobRepository } from "../../src/infra/aws/dynamoJobRepository";
 import { S3ConfigStore } from "../../src/infra/aws/s3ConfigStore";
 import { SQSQueueService } from "../../src/infra/aws/sqsQueueService";
 import { S3PresignService } from "../../src/infra/aws/s3PresignService";
+import { S3DataLakeReader } from "../../src/infra/aws/s3DataLakeReader";
 
 // --- setup ---
 
@@ -26,14 +33,14 @@ const jobRepo = new DynamoJobRepository(config);
 const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
-const app = createApp({ jobRepo, configStore, queue, fileUploadService });
+const dataLakeReader = new S3DataLakeReader(config, { useS3Select: false });
+const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
 
-const ddb = DynamoDBDocumentClient.from(
-  new DynamoDBClient({
-    region: config.region,
-    endpoint: config.dynamoEndpoint,
-  }),
-);
+const ddbRaw = new DynamoDBClient({
+  region: config.region,
+  endpoint: config.dynamoEndpoint,
+});
+const ddb = DynamoDBDocumentClient.from(ddbRaw);
 const s3 = new S3Client({
   region: config.region,
   endpoint: config.s3Endpoint,
@@ -58,6 +65,49 @@ const validBody = {
   dataset_type: "esg_metrics",
   ingestion_mode: "full_refresh",
 };
+
+async function ensureBucket(bucket: string) {
+  try {
+    await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+  } catch (err: unknown) {
+    const name = (err as { name?: string }).name;
+    if (name !== "BucketAlreadyOwnedByYou" && name !== "BucketAlreadyExists") throw err;
+  }
+}
+
+async function ensureTable(tableName: string, pk: string) {
+  try {
+    await ddbRaw.send(
+      new CreateTableCommand({
+        TableName: tableName,
+        KeySchema: [{ AttributeName: pk, KeyType: "HASH" }],
+        AttributeDefinitions: [{ AttributeName: pk, AttributeType: "S" }],
+        BillingMode: "PAY_PER_REQUEST",
+      }),
+    );
+  } catch (err) {
+    if (!(err instanceof ResourceInUseException)) throw err;
+  }
+}
+
+async function ensureQueue(queueName: string) {
+  try {
+    await sqs.send(new CreateQueueCommand({ QueueName: queueName }));
+  } catch (err: unknown) {
+    const name = (err as { name?: string }).name;
+    if (name !== "QueueAlreadyExists") throw err;
+  }
+}
+
+// create required AWS resources if they don't exist yet
+beforeAll(async () => {
+  await Promise.all([
+    ensureBucket(config.s3ConfigBucket),
+    ensureBucket(config.s3DatalakeBucket),
+    ensureTable(config.ddbJobsTable, "job_id"),
+    ensureQueue(config.sqsQueueName),
+  ]);
+});
 
 // purge SQS before each test to avoid leftover messages
 beforeEach(async () => {

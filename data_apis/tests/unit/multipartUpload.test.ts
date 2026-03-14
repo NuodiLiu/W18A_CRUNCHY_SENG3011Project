@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import request from "supertest";
 import { createApp } from "../../src/http/app";
 import { JobRecord } from "../../src/domain/models/job";
@@ -46,6 +45,12 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       presignPut: jest.fn(),
       initMultipart: jest.fn().mockResolvedValue(fakeInitResult),
       completeMultipart: jest.fn().mockResolvedValue("s3://bucket/raw-uploads/uuid/large.csv"),
+    },
+    dataLakeReader: {
+      queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+      findEventById: jest.fn().mockResolvedValue(undefined),
+      getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+      getGroupProjection: jest.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
