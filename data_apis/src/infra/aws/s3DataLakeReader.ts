@@ -1,6 +1,6 @@
-import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, ListObjectsV2Command, SelectObjectContentCommand, S3Client } from "@aws-sdk/client-s3";
 import { AppConfig } from "../../config/index.js";
-import { EventRecord, EsgMetricAttribute } from "../../domain/models/event.js";
+import { EventRecord } from "../../domain/models/event.js";
 import { DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 
 interface ManifestJson {
@@ -18,16 +18,21 @@ interface ManifestJson {
   created_at: string;
 }
 
+// S3 Select input/output serialization for JSONL files
+const JSON_LINES_INPUT = { JSON: { Type: "LINES" as const } };
+const JSON_LINES_OUTPUT = { JSON: {} };
+
+export interface S3DataLakeReaderOptions {
+  /** When false, falls back to GetObject + in-memory filtering (for LocalStack). Default: true. */
+  useS3Select?: boolean;
+}
+
 export class S3DataLakeReader implements DataLakeReader {
   private readonly s3: S3Client;
   private readonly bucket: string;
+  private readonly useS3Select: boolean;
 
-  // Simple TTL cache to avoid repeated S3 reads within the same Lambda warm container
-  private cachedEvents: EventRecord[] | null = null;
-  private cacheExpiry = 0;
-  private static readonly CACHE_TTL_MS = 60_000; // 60 seconds
-
-  constructor(config: AppConfig) {
+  constructor(config: AppConfig, opts?: S3DataLakeReaderOptions) {
     this.s3 = new S3Client({
       region: config.region,
       ...(config.s3Endpoint && {
@@ -36,95 +41,240 @@ export class S3DataLakeReader implements DataLakeReader {
       }),
     });
     this.bucket = config.s3DatalakeBucket;
+    this.useS3Select = opts?.useS3Select ?? true;
   }
 
+  // ── Public interface ──────────────────────────────────────────
+
   async queryEvents(query: EventQuery): Promise<EventQueryResult> {
-    const allEvents = await this.loadAllEvents();
+    const segmentKeys = await this.getAllSegmentKeys();
 
-    let filtered = allEvents;
-
-    if (query.company_name) {
-      const name = query.company_name.toLowerCase();
-      filtered = filtered.filter((e) => {
-        const attr = e.attribute as Partial<EsgMetricAttribute>;
-        return attr.company_name?.toLowerCase().includes(name);
-      });
-    }
-    if (query.permid) {
-      filtered = filtered.filter((e) => {
-        const attr = e.attribute as Partial<EsgMetricAttribute>;
-        return attr.permid === query.permid;
-      });
-    }
-    if (query.metric_name) {
-      const name = query.metric_name.toLowerCase();
-      filtered = filtered.filter((e) => {
-        const attr = e.attribute as Partial<EsgMetricAttribute>;
-        return attr.metric_name?.toLowerCase().includes(name);
-      });
-    }
-    if (query.pillar) {
-      const pillar = query.pillar.toLowerCase();
-      filtered = filtered.filter((e) => {
-        const attr = e.attribute as Partial<EsgMetricAttribute>;
-        return attr.pillar?.toLowerCase() === pillar;
-      });
-    }
-    if (query.year_from != null) {
-      filtered = filtered.filter((e) => {
-        const attr = e.attribute as Partial<EsgMetricAttribute>;
-        return attr.metric_year != null && attr.metric_year >= query.year_from!;
-      });
-    }
-    if (query.year_to != null) {
-      filtered = filtered.filter((e) => {
-        const attr = e.attribute as Partial<EsgMetricAttribute>;
-        return attr.metric_year != null && attr.metric_year <= query.year_to!;
-      });
+    let allMatched: EventRecord[];
+    if (this.useS3Select) {
+      const { sql } = this.buildQuerySql(query);
+      const results = await Promise.all(
+        segmentKeys.map((key) => this.selectFromSegment<EventRecord>(key, sql))
+      );
+      allMatched = results.flat();
+    } else {
+      const results = await Promise.all(
+        segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
+      );
+      allMatched = this.applyQueryFilter(results.flat(), query);
     }
 
-    const total = filtered.length;
+    const total = allMatched.length;
     const offset = query.offset ?? 0;
     const limit = query.limit ?? 50;
-    const paged = filtered.slice(offset, offset + limit);
+    const paged = allMatched.slice(offset, offset + limit);
 
     return { events: paged, total };
   }
 
   async findEventById(eventId: string): Promise<EventRecord | undefined> {
-    const allEvents = await this.loadAllEvents();
-    return allEvents.find((e) => e.event_id === eventId);
-  }
+    const segmentKeys = await this.getAllSegmentKeys();
 
-  async getDistinctEventTypes(): Promise<string[]> {
-    const allEvents = await this.loadAllEvents();
-    return [...new Set(allEvents.map((e) => e.event_type))];
-  }
-
-  // ── Internal helpers ──────────────────────────────────────────
-
-  private async loadAllEvents(): Promise<EventRecord[]> {
-    const now = Date.now();
-    if (this.cachedEvents && now < this.cacheExpiry) {
-      return this.cachedEvents;
-    }
-
-    const manifestKeys = await this.listManifestKeys();
-    const allEvents: EventRecord[] = [];
-
-    for (const manifestKey of manifestKeys) {
-      const manifest = await this.readJson<ManifestJson>(manifestKey);
-      for (const segmentUri of manifest.segments) {
-        const segmentKey = this.getKeyFromS3Uri(segmentUri);
-        const events = await this.readJsonLines<EventRecord>(segmentKey);
-        allEvents.push(...events);
+    if (this.useS3Select) {
+      const sql = `SELECT * FROM s3object s WHERE s.event_id = '${this.escapeSql(eventId)}'`;
+      const results = await Promise.all(
+        segmentKeys.map((key) => this.selectFromSegment<EventRecord>(key, sql))
+      );
+      for (const batch of results) {
+        if (batch.length > 0) return batch[0];
+      }
+    } else {
+      const results = await Promise.all(
+        segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
+      );
+      for (const batch of results) {
+        const found = batch.find((r) => r.event_id === eventId);
+        if (found) return found;
       }
     }
 
-    this.cachedEvents = allEvents;
-    this.cacheExpiry = Date.now() + S3DataLakeReader.CACHE_TTL_MS;
+    return undefined;
+  }
 
-    return allEvents;
+  async getDistinctEventTypes(): Promise<string[]> {
+    const segmentKeys = await this.getAllSegmentKeys();
+    const types = new Set<string>();
+
+    if (this.useS3Select) {
+      const sql = `SELECT s.event_type FROM s3object s`;
+      const results = await Promise.all(
+        segmentKeys.map((key) =>
+          this.selectFromSegment<{ event_type: string }>(key, sql)
+        )
+      );
+      for (const batch of results) {
+        for (const row of batch) types.add(row.event_type);
+      }
+    } else {
+      const results = await Promise.all(
+        segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
+      );
+      for (const batch of results) {
+        for (const row of batch) types.add(row.event_type);
+      }
+    }
+
+    return [...types];
+  }
+
+  async getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]> {
+    const segmentKeys = await this.getAllSegmentKeys();
+
+    if (this.useS3Select) {
+      const projection = fields.map((f) => `s.${f}`).join(", ");
+      const sql = `SELECT ${projection} FROM s3object s`;
+      const results = await Promise.all(
+        segmentKeys.map((key) =>
+          this.selectFromSegment<Record<string, unknown>>(key, sql)
+        )
+      );
+      return results.flat();
+    }
+
+    // Fallback: read full records and project only needed fields
+    const results = await Promise.all(
+      segmentKeys.map((key) => this.readJsonLines<Record<string, unknown>>(key))
+    );
+    return results.flat().map((row) => {
+      const projected: Record<string, unknown> = {};
+      for (const f of fields) {
+        projected[f] = this.getNestedField(row, f);
+      }
+      return projected;
+    });
+  }
+
+  // ── SQL builder ───────────────────────────────────────────────
+
+  private buildQuerySql(query: EventQuery): { sql: string; params: string[] } {
+    const conditions: string[] = [];
+
+    if (query.company_name) {
+      conditions.push(
+        `LOWER(s.attribute.company_name) LIKE '%${this.escapeSql(query.company_name.toLowerCase())}%'`
+      );
+    }
+    if (query.permid) {
+      conditions.push(`s.attribute.permid = '${this.escapeSql(query.permid)}'`);
+    }
+    if (query.metric_name) {
+      conditions.push(
+        `LOWER(s.attribute.metric_name) LIKE '%${this.escapeSql(query.metric_name.toLowerCase())}%'`
+      );
+    }
+    if (query.pillar) {
+      conditions.push(
+        `LOWER(s.attribute.pillar) = '${this.escapeSql(query.pillar.toLowerCase())}'`
+      );
+    }
+    if (query.year_from != null) {
+      conditions.push(
+        `CAST(s.attribute.metric_year AS INT) >= ${Number(query.year_from)}`
+      );
+    }
+    if (query.year_to != null) {
+      conditions.push(
+        `CAST(s.attribute.metric_year AS INT) <= ${Number(query.year_to)}`
+      );
+    }
+
+    const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+    return { sql: `SELECT * FROM s3object s${where}`, params: [] };
+  }
+
+  private escapeSql(value: string): string {
+    return value.replace(/'/g, "''");
+  }
+
+  // ── S3 Select execution ───────────────────────────────────────
+
+  private async selectFromSegment<T>(key: string, sql: string): Promise<T[]> {
+    const response = await this.s3.send(
+      new SelectObjectContentCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Expression: sql,
+        ExpressionType: "SQL",
+        InputSerialization: JSON_LINES_INPUT,
+        OutputSerialization: JSON_LINES_OUTPUT,
+      })
+    );
+
+    const results: T[] = [];
+    if (!response.Payload) return results;
+
+    for await (const event of response.Payload) {
+      if (event.Records?.Payload) {
+        const chunk = new TextDecoder().decode(event.Records.Payload);
+        const lines = chunk.split("\n").filter((l) => l.trim().length > 0);
+        for (const line of lines) {
+          results.push(JSON.parse(line) as T);
+        }
+      }
+    }
+
+    return results;
+  }
+
+  // ── GetObject fallback (for LocalStack / tests) ────────────
+
+  private async readJsonLines<T>(key: string): Promise<T[]> {
+    const response = await this.s3.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key })
+    );
+    const body = await response.Body?.transformToString();
+    if (!body) return [];
+    return body
+      .split("\n")
+      .filter((l) => l.trim().length > 0)
+      .map((l) => JSON.parse(l) as T);
+  }
+
+  private applyQueryFilter(events: EventRecord[], query: EventQuery): EventRecord[] {
+    return events.filter((e) => {
+      const attr = (e.attribute ?? {}) as Record<string, unknown>;
+      if (query.company_name && !String(attr.company_name ?? "").toLowerCase().includes(query.company_name.toLowerCase())) return false;
+      if (query.permid && String(attr.permid ?? "") !== query.permid) return false;
+      if (query.metric_name && !String(attr.metric_name ?? "").toLowerCase().includes(query.metric_name.toLowerCase())) return false;
+      if (query.pillar && String(attr.pillar ?? "").toLowerCase() !== query.pillar.toLowerCase()) return false;
+      if (query.year_from != null && Number(attr.metric_year ?? 0) < query.year_from) return false;
+      if (query.year_to != null && Number(attr.metric_year ?? 0) > query.year_to) return false;
+      return true;
+    });
+  }
+
+  private getNestedField(obj: Record<string, unknown>, path: string): unknown {
+    const parts = path.split(".");
+    let current: unknown = obj;
+    for (const part of parts) {
+      if (current == null || typeof current !== "object") return undefined;
+      current = (current as Record<string, unknown>)[part];
+    }
+    return current;
+  }
+
+  // ── Segment key resolution ────────────────────────────────────
+
+  private async getAllSegmentKeys(): Promise<string[]> {
+    const manifestKeys = await this.listManifestKeys();
+    const segmentKeys: string[] = [];
+
+    // Read manifests in parallel
+    const manifests = await Promise.all(
+      manifestKeys.map((k) => this.readJson<ManifestJson>(k))
+    );
+
+    for (const manifest of manifests) {
+      for (const uri of manifest.segments) {
+        segmentKeys.push(this.getKeyFromS3Uri(uri));
+      }
+    }
+
+    return segmentKeys;
   }
 
   private async listManifestKeys(): Promise<string[]> {
@@ -161,20 +311,6 @@ export class S3DataLakeReader implements DataLakeReader {
       throw new Error(`Empty object body for S3 key: ${key}`);
     }
     return JSON.parse(body) as T;
-  }
-
-  private async readJsonLines<T>(key: string): Promise<T[]> {
-    const response = await this.s3.send(
-      new GetObjectCommand({ Bucket: this.bucket, Key: key })
-    );
-    const body = await response.Body?.transformToString();
-    if (!body) return [];
-
-    return body
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => JSON.parse(line) as T);
   }
 
   private getKeyFromS3Uri(uri: string): string {

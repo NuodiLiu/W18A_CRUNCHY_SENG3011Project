@@ -1,5 +1,5 @@
-import { EventRecord, EsgMetricAttribute, HousingSaleAttribute } from "../../domain/models/event.js";
-import { DataLakeReader, EventQuery } from "../../domain/ports/dataLakeReader.js";
+import { EsgMetricAttribute, HousingSaleAttribute } from "../../domain/models/event.js";
+import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 
 export interface EventStatGroup {
   key: string;
@@ -15,38 +15,50 @@ export interface GetEventStatsDeps {
   dataLakeReader: DataLakeReader;
 }
 
-function getGroupKey(event: EventRecord, groupBy?: string): string {
-  if (!groupBy) return event.event_type;
+// Map group_by param → the fields we need S3 Select to project
+function getProjectionFields(groupBy?: string): string[] {
+  switch (groupBy) {
+    case "pillar":
+    case "company_name":
+    case "metric_year":
+    case "industry":
+      return ["event_type", `attribute.${groupBy}`];
+    case "suburb":
+    case "postcode":
+    case "zoning":
+    case "nature_of_property":
+    case "primary_purpose":
+      return ["event_type", `attribute.${groupBy}`];
+    case "contract_year":
+      return ["event_type", "attribute.contract_date"];
+    default:
+      return ["event_type"];
+  }
+}
 
-  const attr = event.attribute as Record<string, unknown>;
+function getGroupKey(row: Record<string, unknown>, groupBy?: string): string {
+  if (!groupBy) return String(row.event_type ?? "unknown");
+
+  const attr = (row.attribute ?? {}) as Record<string, unknown>;
 
   switch (groupBy) {
-    // ESG fields
     case "pillar":
-      return String((attr as Partial<EsgMetricAttribute>).pillar ?? "unknown");
     case "company_name":
-      return String((attr as Partial<EsgMetricAttribute>).company_name ?? "unknown");
-    case "metric_year":
-      return String((attr as Partial<EsgMetricAttribute>).metric_year ?? "unknown");
     case "industry":
-      return String((attr as Partial<EsgMetricAttribute>).industry ?? "unknown");
-    // Housing fields
     case "suburb":
-      return String((attr as Partial<HousingSaleAttribute>).suburb ?? "unknown");
-    case "postcode":
-      return String((attr as Partial<HousingSaleAttribute>).postcode ?? "unknown");
     case "zoning":
-      return String((attr as Partial<HousingSaleAttribute>).zoning ?? "unknown");
     case "nature_of_property":
-      return String((attr as Partial<HousingSaleAttribute>).nature_of_property ?? "unknown");
     case "primary_purpose":
-      return String((attr as Partial<HousingSaleAttribute>).primary_purpose ?? "unknown");
+      return String(attr[groupBy] ?? "unknown");
+    case "metric_year":
+    case "postcode":
+      return String(attr[groupBy] ?? "unknown");
     case "contract_year": {
-      const cd = (attr as Partial<HousingSaleAttribute>).contract_date;
+      const cd = attr.contract_date;
       return typeof cd === "string" && cd.length >= 4 ? cd.slice(0, 4) : "unknown";
     }
     default:
-      return event.event_type;
+      return String(row.event_type ?? "unknown");
   }
 }
 
@@ -54,17 +66,17 @@ export async function getEventStats(
   groupBy: string | undefined,
   deps: GetEventStatsDeps
 ): Promise<EventStats> {
-  // Load all events (no filter, no pagination limit)
-  const { events } = await deps.dataLakeReader.queryEvents({ limit: Number.MAX_SAFE_INTEGER } as EventQuery);
+  const fields = getProjectionFields(groupBy);
+  const rows = await deps.dataLakeReader.getGroupProjection(fields);
   const counts = new Map<string, number>();
 
-  for (const event of events) {
-    const key = getGroupKey(event, groupBy);
+  for (const row of rows) {
+    const key = getGroupKey(row, groupBy);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
   return {
-    total_events: events.length,
+    total_events: rows.length,
     groups: Array.from(counts.entries()).map(([key, count]) => ({ key, count })),
   };
 }

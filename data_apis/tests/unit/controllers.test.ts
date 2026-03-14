@@ -105,6 +105,9 @@ function buildApp(overrides: Record<string, unknown> = {}) {
         Promise.resolve(fakeHousingEvents.find((e: { event_id: string }) => e.event_id === id))
       ),
       getDistinctEventTypes: jest.fn().mockResolvedValue([...new Set(fakeHousingEvents.map((e: { event_type: string }) => e.event_type))]),
+      getGroupProjection: jest.fn().mockResolvedValue(
+        fakeHousingEvents.map((e) => ({ event_type: e.event_type, attribute: e.attribute }))
+      ),
     },
     ...overrides,
   };
@@ -424,6 +427,7 @@ describe("GET /api/v1/events/stats", () => {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
         findEventById: jest.fn().mockResolvedValue(undefined),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
       },
     });
   

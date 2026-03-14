@@ -51,6 +51,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
       findEventById: jest.fn().mockResolvedValue(undefined),
       getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+      getGroupProjection: jest.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
