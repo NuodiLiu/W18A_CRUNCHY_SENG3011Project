@@ -69,7 +69,7 @@ const sampleEvents = [
   },
   {
     event_id: "evt-003",
-    event_type: "housing_sale",
+    event_type: "property_sale",
     time_object: { timestamp: "2024-02-01T00:00:00Z", timezone: "AEST" },
     attribute: {
       suburb: "Kensington",
@@ -176,7 +176,7 @@ describe("GET /api/v1/events/types — integration", () => {
 
     expect(res.body.event_types).toBeDefined();
     expect(res.body.event_types).toContain("esg_metric");
-    expect(res.body.event_types).toContain("housing_sale");
+    expect(res.body.event_types).toContain("property_sale");
   });
 });
 
