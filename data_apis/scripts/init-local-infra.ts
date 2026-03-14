@@ -24,7 +24,7 @@ const DDB_ENDPOINT = process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8000";
 const S3_ENDPOINT = process.env.S3_ENDPOINT ?? "http://localhost:4566";
 const SQS_ENDPOINT = process.env.SQS_ENDPOINT ?? "http://localhost:4566";
 
-const PREFIX = process.env.PROJECT_PREFIX ?? "esgpipeline";
+const PREFIX = process.env.PROJECT_PREFIX ?? "eia";
 
 const ddb = new DynamoDBClient({
   region: REGION,

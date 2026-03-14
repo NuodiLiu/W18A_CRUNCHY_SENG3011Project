@@ -22,9 +22,9 @@ const sharedConfig = {
   format: "cjs",          // Lambda nodejs20.x understands CJS; no .mjs wrapper needed
   sourcemap: false,
   minify: false,
-  // Keep AWS SDK external — it is provided by the Lambda runtime layer.
-  // Remove this 'external' list if you want to fully bundle the SDK (larger ZIP).
-  external: [],
+  // Keep AWS SDK external — it is provided by the Lambda nodejs20.x runtime.
+  // Remove or empty this list only if you want to fully bundle the SDK (larger ZIP).
+  external: ["@aws-sdk/*"],
 };
 
 // ── Build handlers ─────────────────────────────────────────────────────────

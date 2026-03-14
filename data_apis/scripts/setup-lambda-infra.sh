@@ -23,11 +23,12 @@ set -euo pipefail
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 REGION="${AWS_REGION:-ap-southeast-2}"
-PREFIX="${PROJECT_PREFIX:-esgpipeline}"
-ENV="${ENV_SUFFIX:-prod}"
-BASE="${PREFIX}-${ENV}"          # e.g. esgpipeline-prod
+PREFIX="${PROJECT_PREFIX:-eia}"
+ENV="${ENV_SUFFIX:-dev}"
+BASE="${PREFIX}-${ENV}"          # e.g. eia-dev
 
-# Derived names (must match config/index.ts defaults)
+# Derived resource names — ensure ENV_SUFFIX matches the value set in the application
+# environment (config/index.ts defaults to "dev"; override here to match when deploying)
 JOBS_TABLE="${BASE}-jobs"
 STATE_TABLE="${BASE}-connector-state"
 IDEM_TABLE="${BASE}-idempotency"

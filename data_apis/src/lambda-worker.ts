@@ -31,11 +31,14 @@ export async function handler(event: SQSEvent): Promise<SQSBatchResponse> {
   const batchItemFailures: SQSBatchResponse["batchItemFailures"] = [];
 
   for (const record of event.Records) {
-    const { job_id } = JSON.parse(record.body) as { job_id: string };
     try {
-      await runJob(job_id, deps);
+      const parsed = JSON.parse(record.body) as { job_id?: string };
+      if (!parsed.job_id) {
+        throw new Error(`Missing job_id in message body: ${record.body}`);
+      }
+      await runJob(parsed.job_id, deps);
     } catch (err) {
-      console.error(`[lambda-worker] job ${job_id} failed:`, err);
+      console.error(`[lambda-worker] record ${record.messageId} failed:`, err);
       // Return the messageId so Lambda/SQS retries only this record.
       batchItemFailures.push({ itemIdentifier: record.messageId });
     }
