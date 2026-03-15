@@ -4,6 +4,8 @@
 import type { TsoaRoute } from '@tsoa/runtime';
 import {  fetchMiddlewares, ExpressTemplateService } from '@tsoa/runtime';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { VisualisationController } from './../controllers/VisualisationController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { PreprocessingController } from './../controllers/PreprocessingController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { HealthController } from './../controllers/HealthController';
@@ -20,6 +22,33 @@ import type { Request as ExRequest, Response as ExResponse, RequestHandler, Rout
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
 const models: TsoaRoute.Models = {
+    "BreakdownEntry": {
+        "dataType": "refObject",
+        "properties": {
+            "category": {"dataType":"string","required":true},
+            "value": {"dataType":"double","required":true},
+            "count": {"dataType":"double","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "BreakdownResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "dimension": {"dataType":"string","required":true},
+            "metric": {"dataType":"string","required":true},
+            "aggregation": {"dataType":"string","required":true},
+            "event_type": {"dataType":"string","required":true},
+            "entries": {"dataType":"array","array":{"dataType":"refObject","ref":"BreakdownEntry"},"required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AggregationType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["avg"]},{"dataType":"enum","enums":["sum"]},{"dataType":"enum","enums":["count"]},{"dataType":"enum","enums":["min"]},{"dataType":"enum","enums":["max"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreprocessJobAccepted": {
         "dataType": "refObject",
         "properties": {
@@ -328,6 +357,45 @@ export function RegisterRoutes(app: Router) {
 
 
     
+        const argsVisualisationController_getBreakdown: Record<string, TsoaRoute.ParameterSchema> = {
+                event_type: {"in":"query","name":"event_type","dataType":"string"},
+                dimension: {"in":"query","name":"dimension","dataType":"string"},
+                metric: {"in":"query","name":"metric","dataType":"string"},
+                aggregation: {"in":"query","name":"aggregation","ref":"AggregationType"},
+                limit: {"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/v1/visualisation/breakdown',
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController)),
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController.prototype.getBreakdown)),
+
+            async function VisualisationController_getBreakdown(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsVisualisationController_getBreakdown, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<VisualisationController>(VisualisationController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'getBreakdown',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsPreprocessingController_createJob: Record<string, TsoaRoute.ParameterSchema> = {
                 _body: {"in":"body","name":"_body","required":true,"ref":"PreprocessJobRequest"},
         };

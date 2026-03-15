@@ -22,4 +22,6 @@ export interface DataLakeReader {
   getDistinctEventTypes(): Promise<string[]>;
   /** Project only the fields needed for aggregation (avoids full record transfer). */
   getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]>;
+  /** Fetch all events without pagination (for aggregation/visualisation). */
+  getAllEvents(): Promise<EventRecord[]>;
 }

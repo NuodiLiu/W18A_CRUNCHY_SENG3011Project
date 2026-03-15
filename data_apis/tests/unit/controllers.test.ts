@@ -108,6 +108,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       getGroupProjection: jest.fn().mockResolvedValue(
         fakeHousingEvents.map((e) => ({ event_type: e.event_type, attribute: e.attribute }))
       ),
+      getAllEvents: jest.fn().mockResolvedValue(fakeHousingEvents),
     },
     ...overrides,
   };
@@ -428,9 +429,10 @@ describe("GET /api/v1/events/stats", () => {
         findEventById: jest.fn().mockResolvedValue(undefined),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
+        getAllEvents: jest.fn().mockResolvedValue([]),
       },
     });
-  
+
     const res = await request(app)
       .get("/api/v1/events/stats")
       .expect(200);
@@ -495,6 +497,7 @@ describe("GET /api/v1/events", () => {
         findEventById: jest.fn().mockResolvedValue(undefined),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
+        getAllEvents: jest.fn().mockResolvedValue([]),
       },
     });
 
