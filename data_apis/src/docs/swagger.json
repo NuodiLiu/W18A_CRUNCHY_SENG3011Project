@@ -334,33 +334,22 @@
 				"type": "object",
 				"additionalProperties": true
 			},
-			"EventDatasetResponse": {
+			"EventListResponse": {
 				"properties": {
-					"data_source": {
-						"type": "string"
-					},
-					"dataset_type": {
-						"type": "string"
-					},
-					"dataset_id": {
-						"type": "string"
-					},
-					"time_object": {
-						"$ref": "#/components/schemas/TimeObjectResponse"
-					},
 					"events": {
 						"items": {
 							"$ref": "#/components/schemas/EventRecordResponse_Record_string.unknown__"
 						},
 						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
-					"data_source",
-					"dataset_type",
-					"dataset_id",
-					"time_object",
-					"events"
+					"events",
+					"total"
 				],
 				"type": "object",
 				"additionalProperties": true
@@ -914,13 +903,13 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/EventDatasetResponse"
+									"$ref": "#/components/schemas/EventListResponse"
 								}
 							}
 						}
 					}
 				},
-				"description": "Query normalized ESG metric events from the data lake.\nSupports filtering by company, metric name, ESG pillar, and year range.\nResults are paginated via limit/offset.",
+				"description": "Query normalized events from the data lake.\nSupports filtering by company, metric name, ESG pillar, and year range.\nResults are paginated via limit/offset.",
 				"tags": [
 					"Events"
 				],

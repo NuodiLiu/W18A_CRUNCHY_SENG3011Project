@@ -123,7 +123,7 @@ export function toHousingEventRecordResponse(
 
 export function toEventListResponse(
   events: EventRecord[],
-  total: number
+  total: number,
 ): EventListResponse {
   return {
     events: events.map(toEventRecordResponseAuto),
