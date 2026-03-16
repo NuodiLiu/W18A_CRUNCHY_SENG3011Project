@@ -4,7 +4,7 @@ import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { DynamoStateStore } from "./infra/aws/dynamoStateStore.js";
 import { S3ConfigStore } from "./infra/aws/s3ConfigStore.js";
 import { S3DataLakeWriter } from "./infra/aws/s3DataLakeWriter.js";
-import { S3DataLakeReader } from "./infra/aws/s3DataLakeReader.js";
+import { DynamoEventRepository } from "./infra/aws/dynamoEventRepository.js";
 import { SQSQueueService } from "./infra/aws/sqsQueueService.js";
 import { createConnector } from "./infra/connectors/connectorFactory.js";
 import { runJob, RunJobDeps } from "./application/worker/runJob.js";
@@ -15,7 +15,7 @@ const config = loadConfig();
 const queue = new SQSQueueService(config);
 const jobRepo = new DynamoJobRepository(config);
 const dataLakeWriter = new S3DataLakeWriter(config);
-const dataLakeReader = new S3DataLakeReader(config, { useS3Select: false });
+const eventRepository = new DynamoEventRepository(config);
 
 const importDeps: RunJobDeps = {
   jobRepo,
@@ -23,11 +23,12 @@ const importDeps: RunJobDeps = {
   stateStore: new DynamoStateStore(config),
   dataLakeWriter,
   connectorFactory: (type) => createConnector(type, config),
+  eventRepository,
 };
 
 const preprocessDeps: RunPreprocessJobDeps = {
   jobRepo,
-  dataLakeReader,
+  dataLakeReader: eventRepository,
   dataLakeWriter,
 };
 

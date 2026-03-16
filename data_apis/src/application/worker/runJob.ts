@@ -4,6 +4,7 @@ import { ConfigStore } from "../../domain/ports/configStore.js";
 import { StateStore } from "../../domain/ports/stateStore.js";
 import { DataLakeWriter } from "../../domain/ports/dataLakeWriter.js";
 import { Connector } from "../../domain/ports/connector.js";
+import { EventRepository } from "../../domain/ports/eventRepository.js";
 import { ConnectorState } from "../../domain/models/connectorState.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
 import { getNormalizer } from "../normalizers/index.js";
@@ -14,6 +15,8 @@ export interface RunJobDeps {
   stateStore: StateStore;
   dataLakeWriter: DataLakeWriter;
   connectorFactory: (connectorType: string) => Connector;
+  /** When provided, events are also written to the queryable event store (dual-write). */
+  eventRepository?: EventRepository;
 }
 
 const LEASE_DURATION_MS = 10 * 60 * 1000; // 10 min — covers up to ~2 min of 1 GB CSV processing
@@ -47,6 +50,9 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
       async (batch) => {
         const events = normalize(batch, config, runTimestamp);
         await deps.dataLakeWriter.writeChunk(events, datasetId);
+        if (deps.eventRepository) {
+          await deps.eventRepository.writeEvents(events, datasetId);
+        }
         totalEvents += events.length;
       },
     );
