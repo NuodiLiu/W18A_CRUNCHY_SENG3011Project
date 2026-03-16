@@ -22,4 +22,9 @@ export interface DataLakeReader {
   getDistinctEventTypes(): Promise<string[]>;
   /** Project only the fields needed for aggregation (avoids full record transfer). */
   getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]>;
+  /** Read all events from a specific dataset, invoking the callback per-segment for streaming. */
+  readDataset(
+    datasetId: string,
+    onBatch: (events: EventRecord[]) => Promise<void>,
+  ): Promise<void>;
 }

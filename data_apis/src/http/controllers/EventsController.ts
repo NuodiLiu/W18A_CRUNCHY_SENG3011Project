@@ -2,17 +2,17 @@ import "reflect-metadata";
 import { Controller, Get, Route, Tags, Path, Query, Response, SuccessResponse } from "tsoa";
 import { NotFoundError } from "../../domain/errors.js";
 import {
-  EventDatasetResponse,
+  EventListResponse,
   EventTypesResponse,
   EventStatsResponse,
   EventRecordResponse,
 } from "../types/events.types.js";
 import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
+import { getEvents } from "../../application/retrieval/getEvents.js";
 import { getEventById } from "../../application/retrieval/getEventById.js";
 import { getEventStats } from "../../application/retrieval/getEventStats.js";
-import { getEvents } from "../../application/retrieval/getEvents.js";
-import { toEventRecordResponseAuto } from "../mappers/eventsMapper.js";
+import { toEventListResponse, toEventRecordResponseAuto } from "../mappers/eventsMapper.js";
 
 export interface EventsControllerDeps {
   dataLakeReader: DataLakeReader;
@@ -26,7 +26,7 @@ export class EventsController extends Controller {
   }
 
   /**
-   * Query normalized ESG metric events from the data lake.
+   * Query normalized events from the data lake.
    * Supports filtering by company, metric name, ESG pillar, and year range.
    * Results are paginated via limit/offset.
    */
@@ -40,29 +40,14 @@ export class EventsController extends Controller {
     @Query() pillar?: string,
     @Query() year_from?: number,
     @Query() year_to?: number,
-    @Query("limit") _limit: number = 50,
-    @Query("offset") _offset: number = 0
-  ): Promise<EventDatasetResponse> {
+    @Query() limit: number = 50,
+    @Query() offset: number = 0
+  ): Promise<EventListResponse> {
     const result = await getEvents(
-      {
-        company_name,
-        permid,
-        metric_name,
-        pillar,
-        year_from,
-        year_to,
-        limit: _limit,
-        offset: _offset,
-      },
-      this.deps
+      { company_name, permid, metric_name, pillar, year_from, year_to, limit, offset },
+      this.deps,
     );
-    return {
-      data_source: "data_lake",
-      dataset_type: "mixed",
-      dataset_id: "query_result",
-      time_object: { timestamp: new Date().toISOString(), timezone: "UTC" },
-      events: result.events.map(toEventRecordResponseAuto),
-    };
+    return toEventListResponse(result.events, result.total);
   }
 
   /**

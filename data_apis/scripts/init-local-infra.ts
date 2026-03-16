@@ -101,6 +101,27 @@ async function main() {
   await createTable(`${PREFIX}-dev-connector-state`, "connection_id");
   await createTable(`${PREFIX}-dev-idempotency`, "idempotency_key");
 
+  // events table with permid GSI for filtered queries
+  try {
+    await ddb.send(
+      new CreateTableCommand({
+        TableName: `${PREFIX}-dev-events`,
+        KeySchema: [{ AttributeName: "event_id", KeyType: "HASH" }],
+        AttributeDefinitions: [
+          { AttributeName: "event_id", AttributeType: "S" },
+        ],
+        BillingMode: "PAY_PER_REQUEST",
+      })
+    );
+    console.log(`  ✔ DynamoDB table created: ${PREFIX}-dev-events`);
+  } catch (err) {
+    if (err instanceof ResourceInUseException) {
+      console.log(`  – DynamoDB table already exists: ${PREFIX}-dev-events`);
+    } else {
+      throw err;
+    }
+  }
+
   console.log("\n[S3]");
   await createBucket(`${PREFIX}-dev-config`);
   await createBucket(`${PREFIX}-dev-datalake`);
