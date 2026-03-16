@@ -143,14 +143,11 @@ const models: TsoaRoute.Models = {
         "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "EventDatasetResponse": {
+    "EventListResponse": {
         "dataType": "refObject",
         "properties": {
-            "data_source": {"dataType":"string","required":true},
-            "dataset_type": {"dataType":"string","required":true},
-            "dataset_id": {"dataType":"string","required":true},
-            "time_object": {"ref":"TimeObjectResponse","required":true},
             "events": {"dataType":"array","array":{"dataType":"refObject","ref":"EventRecordResponse_Record_string.unknown__"},"required":true},
+            "total": {"dataType":"double","required":true},
         },
         "additionalProperties": true,
     },
@@ -338,7 +335,7 @@ export function RegisterRoutes(app: Router) {
 
     
         const argsPreprocessingController_createJob: Record<string, TsoaRoute.ParameterSchema> = {
-                _body: {"in":"body","name":"_body","required":true,"ref":"PreprocessJobRequest"},
+                body: {"in":"body","name":"body","required":true,"ref":"PreprocessJobRequest"},
         };
         app.post('/api/v1/preprocessing/jobs',
             ...(fetchMiddlewares<RequestHandler>(PreprocessingController)),
@@ -373,7 +370,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsPreprocessingController_getJob: Record<string, TsoaRoute.ParameterSchema> = {
-                _jobId: {"in":"path","name":"jobId","required":true,"dataType":"string"},
+                jobId: {"in":"path","name":"jobId","required":true,"dataType":"string"},
         };
         app.get('/api/v1/preprocessing/jobs/:jobId',
             ...(fetchMiddlewares<RequestHandler>(PreprocessingController)),
@@ -482,8 +479,8 @@ export function RegisterRoutes(app: Router) {
                 pillar: {"in":"query","name":"pillar","dataType":"string"},
                 year_from: {"in":"query","name":"year_from","dataType":"double"},
                 year_to: {"in":"query","name":"year_to","dataType":"double"},
-                _limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
-                _offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
+                limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
+                offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
         };
         app.get('/api/v1/events',
             ...(fetchMiddlewares<RequestHandler>(EventsController)),

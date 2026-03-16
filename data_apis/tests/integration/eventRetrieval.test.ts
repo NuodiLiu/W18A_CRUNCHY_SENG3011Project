@@ -258,15 +258,43 @@ describe("GET /api/v1/events/stats — integration", () => {
 });
 
 describe("GET /api/v1/events — integration", () => {
-  it("returns events with dataset envelope", async () => {
+  it("returns all events with total", async () => {
     const res = await request(app)
       .get("/api/v1/events")
       .expect(200);
 
-    expect(res.body.data_source).toBeDefined();
-    expect(res.body.dataset_type).toBeDefined();
-    expect(res.body.events).toBeInstanceOf(Array);
-    expect(res.body.events.length).toBe(3);
+    expect(Array.isArray(res.body.events)).toBe(true);
+    expect(res.body.total).toBe(sampleEvents.length);
+    expect(res.body.events).toHaveLength(sampleEvents.length);
+  });
+
+  it("returns correct event structure", async () => {
+    const res = await request(app)
+      .get("/api/v1/events")
+      .expect(200);
+
+    const evt = res.body.events.find((e: { event_id: string }) => e.event_id === "evt-001");
+    expect(evt).toBeDefined();
+    expect(evt.event_type).toBe("esg_metric");
+    expect(evt.time_object.timestamp).toBe("2024-01-15T00:00:00Z");
+    expect(evt.time_object.timezone).toBe("UTC");
+  });
+
+  it("respects limit param", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?limit=1")
+      .expect(200);
+
+    expect(res.body.events).toHaveLength(1);
+    expect(res.body.total).toBe(sampleEvents.length);
+  });
+
+  it("respects offset param", async () => {
+    const resAll = await request(app).get("/api/v1/events").expect(200);
+    const resOffset = await request(app).get("/api/v1/events?offset=1").expect(200);
+
+    expect(resOffset.body.events).toHaveLength(sampleEvents.length - 1);
+    expect(resOffset.body.events[0].event_id).not.toBe(resAll.body.events[0].event_id);
   });
 
   it("supports limit and offset pagination", async () => {
