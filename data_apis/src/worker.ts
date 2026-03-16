@@ -58,12 +58,8 @@ async function pollLoop(): Promise<void> {
         await queue.deleteMessage(msg.receiptHandle);
       } catch (err) {
         // don't delete message — sqs will redeliver after visibility timeout
-<<<<<<< HEAD
-        console.error(`[worker] job ${job_id} (${job_type ?? "import"}) failed:`, err);
-=======
         // eslint-disable-next-line no-console
-        console.error(`[worker] job ${job_id} failed:`, err);
->>>>>>> develop
+        console.error(`[worker] job ${job_id} (${job_type ?? "import"}) failed:`, err);
       }
     }
   }
