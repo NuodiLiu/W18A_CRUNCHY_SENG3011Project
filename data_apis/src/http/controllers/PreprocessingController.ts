@@ -34,7 +34,7 @@ export class PreprocessingController extends Controller {
   @SuccessResponse(202, "Job accepted and enqueued")
   @Response<ErrorBody>(400, "Validation error — missing required fields or unknown pipeline")
   public async createJob(
-    @Body() _body: PreprocessJobRequest
+    @Body() body: PreprocessJobRequest
   ): Promise<PreprocessJobAccepted> {
     this.setStatus(202);
     const result = await createPreprocessJob(
@@ -55,18 +55,12 @@ export class PreprocessingController extends Controller {
   @Get("jobs/{jobId}")
   @SuccessResponse(200, "Job status and result")
   @Response<ErrorBody>(404, "Job not found")
-<<<<<<< HEAD
   public async getJob(@Path() jobId: string): Promise<PreprocessJobStatusResponse> {
     const job = await this.deps.jobRepo.findById(jobId);
     if (!job || job.job_type !== "preprocess") {
       throw new NotFoundError("Preprocessing job", jobId);
     }
     return toPreprocessJobStatusResponse(job);
-=======
-  @Response<ErrorBody>(501, "Not yet implemented")
-  public async getJob(@Path("jobId") _jobId: string): Promise<PreprocessJobStatusResponse> {
-    throw new NotImplementedError("GET /api/v1/preprocessing/jobs/:jobId");
->>>>>>> develop
   }
 
   /**
