@@ -25,6 +25,12 @@ const sharedConfig = {
   // Keep AWS SDK external — it is provided by the Lambda nodejs20.x runtime.
   // Remove or empty this list only if you want to fully bundle the SDK (larger ZIP).
   external: ["@aws-sdk/*"],
+  // tsconfig.json has "baseUrl": "." which causes esbuild to resolve the bare
+  // specifier "tsoa" to the local tsoa.json config file instead of the npm
+  // package.  Explicitly alias it to the real package entry point.
+  alias: {
+    tsoa: resolve(__dirname, "node_modules/tsoa/dist/index.js"),
+  },
 };
 
 // ── Build handlers ─────────────────────────────────────────────────────────

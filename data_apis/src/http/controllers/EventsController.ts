@@ -40,6 +40,7 @@ export class EventsController extends Controller {
     @Query() pillar?: string,
     @Query() year_from?: number,
     @Query() year_to?: number,
+<<<<<<< HEAD
     @Query() limit: number = 50,
     @Query() offset: number = 0
   ): Promise<EventListResponse> {
@@ -48,6 +49,12 @@ export class EventsController extends Controller {
       this.deps,
     );
     return toEventListResponse(result.events, result.total);
+=======
+    @Query("limit") _limit: number = 50,
+    @Query("offset") _offset: number = 0
+  ): Promise<EventDatasetResponse> {
+    throw new NotImplementedError("GET /api/v1/events");
+>>>>>>> develop
   }
 
   /**

@@ -40,6 +40,7 @@ export async function handler(event: SQSEvent): Promise<SQSBatchResponse> {
       }
       await runJob(parsed.job_id, deps);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error(`[lambda-worker] record ${record.messageId} failed:`, err);
       // Return the messageId so Lambda/SQS retries only this record.
       batchItemFailures.push({ itemIdentifier: record.messageId });

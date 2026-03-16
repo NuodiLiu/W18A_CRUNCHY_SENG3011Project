@@ -20,5 +20,6 @@ const dataLakeReader = new DynamoEventRepository(config);
 const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
 
 app.listen(config.port, () => {
+  // eslint-disable-next-line no-console
   console.log(`[API] listening on :${config.port}`);
 });

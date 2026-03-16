@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: data_apis/package-lock.json
 
       - run: npm ci
 
@@ -34,6 +36,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Build Lambda bundles
+        run: npm run build:lambda
 
       # ── Start containers only for integration tests ──
       - name: Start DynamoDB Local
