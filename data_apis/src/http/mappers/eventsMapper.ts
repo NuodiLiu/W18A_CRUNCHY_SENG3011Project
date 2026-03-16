@@ -8,6 +8,7 @@ import {
 import {
   EventRecordResponse,
   EventDatasetResponse,
+  EventListResponse,
   EsgMetricAttributeResponse,
   HousingSaleAttributeResponse,
   TimeObjectResponse,
@@ -118,6 +119,16 @@ export function toHousingEventRecordResponse(
   record: EventRecord<HousingSaleAttribute>
 ): EventRecordResponse<HousingSaleAttributeResponse> {
   return toEventRecordResponse(record, toHousingSaleAttributeResponse);
+}
+
+export function toEventListResponse(
+  events: EventRecord[],
+  total: number
+): EventListResponse {
+  return {
+    events: events.map(toEventRecordResponseAuto),
+    total,
+  };
 }
 
 export function toEventRecordResponseAuto(

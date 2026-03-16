@@ -325,6 +325,38 @@ describe("POST /api/v1/collection/uploads/presign", () => {
   });
 });
 
+describe("GET /api/v1/events/types", () => {
+  it("returns 200 with event_types array", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/v1/events/types")
+      .expect(200);
+
+    expect(Array.isArray(res.body.event_types)).toBe(true);
+    expect(res.body.event_types).toContain("housing_sale");
+  });
+
+  it("calls dataLakeReader.getDistinctEventTypes", async () => {
+    const { app, deps } = buildApp();
+    await request(app).get("/api/v1/events/types").expect(200);
+    expect(deps.dataLakeReader.getDistinctEventTypes).toHaveBeenCalled();
+  });
+
+  it("returns empty array when data lake is empty", async () => {
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+        readDataset: jest.fn(),
+      },
+    });
+    const res = await request(app).get("/api/v1/events/types").expect(200);
+    expect(res.body.event_types).toEqual([]);
+  });
+});
+
 describe("GET /api/v1/events/:eventId", () => {
   it("returns 200 with housing event if it exists", async () => {
     const { app } = buildApp();
@@ -345,6 +377,19 @@ describe("GET /api/v1/events/:eventId", () => {
     await request(app)
       .get("/api/v1/events/missing-id")
       .expect(404);
+  });
+
+  it("calls dataLakeReader.findEventById with the path parameter", async () => {
+    const { app, deps } = buildApp();
+    await request(app).get("/api/v1/events/h-1").expect(200);
+    expect(deps.dataLakeReader.findEventById).toHaveBeenCalledWith("h-1");
+  });
+
+  it("response contains correct time_object", async () => {
+    const { app } = buildApp();
+    const res = await request(app).get("/api/v1/events/h-1").expect(200);
+    expect(res.body.time_object.timestamp).toBe("2024-04-10T00:00:00Z");
+    expect(res.body.time_object.timezone).toBe("UTC");
   });
 });
 
@@ -429,6 +474,7 @@ describe("GET /api/v1/events/stats", () => {
         findEventById: jest.fn().mockResolvedValue(undefined),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
+        readDataset: jest.fn(),
       },
     });
   
@@ -438,5 +484,94 @@ describe("GET /api/v1/events/stats", () => {
   
     expect(res.body.total_events).toBe(0);
     expect(res.body.groups).toEqual([]);
+  });
+});
+
+describe("GET /api/v1/events", () => {
+  it("returns 200 with events array and total", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/v1/events")
+      .expect(200);
+
+    expect(Array.isArray(res.body.events)).toBe(true);
+    expect(res.body.total).toBe(fakeHousingEvents.length);
+  });
+
+  it("returns mapped event records", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/v1/events")
+      .expect(200);
+
+    expect(res.body.events[0].event_id).toBe("h-1");
+    expect(res.body.events[0].event_type).toBe("housing_sale");
+    expect(res.body.events[0].attribute.suburb).toBe("Sydney");
+  });
+
+  it("passes query filters to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
+    await request(app)
+      .get("/api/v1/events?company_name=Acme&year_from=2020&year_to=2024&limit=10&offset=5")
+      .expect(200);
+
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        company_name: "Acme",
+        year_from: 2020,
+        year_to: 2024,
+        limit: 10,
+        offset: 5,
+      })
+    );
+  });
+
+  it("passes permid filter to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
+    await request(app).get("/api/v1/events?permid=P12345").expect(200);
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ permid: "P12345" })
+    );
+  });
+
+  it("passes pillar filter to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
+    await request(app).get("/api/v1/events?pillar=Environmental").expect(200);
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ pillar: "Environmental" })
+    );
+  });
+
+  it("passes metric_name filter to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
+    await request(app).get("/api/v1/events?metric_name=carbon_emissions").expect(200);
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ metric_name: "carbon_emissions" })
+    );
+  });
+
+  it("uses default limit=50 and offset=0 when not specified", async () => {
+    const { app, deps } = buildApp();
+    await request(app).get("/api/v1/events").expect(200);
+
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50, offset: 0 })
+    );
+  });
+
+  it("returns empty events array when data lake is empty", async () => {
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+        readDataset: jest.fn(),
+      },
+    });
+    const res = await request(app).get("/api/v1/events").expect(200);
+
+    expect(res.body.events).toEqual([]);
+    expect(res.body.total).toBe(0);
   });
 });
