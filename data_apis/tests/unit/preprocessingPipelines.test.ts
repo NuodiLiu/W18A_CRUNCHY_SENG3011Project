@@ -157,6 +157,27 @@ describe("POST /api/v1/preprocessing/jobs", () => {
       .send({ dataset_id: "ds-1", pipeline: "nonexistent" })
       .expect(400);
   });
+
+  it("returns 400 when dataset_id is missing", async () => {
+    const { app } = buildApp();
+    await request(app)
+      .post("/api/v1/preprocessing/jobs")
+      .send({ pipeline: "housing_clean_v1" })
+      .expect(400);
+  });
+
+  it("passes params to jobRepo.create", async () => {
+    const { app, deps } = buildApp();
+    const params = { price_min: 500, dedup_by_dealing: false };
+    await request(app)
+      .post("/api/v1/preprocessing/jobs")
+      .send({ dataset_id: "ds-1", pipeline: "housing_clean_v1", params })
+      .expect(202);
+
+    expect(deps.jobRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ pipeline_params: params })
+    );
+  });
 });
 
 // ── GET /api/v1/preprocessing/jobs/:jobId ─────────────────────
@@ -208,6 +229,33 @@ describe("GET /api/v1/preprocessing/jobs/:jobId", () => {
       .get("/api/v1/preprocessing/jobs/pp-1")
       .expect(404);
   });
+
+  it.each(["PENDING", "RUNNING", "FAILED"] as const)(
+    "returns null output_dataset_id and quality_report when status is %s",
+    async (status) => {
+      const pendingJob: JobRecord = {
+        ...fakePreprocessJob,
+        status,
+        dataset_id: undefined,
+        quality_report: undefined,
+      };
+      const { app } = buildApp({
+        jobRepo: {
+          create: jest.fn(),
+          findById: jest.fn().mockResolvedValue(pendingJob),
+          claimJob: jest.fn(),
+          updateStatus: jest.fn(),
+        },
+      });
+      const res = await request(app)
+        .get("/api/v1/preprocessing/jobs/pp-1")
+        .expect(200);
+
+      expect(res.body.status).toBe(status);
+      expect(res.body.output_dataset_id).toBeNull();
+      expect(res.body.quality_report).toBeNull();
+    }
+  );
 });
 
 // ── Pipeline pure function unit tests ─────────────────────────
@@ -332,5 +380,33 @@ describe("runHousingCleanPipeline", () => {
     expect((cleaned[0].attribute as Record<string, unknown>).street_name).toBe("King St");
     expect((cleaned[0].attribute as Record<string, unknown>).legal_description).toBe("Lot 1");
     expect(report.standardized.whitespace_trimmed).toBe(1);
+  });
+
+  it("skips suburb uppercasing when normalize_suburb is false", () => {
+    const events = [makeEvent({ suburb: "parramatta" })];
+    const { cleaned, report } = runHousingCleanPipeline(events, { normalize_suburb: false });
+    expect((cleaned[0].attribute as Record<string, unknown>).suburb).toBe("parramatta");
+    expect(report.standardized.suburb_uppercased).toBe(0);
+  });
+
+  it("skips area nullification when nullify_zero_area is false", () => {
+    const events = [makeEvent({ area: 0 })];
+    const { cleaned, report } = runHousingCleanPipeline(events, { nullify_zero_area: false });
+    expect((cleaned[0].attribute as Record<string, unknown>).area).toBe(0);
+    expect(report.standardized.area_nullified).toBe(0);
+  });
+
+  it("skips area_type fix when fix_area_type is false", () => {
+    const events = [makeEvent({ area_type: "847.3" })];
+    const { cleaned, report } = runHousingCleanPipeline(events, { fix_area_type: false });
+    expect((cleaned[0].attribute as Record<string, unknown>).area_type).toBe("847.3");
+    expect(report.standardized.area_type_fixed).toBe(0);
+  });
+
+  it("skips whitespace trimming when trim_whitespace is false", () => {
+    const events = [makeEvent({ street_name: "  King St  " })];
+    const { cleaned, report } = runHousingCleanPipeline(events, { trim_whitespace: false });
+    expect((cleaned[0].attribute as Record<string, unknown>).street_name).toBe("  King St  ");
+    expect(report.standardized.whitespace_trimmed).toBe(0);
   });
 });
