@@ -13,6 +13,7 @@ export interface AppConfig {
   ddbJobsTable: string;
   ddbStateTable: string;
   ddbIdempotencyTable: string;
+  ddbEventsTable: string;
   s3ConfigBucket: string;
   s3DatalakeBucket: string;
 }
@@ -34,6 +35,7 @@ export function loadConfig(): AppConfig {
     ddbJobsTable: env("DDB_JOBS_TABLE", `${prefix}-${suffix}-jobs`),
     ddbStateTable: env("DDB_STATE_TABLE", `${prefix}-${suffix}-connector-state`),
     ddbIdempotencyTable: env("DDB_IDEMPOTENCY_TABLE", `${prefix}-${suffix}-idempotency`),
+    ddbEventsTable: env("DDB_EVENTS_TABLE", `${prefix}-${suffix}-events`),
     s3ConfigBucket: env("S3_CONFIG_BUCKET", `${prefix}-${suffix}-config`),
     s3DatalakeBucket: env("S3_DATALAKE_BUCKET", `${prefix}-${suffix}-datalake`),
   };

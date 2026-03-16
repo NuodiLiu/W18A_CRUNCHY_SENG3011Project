@@ -40,6 +40,11 @@ export interface EventDatasetResponse<A = Record<string, unknown>> {
   events: EventRecordResponse<A>[];
 }
 
+export interface EventListResponse<A = Record<string, unknown>> {
+  events: EventRecordResponse<A>[];
+  total: number;
+}
+
 export interface EventTypesResponse {
   event_types: string[];
 }

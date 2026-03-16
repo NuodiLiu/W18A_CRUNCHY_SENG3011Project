@@ -159,6 +159,22 @@ export class S3DataLakeReader implements DataLakeReader {
     });
   }
 
+  async readDataset(
+    datasetId: string,
+    onBatch: (events: EventRecord[]) => Promise<void>,
+  ): Promise<void> {
+    const manifestKey = `datasets/${datasetId}/manifest.json`;
+    const manifest = await this.readJson<ManifestJson>(manifestKey);
+
+    for (const segmentUri of manifest.segments) {
+      const segKey = this.getKeyFromS3Uri(segmentUri);
+      const events = await this.readJsonLines<EventRecord>(segKey);
+      if (events.length > 0) {
+        await onBatch(events);
+      }
+    }
+  }
+
   // ── SQL builder ───────────────────────────────────────────────
 
   private buildQuerySql(query: EventQuery): { sql: string; params: string[] } {
