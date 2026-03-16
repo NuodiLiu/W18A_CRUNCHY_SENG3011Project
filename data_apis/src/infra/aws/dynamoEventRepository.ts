@@ -138,13 +138,19 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
   async getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]> {
     if (fields.length === 0) return [];
 
-    // Build a ProjectionExpression from the requested fields.
+    // Build a ProjectionExpression handling nested paths (e.g. "attribute.pillar").
+    // Each path segment needs its own ExpressionAttributeNames placeholder because
+    // a single placeholder maps to one attribute name token (no dots allowed inside).
     const exprNames: Record<string, string> = {};
     const projParts: string[] = [];
-    fields.forEach((f, idx) => {
-      const alias = `#f${idx}`;
-      exprNames[alias] = f;
-      projParts.push(alias);
+    fields.forEach((f, fieldIdx) => {
+      const segments = f.split(".");
+      const segAliases = segments.map((seg, segIdx) => {
+        const alias = `#f${fieldIdx}_${segIdx}`;
+        exprNames[alias] = seg;
+        return alias;
+      });
+      projParts.push(segAliases.join("."));
     });
 
     const results: Record<string, unknown>[] = [];
@@ -178,42 +184,94 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
     expressionAttributeNames: Record<string, string>,
     expressionAttributeValues: Record<string, unknown>,
   ): Promise<EventQueryResult> {
-    const allItems: EventRecord[] = [];
-    let lastKey: Record<string, unknown> | undefined;
+    const offset = query.offset ?? 0;
+    const limit = query.limit ?? 50;
+    const need = offset + limit;
 
     // GSI: permid-metric_year-index — PK: permid
     const keyCondition = "#permid = :permid";
     expressionAttributeNames["#permid"] = "attribute.permid";
     expressionAttributeValues[":permid"] = query.permid!;
 
+    const queryParams = {
+      TableName: this.table,
+      IndexName: "permid-metric_year-index",
+      KeyConditionExpression: keyCondition,
+      ...(filterExpression && { FilterExpression: filterExpression }),
+      ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0
+        ? expressionAttributeNames
+        : undefined,
+      ExpressionAttributeValues: Object.keys(expressionAttributeValues).length > 0
+        ? marshall(expressionAttributeValues, { removeUndefinedValues: true })
+        : undefined,
+    };
+
+    // Run a COUNT query and a data query in parallel.
+    // COUNT uses Select:"COUNT" (no item data transferred) for the total;
+    // data query stops as soon as offset+limit items are collected.
+    const [total, pageItems] = await Promise.all([
+      this.countQuery(queryParams),
+      this.dataQuery(queryParams, need),
+    ]);
+
+    return { events: pageItems.slice(offset, offset + limit), total };
+  }
+
+  private async countQuery(params: {
+    TableName: string;
+    IndexName?: string;
+    KeyConditionExpression?: string;
+    FilterExpression?: string;
+    ExpressionAttributeNames?: Record<string, string>;
+    ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+  }): Promise<number> {
+    let total = 0;
+    let lastKey: Record<string, unknown> | undefined;
     do {
       const res = await this.client.send(
         new QueryCommand({
-          TableName: this.table,
-          IndexName: "permid-metric_year-index",
-          KeyConditionExpression: keyCondition,
-          ...(filterExpression && { FilterExpression: filterExpression }),
-          ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0
-            ? expressionAttributeNames
-            : undefined,
-          ExpressionAttributeValues: Object.keys(expressionAttributeValues).length > 0
-            ? marshall(expressionAttributeValues, { removeUndefinedValues: true })
-            : undefined,
+          ...params,
+          Select: "COUNT",
           ...(lastKey && { ExclusiveStartKey: marshall(lastKey) }),
         })
       );
-
-      for (const item of res.Items ?? []) {
-        allItems.push(unmarshall(item) as EventRecord);
-      }
-
-      lastKey = res.LastEvaluatedKey ? (unmarshall(res.LastEvaluatedKey) as Record<string, unknown>) : undefined;
+      total += res.Count ?? 0;
+      lastKey = res.LastEvaluatedKey
+        ? (unmarshall(res.LastEvaluatedKey) as Record<string, unknown>)
+        : undefined;
     } while (lastKey);
+    return total;
+  }
 
-    const total = allItems.length;
-    const offset = query.offset ?? 0;
-    const limit = query.limit ?? 50;
-    return { events: allItems.slice(offset, offset + limit), total };
+  private async dataQuery(
+    params: {
+      TableName: string;
+      IndexName?: string;
+      KeyConditionExpression?: string;
+      FilterExpression?: string;
+      ExpressionAttributeNames?: Record<string, string>;
+      ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+    },
+    need: number,
+  ): Promise<EventRecord[]> {
+    const items: EventRecord[] = [];
+    let lastKey: Record<string, unknown> | undefined;
+    do {
+      const res = await this.client.send(
+        new QueryCommand({
+          ...params,
+          ...(lastKey && { ExclusiveStartKey: marshall(lastKey) }),
+        })
+      );
+      for (const item of res.Items ?? []) {
+        items.push(unmarshall(item) as EventRecord);
+        if (items.length >= need) return items;
+      }
+      lastKey = res.LastEvaluatedKey
+        ? (unmarshall(res.LastEvaluatedKey) as Record<string, unknown>)
+        : undefined;
+    } while (lastKey);
+    return items;
   }
 
   private async scanWithFilter(
@@ -222,37 +280,85 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
     expressionAttributeNames: Record<string, string>,
     expressionAttributeValues: Record<string, unknown>,
   ): Promise<EventQueryResult> {
-    const allItems: EventRecord[] = [];
-    let lastKey: Record<string, unknown> | undefined;
+    const offset = query.offset ?? 0;
+    const limit = query.limit ?? 50;
+    const need = offset + limit;
 
+    const scanParams = {
+      TableName: this.table,
+      ...(filterExpression && { FilterExpression: filterExpression }),
+      ...(Object.keys(expressionAttributeNames).length > 0 && {
+        ExpressionAttributeNames: expressionAttributeNames,
+      }),
+      ...(Object.keys(expressionAttributeValues).length > 0 && {
+        ExpressionAttributeValues: marshall(expressionAttributeValues, {
+          removeUndefinedValues: true,
+        }),
+      }),
+    };
+
+    // Run a COUNT scan and a data scan in parallel.
+    // COUNT uses Select:"COUNT" (no item data transferred) for the total;
+    // data scan stops as soon as offset+limit items are collected.
+    const [total, pageItems] = await Promise.all([
+      this.countScan(scanParams),
+      this.dataScan(scanParams, need),
+    ]);
+
+    return { events: pageItems.slice(offset, offset + limit), total };
+  }
+
+  private async countScan(params: {
+    TableName: string;
+    FilterExpression?: string;
+    ExpressionAttributeNames?: Record<string, string>;
+    ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+  }): Promise<number> {
+    let total = 0;
+    let lastKey: Record<string, unknown> | undefined;
     do {
       const res = await this.client.send(
         new ScanCommand({
-          TableName: this.table,
-          ...(filterExpression && { FilterExpression: filterExpression }),
-          ...(Object.keys(expressionAttributeNames).length > 0 && {
-            ExpressionAttributeNames: expressionAttributeNames,
-          }),
-          ...(Object.keys(expressionAttributeValues).length > 0 && {
-            ExpressionAttributeValues: marshall(expressionAttributeValues, {
-              removeUndefinedValues: true,
-            }),
-          }),
+          ...params,
+          Select: "COUNT",
           ...(lastKey && { ExclusiveStartKey: marshall(lastKey) }),
         })
       );
-
-      for (const item of res.Items ?? []) {
-        allItems.push(unmarshall(item) as EventRecord);
-      }
-
-      lastKey = res.LastEvaluatedKey ? (unmarshall(res.LastEvaluatedKey) as Record<string, unknown>) : undefined;
+      total += res.Count ?? 0;
+      lastKey = res.LastEvaluatedKey
+        ? (unmarshall(res.LastEvaluatedKey) as Record<string, unknown>)
+        : undefined;
     } while (lastKey);
+    return total;
+  }
 
-    const total = allItems.length;
-    const offset = query.offset ?? 0;
-    const limit = query.limit ?? 50;
-    return { events: allItems.slice(offset, offset + limit), total };
+  private async dataScan(
+    params: {
+      TableName: string;
+      FilterExpression?: string;
+      ExpressionAttributeNames?: Record<string, string>;
+      ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+    },
+    need: number,
+  ): Promise<EventRecord[]> {
+    const items: EventRecord[] = [];
+    let lastKey: Record<string, unknown> | undefined;
+    do {
+      const res = await this.client.send(
+        new ScanCommand({
+          ...params,
+          ...(lastKey && { ExclusiveStartKey: marshall(lastKey) }),
+        })
+      );
+      for (const item of res.Items ?? []) {
+        items.push(unmarshall(item) as EventRecord);
+        if (items.length >= need) return items;
+      }
+      lastKey = res.LastEvaluatedKey
+        ? (unmarshall(res.LastEvaluatedKey) as Record<string, unknown>)
+        : undefined;
+    } while (lastKey);
+    return items;
   }
 
   /**
