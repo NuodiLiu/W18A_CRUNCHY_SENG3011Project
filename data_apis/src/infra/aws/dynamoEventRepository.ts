@@ -4,6 +4,7 @@ import {
   ScanCommand,
   GetItemCommand,
   BatchWriteItemCommand,
+  AttributeValue,
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { AppConfig } from "../../config/index.js";
@@ -55,7 +56,7 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
   async getAllEvents(): Promise<EventRecord[]> {
     // Scan all events from DynamoDB (may need pagination for large datasets)
     const results: EventRecord[] = [];
-    let lastEvaluatedKey: Record<string, string> | undefined;
+    let lastEvaluatedKey: Record<string, AttributeValue> | undefined;
   
     do {
       const response = await this.client.send(
