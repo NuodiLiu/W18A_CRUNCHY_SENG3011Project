@@ -158,6 +158,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       getDistinctEventTypes: jest.fn().mockResolvedValue(["housing_sale"]),
       getGroupProjection: jest.fn().mockResolvedValue([]),
       getAllEvents: jest.fn().mockResolvedValue(fakeHousingEvents),
+      readDataset: jest.fn().mockResolvedValue(undefined),
     },
     ...overrides,
   };

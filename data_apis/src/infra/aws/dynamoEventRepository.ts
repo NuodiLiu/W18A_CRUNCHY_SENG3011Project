@@ -52,6 +52,28 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
   }
 
   // ── DataLakeReader (query) ────────────────────────────────────
+  async getAllEvents(): Promise<EventRecord[]> {
+    // Scan all events from DynamoDB (may need pagination for large datasets)
+    const results: EventRecord[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined;
+  
+    do {
+      const response = await this.client.send(
+        new ScanCommand({
+          TableName: this.table,
+          ExclusiveStartKey: lastEvaluatedKey,
+        })
+      );
+  
+      if (response.Items) {
+        results.push(...(response.Items as unknown as EventRecord[]));
+      }
+  
+      lastEvaluatedKey = response.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+  
+    return results;
+  }
 
   async queryEvents(query: EventQuery): Promise<EventQueryResult> {
     const { filterExpression, expressionAttributeNames, expressionAttributeValues } =

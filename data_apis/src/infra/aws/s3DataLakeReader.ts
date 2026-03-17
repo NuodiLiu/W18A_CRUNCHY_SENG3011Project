@@ -45,6 +45,22 @@ export class S3DataLakeReader implements DataLakeReader {
   }
 
   // ── Public interface ──────────────────────────────────────────
+  async getAllEvents(): Promise<EventRecord[]> {
+    const segmentKeys = await this.getAllSegmentKeys();
+  
+    if (this.useS3Select) {
+      const sql = `SELECT * FROM s3object s`;
+      const results = await Promise.all(
+        segmentKeys.map((key) => this.selectFromSegment<EventRecord>(key, sql))
+      );
+      return results.flat();
+    }
+  
+    const results = await Promise.all(
+      segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
+    );
+    return results.flat();
+  }
 
   async queryEvents(query: EventQuery): Promise<EventQueryResult> {
     const segmentKeys = await this.getAllSegmentKeys();
