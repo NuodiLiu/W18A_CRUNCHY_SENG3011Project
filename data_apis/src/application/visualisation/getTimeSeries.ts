@@ -6,14 +6,14 @@ export interface TimeSeriesQuery {
   dimension?: string;
   metric?: string;
   aggregation?: AggregationType;
-  time_period?: "year" | "month" | "day"; // storing based on time period
+  time_period?: "year" | "month" | "day"; // How to bucket time periods
 }
 
 export interface TimeSeriesEntry {
-  period: string;
-  series?: string;
-  value: number;
-  count: number;
+  period: string; // "2020", "2020-01", "2020-01-15", etc.
+  series?: string; // Category name if grouping by dimension (e.g., suburb name)
+  value: number; // Aggregated metric value
+  count: number; // Number of events in this period
 }
 
 export interface TimeSeriesResult {
@@ -60,12 +60,15 @@ export async function getTimeSeries(
   for (const event of filtered) {
     const attr = event.attribute as Record<string, unknown>;
     
+    // Extract period from event's time_object
     const period = extractTimePeriod(event.time_object.timestamp, time_period);
     
+    // Extract series (dimension) if grouping
     const series = dimension
       ? String(getDimensionValue(attr, dimension, event) ?? "unknown")
       : "total";
 
+    // Initialize nested maps
     if (!groups.has(period)) {
       groups.set(period, new Map());
     }
@@ -77,6 +80,7 @@ export async function getTimeSeries(
     const group = seriesMap.get(series)!;
     group.count++;
 
+    // Collect metric values if needed
     if (metric !== "count") {
       const metricValue = getMetricValue(attr, metric);
       if (metricValue !== null && !isNaN(metricValue)) {
@@ -85,6 +89,7 @@ export async function getTimeSeries(
     }
   }
 
+  // Flatten to entries and sort by period
   const entries: TimeSeriesEntry[] = [];
   const sortedPeriods = Array.from(groups.keys()).sort();
 

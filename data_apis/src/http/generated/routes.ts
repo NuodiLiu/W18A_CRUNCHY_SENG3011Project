@@ -49,6 +49,27 @@ const models: TsoaRoute.Models = {
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["avg"]},{"dataType":"enum","enums":["sum"]},{"dataType":"enum","enums":["count"]},{"dataType":"enum","enums":["min"]},{"dataType":"enum","enums":["max"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "TimeSeriesDataPoint": {
+        "dataType": "refObject",
+        "properties": {
+            "period": {"dataType":"string","required":true},
+            "value": {"dataType":"double","required":true},
+            "series": {"dataType":"string"},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "TimeSeriesResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "metric": {"dataType":"string","required":true},
+            "aggregation": {"dataType":"string","required":true},
+            "event_type": {"dataType":"string","required":true},
+            "data": {"dataType":"array","array":{"dataType":"refObject","ref":"TimeSeriesDataPoint"},"required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreprocessJobAccepted": {
         "dataType": "refObject",
         "properties": {
@@ -385,6 +406,45 @@ export function RegisterRoutes(app: Router) {
 
               await templateService.apiHandler({
                 methodName: 'getBreakdown',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsVisualisationController_getTimeSeries: Record<string, TsoaRoute.ParameterSchema> = {
+                event_type: {"in":"query","name":"event_type","dataType":"string"},
+                time_period: {"in":"query","name":"time_period","dataType":"union","subSchemas":[{"dataType":"enum","enums":["year"]},{"dataType":"enum","enums":["month"]},{"dataType":"enum","enums":["day"]}]},
+                dimension: {"in":"query","name":"dimension","dataType":"string"},
+                metric: {"in":"query","name":"metric","dataType":"string"},
+                aggregation: {"in":"query","name":"aggregation","ref":"AggregationType"},
+        };
+        app.get('/api/v1/visualisation/timeseries',
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController)),
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController.prototype.getTimeSeries)),
+
+            async function VisualisationController_getTimeSeries(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsVisualisationController_getTimeSeries, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<VisualisationController>(VisualisationController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'getTimeSeries',
                 controller,
                 response,
                 next,
