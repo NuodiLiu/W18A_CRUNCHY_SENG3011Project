@@ -174,6 +174,20 @@ export class S3DataLakeReader implements DataLakeReader {
       segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
     );
     return results.flat();
+  async readDataset(
+    datasetId: string,
+    onBatch: (events: EventRecord[]) => Promise<void>,
+  ): Promise<void> {
+    const manifestKey = `datasets/${datasetId}/manifest.json`;
+    const manifest = await this.readJson<ManifestJson>(manifestKey);
+
+    for (const segmentUri of manifest.segments) {
+      const segKey = this.getKeyFromS3Uri(segmentUri);
+      const events = await this.readJsonLines<EventRecord>(segKey);
+      if (events.length > 0) {
+        await onBatch(events);
+      }
+    }
   }
 
   // ── SQL builder ───────────────────────────────────────────────

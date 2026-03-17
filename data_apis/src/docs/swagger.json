@@ -184,25 +184,21 @@
 			},
 			"PreprocessJobRequest": {
 				"properties": {
-					"input_s3_uri": {
+					"dataset_id": {
 						"type": "string",
-						"description": "S3 URI of the raw input file or prefix to preprocess."
+						"description": "ID of the source dataset to preprocess (from a prior import)."
 					},
 					"pipeline": {
 						"type": "string",
-						"description": "Name of the built-in pipeline template to apply (e.g. \"esg_clean_v1\")."
+						"description": "Name of the built-in pipeline template to apply (e.g. \"housing_clean_v1\")."
 					},
 					"params": {
 						"$ref": "#/components/schemas/Record_string.unknown_",
 						"description": "Optional pipeline-specific parameters."
-					},
-					"idempotency_key": {
-						"type": "string",
-						"description": "Optional idempotency key — re-submitting the same key returns the existing job."
 					}
 				},
 				"required": [
-					"input_s3_uri",
+					"dataset_id",
 					"pipeline"
 				],
 				"type": "object",
@@ -211,11 +207,80 @@
 			"PreprocessJobStatusValue": {
 				"type": "string",
 				"enum": [
-					"pending",
-					"running",
-					"succeeded",
-					"failed"
+					"PENDING",
+					"RUNNING",
+					"DONE",
+					"FAILED"
 				]
+			},
+			"QualityReport": {
+				"properties": {
+					"input_count": {
+						"type": "number",
+						"format": "double"
+					},
+					"output_count": {
+						"type": "number",
+						"format": "double"
+					},
+					"removed": {
+						"properties": {
+							"invalid_date": {
+								"type": "number",
+								"format": "double"
+							},
+							"duplicates": {
+								"type": "number",
+								"format": "double"
+							},
+							"zero_price": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"invalid_date",
+							"duplicates",
+							"zero_price"
+						],
+						"type": "object"
+					},
+					"standardized": {
+						"properties": {
+							"whitespace_trimmed": {
+								"type": "number",
+								"format": "double"
+							},
+							"area_type_fixed": {
+								"type": "number",
+								"format": "double"
+							},
+							"area_nullified": {
+								"type": "number",
+								"format": "double"
+							},
+							"suburb_uppercased": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"whitespace_trimmed",
+							"area_type_fixed",
+							"area_nullified",
+							"suburb_uppercased"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"input_count",
+					"output_count",
+					"removed",
+					"standardized"
+				],
+				"type": "object",
+				"additionalProperties": true
 			},
 			"PreprocessJobStatusResponse": {
 				"properties": {
@@ -228,28 +293,27 @@
 					"pipeline": {
 						"type": "string"
 					},
-					"input_s3_uri": {
+					"source_dataset_id": {
 						"type": "string"
 					},
-					"output_s3_uri": {
+					"output_dataset_id": {
 						"type": "string",
 						"nullable": true,
-						"description": "S3 URI of the cleaned output file (populated on success)."
+						"description": "Dataset ID of the cleaned output (populated on DONE)."
 					},
-					"manifest_uri": {
-						"type": "string",
+					"quality_report": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/QualityReport"
+							}
+						],
 						"nullable": true,
-						"description": "S3 URI of the job manifest JSON (populated on success)."
-					},
-					"quality_report_uri": {
-						"type": "string",
-						"nullable": true,
-						"description": "S3 URI of the data quality report (populated on success)."
+						"description": "Data quality report (populated on DONE)."
 					},
 					"error": {
 						"type": "string",
 						"nullable": true,
-						"description": "Failure reason (populated on failure)."
+						"description": "Failure reason (populated on FAILED)."
 					},
 					"created_at": {
 						"type": "string"
@@ -262,10 +326,9 @@
 					"job_id",
 					"status",
 					"pipeline",
-					"input_s3_uri",
-					"output_s3_uri",
-					"manifest_uri",
-					"quality_report_uri",
+					"source_dataset_id",
+					"output_dataset_id",
+					"quality_report",
 					"error",
 					"created_at",
 					"updated_at"
@@ -295,9 +358,10 @@
 							"general",
 							"time_series",
 							"text",
-							"esg"
+							"esg",
+							"housing"
 						],
-						"description": "Pipeline category: general | time_series | text | esg"
+						"description": "Pipeline category: general | time_series | text | esg | housing"
 					},
 					"params_schema": {
 						"$ref": "#/components/schemas/PipelineParamsSchema",
@@ -396,33 +460,22 @@
 				"type": "object",
 				"additionalProperties": true
 			},
-			"EventDatasetResponse": {
+			"EventListResponse": {
 				"properties": {
-					"data_source": {
-						"type": "string"
-					},
-					"dataset_type": {
-						"type": "string"
-					},
-					"dataset_id": {
-						"type": "string"
-					},
-					"time_object": {
-						"$ref": "#/components/schemas/TimeObjectResponse"
-					},
 					"events": {
 						"items": {
 							"$ref": "#/components/schemas/EventRecordResponse_Record_string.unknown__"
 						},
 						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
-					"data_source",
-					"dataset_type",
-					"dataset_id",
-					"time_object",
-					"events"
+					"events",
+					"total"
 				],
 				"type": "object",
 				"additionalProperties": true
@@ -998,19 +1051,9 @@
 								}
 							}
 						}
-					},
-					"501": {
-						"description": "Not yet implemented",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorBody"
-								}
-							}
-						}
 					}
 				},
-				"description": "Submit an asynchronous preprocessing job.\nAccepts an S3 input URI and a pipeline name with optional parameters.\nReturns a job_id immediately for status polling.",
+				"description": "Submit an asynchronous preprocessing job.\nAccepts a dataset_id and a pipeline name with optional parameters.\nReturns a job_id immediately for status polling.",
 				"tags": [
 					"Preprocessing"
 				],
@@ -1033,7 +1076,7 @@
 				"operationId": "GetJob",
 				"responses": {
 					"200": {
-						"description": "Job status and result locations",
+						"description": "Job status and result",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -1051,19 +1094,9 @@
 								}
 							}
 						}
-					},
-					"501": {
-						"description": "Not yet implemented",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorBody"
-								}
-							}
-						}
 					}
 				},
-				"description": "Query the status and result locations of a submitted preprocessing job.\nReturns output_s3_uri, manifest_uri, and quality_report_uri on success,\nor an error message on failure.",
+				"description": "Query the status and result of a submitted preprocessing job.\nReturns output_dataset_id and quality_report on DONE.",
 				"tags": [
 					"Preprocessing"
 				],
@@ -1090,16 +1123,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/PipelinesResponse"
-								}
-							}
-						}
-					},
-					"501": {
-						"description": "Not yet implemented",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorBody"
 								}
 							}
 						}
@@ -1145,13 +1168,13 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/EventDatasetResponse"
+									"$ref": "#/components/schemas/EventListResponse"
 								}
 							}
 						}
 					}
 				},
-				"description": "Query normalized ESG metric events from the data lake.\nSupports filtering by company, metric name, ESG pillar, and year range.\nResults are paginated via limit/offset.",
+				"description": "Query normalized events from the data lake.\nSupports filtering by company, metric name, ESG pillar, and year range.\nResults are paginated via limit/offset.",
 				"tags": [
 					"Events"
 				],

@@ -24,4 +24,9 @@ export interface DataLakeReader {
   getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]>;
   /** Fetch all events without pagination (for aggregation/visualisation). */
   getAllEvents(): Promise<EventRecord[]>;
+  /** Read all events from a specific dataset, invoking the callback per-segment for streaming. */
+  readDataset(
+    datasetId: string,
+    onBatch: (events: EventRecord[]) => Promise<void>,
+  ): Promise<void>;
 }

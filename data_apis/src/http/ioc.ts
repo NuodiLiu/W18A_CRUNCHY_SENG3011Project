@@ -2,13 +2,13 @@ import type { IocContainer } from "tsoa";
 import { CollectionController, CollectionControllerDeps } from "./controllers/CollectionController.js";
 import { EventsController, EventsControllerDeps } from "./controllers/EventsController.js";
 import { VisualisationController } from "./controllers/VisualisationController.js";
-import { PreprocessingController } from "./controllers/PreprocessingController.js";
+import { PreprocessingController, PreprocessingControllerDeps } from "./controllers/PreprocessingController.js";
 import { HealthController } from "./controllers/HealthController.js";
 import { FileUploadService } from "../domain/ports/fileUploadService.js";
 import { DataLakeReader } from "@domain/ports/dataLakeReader.js";
 
 export type AppDeps = CollectionControllerDeps &
-  EventsControllerDeps &
+  EventsControllerDeps & PreprocessingControllerDeps &
   { dataLakeReader: DataLakeReader };
 export type { FileUploadService };
 
@@ -29,7 +29,7 @@ export const iocContainer: IocContainer = {
       case VisualisationController:
         return new VisualisationController(_deps) as unknown as T;
       case PreprocessingController:
-        return new PreprocessingController() as unknown as T;
+        return new PreprocessingController(_deps) as unknown as T;
       case HealthController:
         return new HealthController() as unknown as T;
       default:
