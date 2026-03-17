@@ -1,5 +1,5 @@
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
-import { AggregationType } from "@http/types/visualisation.types.js";
+import { AggregationType } from "@application/visualisation/visualisation.types.js";
 
 export interface TimeSeriesQuery {
   event_type?: string;

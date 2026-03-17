@@ -3,7 +3,7 @@
  * These are consumed by frontend charting libraries or other services.
  */
 
-// ─── Timeseries Endpoint (for teammate) ──────────────────────────────────────
+// ─── Timeseries Endpoint ──────────────────────────────────────
 
 export interface TimeSeriesDataPoint {
     /** Time period (e.g., "2020", "2020-Q1", "2020-01") */

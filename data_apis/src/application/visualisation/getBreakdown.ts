@@ -1,6 +1,6 @@
 // import { EventRecord } from "../../domain/models/event.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
-import { AggregationType } from "../../http/types/visualisation.types.js";
+import { AggregationType } from "@application/visualisation/visualisation.types.js";
 
 export interface GetBreakdownDeps {
   dataLakeReader: DataLakeReader;

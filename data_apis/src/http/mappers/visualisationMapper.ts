@@ -5,7 +5,7 @@ import {
   BreakdownEntry,
   TimeSeriesResponse,
   TimeSeriesDataPoint,
-} from "../types/visualisation.types.js";
+} from "@application/visualisation/visualisation.types.js";
 
 /**
  * Maps the breakdown result from the application layer to the HTTP response format.

@@ -9,7 +9,7 @@ import {
   BreakdownResponse,
   TimeSeriesResponse,
   AggregationType,
-} from "../types/visualisation.types.js";
+} from "@application/visualisation/visualisation.types.js";
 
 export interface VisualisationControllerDeps {
   dataLakeReader: DataLakeReader;
