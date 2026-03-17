@@ -51,7 +51,7 @@ export async function getBreakdown(
 
   for (const event of filtered) {
     const attr = event.attribute as Record<string, unknown>;
-    const categoryValue = getDimensionValue(attr, dimension, event);
+    const categoryValue = getDimensionValue(attr, dimension);
     const category = String(categoryValue ?? "unknown");
 
     if (!groups.has(category)) {
