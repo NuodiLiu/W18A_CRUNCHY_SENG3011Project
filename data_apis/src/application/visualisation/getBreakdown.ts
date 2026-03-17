@@ -1,4 +1,4 @@
-import { EventRecord } from "../../domain/models/event.js";
+// import { EventRecord } from "../../domain/models/event.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 import { AggregationType } from "../../http/types/visualisation.types.js";
 
@@ -97,7 +97,7 @@ export async function getBreakdown(
 function getDimensionValue(
   attr: Record<string, unknown>,
   dimension: string,
-  event: EventRecord
+//   event: EventRecord
 ): unknown {
   // Handle derived dimensions
   if (dimension === "contract_year") {
