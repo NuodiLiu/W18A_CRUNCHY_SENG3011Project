@@ -50,6 +50,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),
+      getAllEvents: jest.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
