@@ -50,7 +50,7 @@ export class EventsController extends Controller {
     
     @Query("limit") _limit: number = 50,
     @Query("offset") _offset: number = 0
-  ): Promise<EventDatasetResponse> {
+  ): Promise<EventListResponse> {
     const result = await getEvents(
     {
       dataset_type,
