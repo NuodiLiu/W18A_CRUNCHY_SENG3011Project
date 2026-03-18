@@ -45,17 +45,27 @@ const models: TsoaRoute.Models = {
     "PreprocessJobRequest": {
         "dataType": "refObject",
         "properties": {
-            "input_s3_uri": {"dataType":"string","required":true},
+            "dataset_id": {"dataType":"string","required":true},
             "pipeline": {"dataType":"string","required":true},
             "params": {"ref":"Record_string.unknown_"},
-            "idempotency_key": {"dataType":"string"},
         },
         "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreprocessJobStatusValue": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["pending"]},{"dataType":"enum","enums":["running"]},{"dataType":"enum","enums":["succeeded"]},{"dataType":"enum","enums":["failed"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["PENDING"]},{"dataType":"enum","enums":["RUNNING"]},{"dataType":"enum","enums":["DONE"]},{"dataType":"enum","enums":["FAILED"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "QualityReport": {
+        "dataType": "refObject",
+        "properties": {
+            "input_count": {"dataType":"double","required":true},
+            "output_count": {"dataType":"double","required":true},
+            "removed": {"dataType":"nestedObjectLiteral","nestedProperties":{"invalid_date":{"dataType":"double","required":true},"duplicates":{"dataType":"double","required":true},"zero_price":{"dataType":"double","required":true}},"required":true},
+            "standardized": {"dataType":"nestedObjectLiteral","nestedProperties":{"whitespace_trimmed":{"dataType":"double","required":true},"area_type_fixed":{"dataType":"double","required":true},"area_nullified":{"dataType":"double","required":true},"suburb_uppercased":{"dataType":"double","required":true}},"required":true},
+        },
+        "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreprocessJobStatusResponse": {
@@ -64,10 +74,9 @@ const models: TsoaRoute.Models = {
             "job_id": {"dataType":"string","required":true},
             "status": {"ref":"PreprocessJobStatusValue","required":true},
             "pipeline": {"dataType":"string","required":true},
-            "input_s3_uri": {"dataType":"string","required":true},
-            "output_s3_uri": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "manifest_uri": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "quality_report_uri": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "source_dataset_id": {"dataType":"string","required":true},
+            "output_dataset_id": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "quality_report": {"dataType":"union","subSchemas":[{"ref":"QualityReport"},{"dataType":"enum","enums":[null]}],"required":true},
             "error": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "created_at": {"dataType":"string","required":true},
             "updated_at": {"dataType":"string","required":true},
@@ -88,7 +97,7 @@ const models: TsoaRoute.Models = {
             "id": {"dataType":"string","required":true},
             "name": {"dataType":"string","required":true},
             "description": {"dataType":"string","required":true},
-            "category": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["general"]},{"dataType":"enum","enums":["time_series"]},{"dataType":"enum","enums":["text"]},{"dataType":"enum","enums":["esg"]}],"required":true},
+            "category": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["general"]},{"dataType":"enum","enums":["time_series"]},{"dataType":"enum","enums":["text"]},{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]}],"required":true},
             "params_schema": {"ref":"PipelineParamsSchema","required":true},
         },
         "additionalProperties": true,
@@ -134,14 +143,11 @@ const models: TsoaRoute.Models = {
         "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "EventDatasetResponse": {
+    "EventListResponse": {
         "dataType": "refObject",
         "properties": {
-            "data_source": {"dataType":"string","required":true},
-            "dataset_type": {"dataType":"string","required":true},
-            "dataset_id": {"dataType":"string","required":true},
-            "time_object": {"ref":"TimeObjectResponse","required":true},
             "events": {"dataType":"array","array":{"dataType":"refObject","ref":"EventRecordResponse_Record_string.unknown__"},"required":true},
+            "total": {"dataType":"double","required":true},
         },
         "additionalProperties": true,
     },
@@ -329,7 +335,7 @@ export function RegisterRoutes(app: Router) {
 
     
         const argsPreprocessingController_createJob: Record<string, TsoaRoute.ParameterSchema> = {
-                _body: {"in":"body","name":"_body","required":true,"ref":"PreprocessJobRequest"},
+                body: {"in":"body","name":"body","required":true,"ref":"PreprocessJobRequest"},
         };
         app.post('/api/v1/preprocessing/jobs',
             ...(fetchMiddlewares<RequestHandler>(PreprocessingController)),
@@ -364,7 +370,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsPreprocessingController_getJob: Record<string, TsoaRoute.ParameterSchema> = {
-                _jobId: {"in":"path","name":"jobId","required":true,"dataType":"string"},
+                jobId: {"in":"path","name":"jobId","required":true,"dataType":"string"},
         };
         app.get('/api/v1/preprocessing/jobs/:jobId',
             ...(fetchMiddlewares<RequestHandler>(PreprocessingController)),

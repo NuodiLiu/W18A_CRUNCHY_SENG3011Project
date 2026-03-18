@@ -32,6 +32,7 @@ BASE="${PREFIX}-${ENV}"          # e.g. eia-dev
 JOBS_TABLE="${BASE}-jobs"
 STATE_TABLE="${BASE}-connector-state"
 IDEM_TABLE="${BASE}-idempotency"
+EVENTS_TABLE="${BASE}-events"
 CONFIG_BUCKET="${BASE}-config"
 DATALAKE_BUCKET="${BASE}-datalake"
 DLQ_NAME="${BASE}-import-jobs-dlq"
@@ -106,6 +107,25 @@ create_table() {
 create_table "$JOBS_TABLE"   "job_id"
 create_table "$STATE_TABLE"  "connection_id"
 create_table "$IDEM_TABLE"   "idempotency_key"
+
+# Events table (query layer replacing S3 Select)
+if aws dynamodb describe-table \
+     --table-name "$EVENTS_TABLE" \
+     --region "$REGION" \
+     --output text > /dev/null 2>&1; then
+  skip "$EVENTS_TABLE"
+else
+  aws dynamodb create-table \
+    --table-name "$EVENTS_TABLE" \
+    --attribute-definitions \
+      "AttributeName=event_id,AttributeType=S" \
+    --key-schema \
+      "AttributeName=event_id,KeyType=HASH" \
+    --billing-mode PAY_PER_REQUEST \
+    --region "$REGION" \
+    --output text > /dev/null
+  ok "$EVENTS_TABLE  (PK: event_id)"
+fi
 
 # ── 3. S3 Buckets ─────────────────────────────────────────────────────────────
 log "S3 Buckets"
@@ -244,12 +264,15 @@ INLINE_POLICY=$(cat <<EOF
       "Effect": "Allow",
       "Action": [
         "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
-        "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan"
+        "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan",
+        "dynamodb:BatchWriteItem"
       ],
       "Resource": [
         "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${JOBS_TABLE}",
         "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${STATE_TABLE}",
-        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${IDEM_TABLE}"
+        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${IDEM_TABLE}",
+        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${EVENTS_TABLE}",
+        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${EVENTS_TABLE}/index/*"
       ]
     },
     {
@@ -324,7 +347,7 @@ else
     --zip-file "fileb://${TMPZIP}/handler.zip" \
     --timeout 30 \
     --memory-size 512 \
-    --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV}}" \
+    --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
     --description "ESG Data Service — HTTP API (Lambda)" \
     --region "$REGION" \
     --output text > /dev/null
@@ -346,7 +369,7 @@ else
     --zip-file "fileb://${TMPZIP}/handler.zip" \
     --timeout 900 \
     --memory-size 1024 \
-    --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV}}" \
+    --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
     --description "ESG Data Service — SQS Worker (Lambda)" \
     --region "$REGION" \
     --output text > /dev/null
@@ -354,6 +377,24 @@ else
 fi
 
 rm -rf "$TMPZIP"
+
+# ── 6b. Ensure env vars are up-to-date on existing functions ─────────────────
+# update-function-configuration is idempotent and safe to re-run.
+log "Lambda Environment Variables (ensure DDB_EVENTS_TABLE is set)"
+
+aws lambda update-function-configuration \
+  --function-name "$API_FN_NAME" \
+  --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
+  --region "$REGION" \
+  --output text > /dev/null
+ok "$API_FN_NAME  env vars updated"
+
+aws lambda update-function-configuration \
+  --function-name "$WORKER_FN_NAME" \
+  --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
+  --region "$REGION" \
+  --output text > /dev/null
+ok "$WORKER_FN_NAME  env vars updated"
 
 # Wait for both functions to reach Active state before continuing
 echo "  ⏳ Waiting for Lambda functions to become Active..."
@@ -467,7 +508,7 @@ printf "║  %-20s %s\n" "Worker Lambda:"    "  ${WORKER_FN_NAME}"
 printf "║  %-20s %s\n" "SQS Queue:"        "  ${QUEUE_NAME}"
 printf "║  %-20s %s\n" "IAM Role:"         "  ${ROLE_NAME}"
 printf "║  %-20s %s\n" "DynamoDB tables:"  "  ${JOBS_TABLE}, ${STATE_TABLE},"
-printf "║  %-20s %s\n" ""                  "  ${IDEM_TABLE}"
+printf "║  %-20s %s\n" ""                  "  ${IDEM_TABLE}, ${EVENTS_TABLE}"
 printf "║  %-20s %s\n" "S3 buckets:"       "  ${CONFIG_BUCKET}, ${DATALAKE_BUCKET}"
 echo "╠══════════════════════════════════════════════════════════════════════╣"
 echo "║  Next: push to main branch to trigger lambda-deploy.yml CI/CD      ║"
