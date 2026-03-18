@@ -467,12 +467,17 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsEventsController_getEvents: Record<string, TsoaRoute.ParameterSchema> = {
+                dataset_type: {"in":"query","name":"dataset_type","dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]}]},
                 company_name: {"in":"query","name":"company_name","dataType":"string"},
                 permid: {"in":"query","name":"permid","dataType":"string"},
                 metric_name: {"in":"query","name":"metric_name","dataType":"string"},
                 pillar: {"in":"query","name":"pillar","dataType":"string"},
                 year_from: {"in":"query","name":"year_from","dataType":"double"},
                 year_to: {"in":"query","name":"year_to","dataType":"double"},
+                postcode: {"in":"query","name":"postcode","dataType":"double"},
+                suburb: {"in":"query","name":"suburb","dataType":"string"},
+                street_name: {"in":"query","name":"street_name","dataType":"string"},
+                nature_of_property: {"in":"query","name":"nature_of_property","dataType":"string"},
                 _limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
                 _offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
         };
