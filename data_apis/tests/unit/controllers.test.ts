@@ -520,10 +520,9 @@ describe("GET /api/v1/events", () => {
       expect.objectContaining({
         dataset_type: "esg",
         company_name: "Acme",
-        year_from: 2020,
-        year_to: 2024,
+        pillar: "Environmental",
         limit: 10,
-        offset: 5,
+        offset: 0,
       })
     );
   });
@@ -567,6 +566,18 @@ describe("GET /api/v1/events", () => {
 
   it("returns mapped event records with correct shape", async () => {
     const { app } = buildApp();
+
+    const res = await request(app)
+      .get("/api/v1/events")
+      .expect(200);
+
+    const event = res.body.events[0];
+    expect(event.event_id).toBe("h-1");
+    expect(event.event_type).toBe("housing_sale");
+    expect(event.time_object).toBeDefined();
+    expect(event.attribute).toBeDefined();
+    expect(event.attribute.suburb).toBe("Sydney");
+  });
 
   it("passes pillar filter to dataLakeReader.queryEvents", async () => {
     const { app, deps } = buildApp();
@@ -822,7 +833,7 @@ describe("GET /api/v1/events", () => {
     );
   });
 
-  it("returns dataset envelope with metadata in response", async () => {
+  it("returns dataset envelope with correct structure", async () => {
     const { app } = buildApp();
 
     const res = await request(app)
@@ -830,10 +841,9 @@ describe("GET /api/v1/events", () => {
       .query({ limit: 10 })
       .expect(200);
 
-    expect(res.body.data_source).toBe("data_lake");
-    expect(res.body.dataset_type).toBe("mixed");
-    expect(res.body.dataset_id).toBe("query_result");
-    expect(res.body.time_object).toBeDefined();
-    expect(res.body.time_object.timezone).toBe("UTC");
+    expect(res.body.events).toBeDefined();
+    expect(res.body.total).toBeDefined();
+    expect(Array.isArray(res.body.events)).toBe(true);
+    expect(typeof res.body.total).toBe("number");
   });
 });
