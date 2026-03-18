@@ -63,6 +63,14 @@ export class S3DataLakeReader implements DataLakeReader {
       allMatched = this.applyQueryFilter(results.flat(), query);
     }
 
+    // Filter by dataset type if specified
+    if (query.dataset_type === "esg") {
+      allMatched = allMatched.filter((e) => e.attribute.dataset_type === "esg");
+    } else if (query.dataset_type === "housing") {
+      allMatched = allMatched.filter((e) => e.attribute.dataset_type === "housing");
+    }
+    // fallback: no filtering if dataset_type omitted (mixed results)
+
     const total = allMatched.length;
     const offset = query.offset ?? 0;
     const limit = query.limit ?? 50;
@@ -163,7 +171,16 @@ export class S3DataLakeReader implements DataLakeReader {
 
   private buildQuerySql(query: EventQuery): { sql: string; params: string[] } {
     const conditions: string[] = [];
+    
+    if (query.dataset_type === "esg") {
+      conditions.push(`s.dataset_type = 'esg'`);
+    }
 
+    if (query.dataset_type === "housing") {
+      conditions.push(`s.dataset_type = 'housing'`);
+    }
+
+    // ESG fields
     if (query.company_name) {
       conditions.push(
         `LOWER(s.attribute.company_name) LIKE '%${this.escapeSql(query.company_name.toLowerCase())}%'`
@@ -190,6 +207,26 @@ export class S3DataLakeReader implements DataLakeReader {
     if (query.year_to != null) {
       conditions.push(
         `CAST(s.attribute.metric_year AS INT) <= ${Number(query.year_to)}`
+      );
+    }
+
+    // Housing fields
+    if (query.postcode != null) {
+      conditions.push(`s.attribute.postcode = ${Number(query.postcode)}`);
+    }
+    if (query.suburb) {
+      conditions.push(
+        `LOWER(s.attribute.suburb) = '${this.escapeSql(query.suburb.toLowerCase())}'`
+      );
+    }
+    if (query.street_name) {
+      conditions.push(
+        `LOWER(s.attribute.street_name) LIKE '%${this.escapeSql(query.street_name.toLowerCase())}%'`
+      );
+    }
+    if (query.nature_of_property) {
+      conditions.push(
+        `LOWER(s.attribute.nature_of_property) = '${this.escapeSql(query.nature_of_property.toLowerCase())}'`
       );
     }
 
@@ -248,12 +285,21 @@ export class S3DataLakeReader implements DataLakeReader {
   private applyQueryFilter(events: EventRecord[], query: EventQuery): EventRecord[] {
     return events.filter((e) => {
       const attr = (e.attribute ?? {}) as Record<string, unknown>;
+      
+      // ESG fields
       if (query.company_name && !String(attr.company_name ?? "").toLowerCase().includes(query.company_name.toLowerCase())) return false;
       if (query.permid && String(attr.permid ?? "") !== query.permid) return false;
       if (query.metric_name && !String(attr.metric_name ?? "").toLowerCase().includes(query.metric_name.toLowerCase())) return false;
       if (query.pillar && String(attr.pillar ?? "").toLowerCase() !== query.pillar.toLowerCase()) return false;
       if (query.year_from != null && Number(attr.metric_year ?? 0) < query.year_from) return false;
       if (query.year_to != null && Number(attr.metric_year ?? 0) > query.year_to) return false;
+      
+      // Housing fields
+      if (query.postcode != null && Number(attr.postcode ?? 0) !== query.postcode) return false;
+      if (query.suburb && String(attr.suburb ?? "").toLowerCase() !== query.suburb.toLowerCase()) return false;
+      if (query.street_name && !String(attr.street_name ?? "").toLowerCase().includes(query.street_name.toLowerCase())) return false;
+      if (query.nature_of_property && String(attr.nature_of_property ?? "").toLowerCase() !== query.nature_of_property.toLowerCase()) return false;
+      
       return true;
     });
   }
