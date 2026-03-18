@@ -455,18 +455,56 @@ describe("GET /api/v1/events", () => {
     expect(res.body.events.length).toBe(2);
   });
 
-  it("passes query filters to dataLakeReader.queryEvents", async () => {
+  it("passes ESG query filters to dataLakeReader.queryEvents", async () => {
     const { app, deps } = buildApp();
 
     await request(app)
       .get("/api/v1/events")
-      .query({ company_name: "Acme", pillar: "Environmental", limit: 10, offset: 0 })
+      .query({ dataset_type: "esg", company_name: "Acme", pillar: "Environmental", limit: 10, offset: 0 })
+      .expect(200);
+
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataset_type: "esg",
+        company_name: "Acme",
+        pillar: "Environmental",
+        limit: 10,
+        offset: 0,
+      })
+    );
+  });
+
+  it("passes housing query filters to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
+
+    await request(app)
+      .get("/api/v1/events")
+      .query({ dataset_type: "housing", suburb: "Sydney", postcode: 2000, limit: 20, offset: 5 })
+      .expect(200);
+
+    expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataset_type: "housing",
+        suburb: "Sydney",
+        postcode: 2000,
+        limit: 20,
+        offset: 5,
+      })
+    );
+  });
+
+  it("passes mixed filters without dataset_type to dataLakeReader.queryEvents", async () => {
+    const { app, deps } = buildApp();
+
+    await request(app)
+      .get("/api/v1/events")
+      .query({ company_name: "Acme", suburb: "Sydney", limit: 10, offset: 0 })
       .expect(200);
 
     expect(deps.dataLakeReader.queryEvents).toHaveBeenCalledWith(
       expect.objectContaining({
         company_name: "Acme",
-        pillar: "Environmental",
+        suburb: "Sydney",
         limit: 10,
         offset: 0,
       })
@@ -503,5 +541,51 @@ describe("GET /api/v1/events", () => {
       .expect(200);
 
     expect(res.body.events).toEqual([]);
+  });
+
+  it("filters results by ESG dataset when dataset_type=esg is specified", async () => {
+    const esgEvent = {
+      event_id: "esg-1",
+      event_type: "esg_metric",
+      dataset_type: "esg",
+      time_object: { timestamp: "2024-01-01T00:00:00Z", timezone: "UTC" },
+      attribute: { company_name: "Acme", metric_name: "CO2 Emissions", pillar: "Environmental" },
+    };
+
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: [esgEvent], total: 1 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+      },
+    });
+
+    const res = await request(app)
+      .get("/api/v1/events")
+      .query({ dataset_type: "esg" })
+      .expect(200);
+
+    expect(res.body.events).toHaveLength(1);
+    expect(res.body.events[0].event_id).toBe("esg-1");
+  });
+
+  it("filters results by housing dataset when dataset_type=housing is specified", async () => {
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: fakeHousingEvents, total: 2 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+      },
+    });
+
+    const res = await request(app)
+      .get("/api/v1/events")
+      .query({ dataset_type: "housing" })
+      .expect(200);
+
+    expect(res.body.events).toHaveLength(2);
+    expect(res.body.events[0].attribute.suburb).toBe("Sydney");
   });
 });
