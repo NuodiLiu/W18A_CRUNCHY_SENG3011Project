@@ -33,27 +33,40 @@ export class EventsController extends Controller {
   @Get("/")
   @SuccessResponse(200, "List of events")
   public async getEvents(
-    @Query() company_name?: string,
-    @Query() permid?: string,
-    @Query() metric_name?: string,
+    @Query("dataset_type") dataset_type?: "esg" | "housing",
+    
+    @Query("company_name") company_name?: string,
+    @Query("permid") permid?: string,
+    @Query("metric_name") metric_name?: string,
     /** Environmental | Social | Governance */
-    @Query() pillar?: string,
-    @Query() year_from?: number,
-    @Query() year_to?: number,
+    @Query("pillar") pillar?: string,
+    @Query("year_from") year_from?: number,
+    @Query("year_to") year_to?: number,
+
+    @Query("postcode") postcode?: number,
+    @Query("suburb") suburb?: string,
+    @Query("street_name") street_name?: string,
+    @Query("nature_of_property") nature_of_property?: string,
+    
     @Query("limit") _limit: number = 50,
     @Query("offset") _offset: number = 0
   ): Promise<EventDatasetResponse> {
     const result = await getEvents(
-      {
-        company_name,
-        permid,
-        metric_name,
-        pillar,
-        year_from,
-        year_to,
-        limit: _limit,
-        offset: _offset,
-      },
+    {
+      dataset_type,
+      company_name,
+      permid,
+      metric_name,
+      pillar,
+      year_from,
+      year_to,
+      postcode,
+      suburb,
+      street_name,
+      nature_of_property,
+      limit: _limit,
+      offset: _offset,
+    },
       this.deps
     );
     return {
