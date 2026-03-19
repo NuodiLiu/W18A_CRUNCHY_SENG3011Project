@@ -917,6 +917,18 @@
 				"parameters": [
 					{
 						"in": "query",
+						"name": "dataset_type",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"esg",
+								"housing"
+							]
+						}
+					},
+					{
+						"in": "query",
 						"name": "company_name",
 						"required": false,
 						"schema": {
@@ -964,6 +976,39 @@
 						"schema": {
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "postcode",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "suburb",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "street_name",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "nature_of_property",
+						"required": false,
+						"schema": {
+							"type": "string"
 						}
 					},
 					{

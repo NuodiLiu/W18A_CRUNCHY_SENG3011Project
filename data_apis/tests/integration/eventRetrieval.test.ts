@@ -323,4 +323,90 @@ describe("GET /api/v1/events — integration", () => {
 
     expect(res.body.events).toEqual([]);
   });
+
+  it("filters by dataset_type=esg (returns only ESG events)", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?dataset_type=esg")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(2);
+    for (const evt of res.body.events) {
+      expect(evt.event_type).toBe("esg_metric");
+    }
+  });
+
+  it("filters by dataset_type=housing (returns only housing events)", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?dataset_type=housing")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(1);
+    expect(res.body.events[0].event_type).toBe("housing_sale");
+  });
+
+  it("filters by suburb", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?suburb=Kensington")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(1);
+    expect(res.body.events[0].attribute.suburb).toBe("Kensington");
+  });
+
+  it("filters by postcode", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?postcode=2033")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(1);
+    expect(res.body.events[0].attribute.postcode).toBe(2033);
+  });
+
+  it("filters by street_name (partial match)", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?street_name=Anzac")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(1);
+    expect(res.body.events[0].attribute.street_name).toBe("Anzac Pde");
+  });
+
+  it("filters by nature_of_property", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?nature_of_property=Residential")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(1);
+    expect(res.body.events[0].attribute.nature_of_property).toBe("Residential");
+  });
+
+  it("filters by pillar", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?pillar=Environmental")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(2);
+    for (const evt of res.body.events) {
+      expect(evt.attribute.pillar).toBe("Environmental");
+    }
+  });
+
+  it("filters by permid", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?permid=P12345")
+      .expect(200);
+
+    expect(res.body.events.length).toBe(2);
+    for (const evt of res.body.events) {
+      expect(evt.attribute.permid).toBe("P12345");
+    }
+  });
+
+  it("returns empty for suburb that does not exist", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?suburb=Atlantis")
+      .expect(200);
+
+    expect(res.body.events).toEqual([]);
+  });
 });

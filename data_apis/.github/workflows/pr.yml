@@ -83,6 +83,7 @@ jobs:
       - name: Integration tests
         run: npm run test:integration
         env:
+          NODE_OPTIONS: --experimental-vm-modules
           AWS_ACCESS_KEY_ID: local
           AWS_SECRET_ACCESS_KEY: local
           AWS_REGION: ap-southeast-2

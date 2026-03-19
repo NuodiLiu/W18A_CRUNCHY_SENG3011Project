@@ -28,6 +28,8 @@ export class S3PresignService implements FileUploadService {
   constructor(config: AppConfig) {
     this.s3 = new S3Client({
       region: config.region,
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       ...(config.s3Endpoint && {
         endpoint: config.s3Endpoint,
         forcePathStyle: true,
