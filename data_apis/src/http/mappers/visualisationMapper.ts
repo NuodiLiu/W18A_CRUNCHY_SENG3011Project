@@ -1,5 +1,5 @@
 import { BreakdownResult } from "../../application/visualisation/getBreakdown.js";
-import { BreakdownResponse, BreakdownEntry } from "../types/visualisation.types.js";
+import { BreakdownResponse, BreakdownEntry } from "../../application/visualisation/visualisation.types.js";
 
 /**
  * Maps the breakdown result from the application layer to the HTTP response format.

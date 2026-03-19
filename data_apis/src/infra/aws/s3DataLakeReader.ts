@@ -1,7 +1,7 @@
 import { GetObjectCommand, ListObjectsV2Command, SelectObjectContentCommand, S3Client } from "@aws-sdk/client-s3";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
-import { DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
+import { DataLakeReader, EventQuery, EventQueryResult, BreakdownQuery, BreakdownResult } from "../../domain/ports/dataLakeReader.js";
 
 interface ManifestJson {
   dataset_id: string;
@@ -159,6 +159,22 @@ export class S3DataLakeReader implements DataLakeReader {
     });
   }
 
+  async readDataset(
+    datasetId: string,
+    onBatch: (events: EventRecord[]) => Promise<void>,
+  ): Promise<void> {
+    const manifestKey = `datasets/${datasetId}/manifest.json`;
+    const manifest = await this.readJson<ManifestJson>(manifestKey);
+
+    for (const segmentUri of manifest.segments) {
+      const segKey = this.getKeyFromS3Uri(segmentUri);
+      const events = await this.readJsonLines<EventRecord>(segKey);
+      if (events.length > 0) {
+        await onBatch(events);
+      }
+    }
+  }
+
   async getAllEvents(): Promise<EventRecord[]> {
     const segmentKeys = await this.getAllSegmentKeys();
 
@@ -174,6 +190,63 @@ export class S3DataLakeReader implements DataLakeReader {
       segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
     );
     return results.flat();
+  }
+
+  async getAggregatedBreakdown(query: BreakdownQuery): Promise<BreakdownResult> {
+    const { event_type, dimension, metric, aggregation, limit = 10, year_from, year_to } = query;
+    const segmentKeys = await this.getAllSegmentKeys();
+
+    // Build SQL to filter and project only needed fields
+    const sql = this.buildBreakdownSql(event_type, dimension, metric, year_from, year_to);
+
+    let rows: Array<{ dimension_value: string; metric_value: number | null }>;
+    if (this.useS3Select) {
+      const results = await Promise.all(
+        segmentKeys.map((key) =>
+          this.selectFromSegment<{ dimension_value: string; metric_value: number | null }>(key, sql)
+        )
+      );
+      rows = results.flat();
+    } else {
+      // Fallback: read all and filter in memory
+      const results = await Promise.all(
+        segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
+      );
+      rows = this.applyBreakdownFilter(results.flat(), query);
+    }
+
+    // Aggregate in memory (since S3 Select runs per-file)
+    const groups = new Map<string, { values: number[]; count: number }>();
+    for (const row of rows) {
+      const category = String(row.dimension_value ?? "unknown");
+      if (!groups.has(category)) {
+        groups.set(category, { values: [], count: 0 });
+      }
+      const group = groups.get(category)!;
+      group.count++;
+      if (metric !== "count" && row.metric_value !== null && !isNaN(row.metric_value)) {
+        group.values.push(row.metric_value);
+      }
+    }
+
+    // Calculate aggregated values
+    const entries = Array.from(groups.entries()).map(([category, group]) => ({
+      category,
+      value: this.calculateAggregation(group.values, group.count, aggregation, metric),
+      count: group.count,
+    }));
+
+    // Sort by value descending and limit
+    entries.sort((a, b) => b.value - a.value);
+    const limited = entries.slice(0, limit);
+
+    return {
+      dimension,
+      metric,
+      aggregation,
+      event_type,
+      entries: limited,
+    };
   }
 
   // ── SQL builder ───────────────────────────────────────────────
@@ -216,6 +289,112 @@ export class S3DataLakeReader implements DataLakeReader {
 
   private escapeSql(value: string): string {
     return value.replace(/'/g, "''");
+  }
+
+  private buildBreakdownSql(
+    event_type: string,
+    dimension: string,
+    metric: string,
+    year_from?: number,
+    year_to?: number
+  ): string {
+    const conditions: string[] = [`s.event_type = '${this.escapeSql(event_type)}'`];
+
+    // Year filtering - handle both ESG (metric_year) and Housing (contract_date) data
+    if (year_from != null) {
+      conditions.push(
+        `(CAST(s.attribute.metric_year AS INT) >= ${Number(year_from)} OR SUBSTRING(s.attribute.contract_date, 1, 4) >= '${year_from}')`
+      );
+    }
+    if (year_to != null) {
+      conditions.push(
+        `(CAST(s.attribute.metric_year AS INT) <= ${Number(year_to)} OR SUBSTRING(s.attribute.contract_date, 1, 4) <= '${year_to}')`
+      );
+    }
+
+    const where = conditions.join(" AND ");
+
+    // Handle derived dimensions like contract_year
+    let dimensionExpr: string;
+    if (dimension === "contract_year") {
+      dimensionExpr = `SUBSTRING(s.attribute.contract_date, 1, 4)`;
+    } else {
+      dimensionExpr = `s.attribute.${dimension}`;
+    }
+
+    // Project only the fields we need
+    const metricExpr = metric === "count" ? "1" : `CAST(s.attribute.${metric} AS FLOAT)`;
+
+    return `SELECT ${dimensionExpr} AS dimension_value, ${metricExpr} AS metric_value FROM s3object s WHERE ${where}`;
+  }
+
+  private applyBreakdownFilter(
+    events: EventRecord[],
+    query: BreakdownQuery
+  ): Array<{ dimension_value: string; metric_value: number | null }> {
+    const { event_type, dimension, metric, year_from, year_to } = query;
+
+    return events
+      .filter((e) => {
+        if (e.event_type !== event_type) return false;
+        const attr = (e.attribute ?? {}) as Record<string, unknown>;
+
+        // Year filtering
+        const metricYear = attr.metric_year ? Number(attr.metric_year) : null;
+        const contractYear = typeof attr.contract_date === "string"
+          ? Number(attr.contract_date.slice(0, 4))
+          : null;
+        const year = metricYear ?? contractYear;
+
+        if (year_from != null && year !== null && year < year_from) return false;
+        if (year_to != null && year !== null && year > year_to) return false;
+
+        return true;
+      })
+      .map((e) => {
+        const attr = (e.attribute ?? {}) as Record<string, unknown>;
+
+        // Handle derived dimensions
+        let dimensionValue: string;
+        if (dimension === "contract_year") {
+          const contractDate = attr.contract_date;
+          dimensionValue = typeof contractDate === "string" ? contractDate.slice(0, 4) : "unknown";
+        } else {
+          dimensionValue = String(attr[dimension] ?? "unknown");
+        }
+
+        const metricValue = metric === "count" ? 1 : Number(attr[metric]);
+
+        return {
+          dimension_value: dimensionValue,
+          metric_value: isNaN(metricValue) ? null : metricValue,
+        };
+      });
+  }
+
+  private calculateAggregation(
+    values: number[],
+    count: number,
+    aggregation: string,
+    metric: string
+  ): number {
+    if (metric === "count") return count;
+    if (values.length === 0) return 0;
+
+    switch (aggregation) {
+      case "sum":
+        return values.reduce((a, b) => a + b, 0);
+      case "avg":
+        return values.reduce((a, b) => a + b, 0) / values.length;
+      case "min":
+        return Math.min(...values);
+      case "max":
+        return Math.max(...values);
+      case "count":
+        return count;
+      default:
+        return values.reduce((a, b) => a + b, 0);
+    }
   }
 
   // ── S3 Select execution ───────────────────────────────────────

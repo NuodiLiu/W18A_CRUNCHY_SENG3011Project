@@ -76,7 +76,7 @@ export class DynamoJobRepository implements JobRepository {
   async updateStatus(
     jobId: string,
     status: JobStatus,
-    extra?: Partial<Pick<JobRecord, "dataset_id" | "error">>
+    extra?: Partial<Pick<JobRecord, "dataset_id" | "error" | "quality_report">>
   ): Promise<void> {
     const names: Record<string, string> = { "#status": "status" };
     const values: Record<string, unknown> = {
@@ -94,6 +94,10 @@ export class DynamoJobRepository implements JobRepository {
       updateExpr += ", #error = :err";
       names["#error"] = "error";
       values[":err"] = extra.error;
+    }
+    if (extra?.quality_report !== undefined) {
+      updateExpr += ", quality_report = :qr";
+      values[":qr"] = extra.quality_report;
     }
 
     await this.doc.send(

@@ -1,9 +1,10 @@
 import "reflect-metadata";
-import { Controller, Get, Route, Tags, Query, SuccessResponse } from "tsoa";
+import { Controller } from "@tsoa/runtime";
+import { Get, Route, Tags, Query, SuccessResponse } from "tsoa";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 import { getBreakdown } from "../../application/visualisation/getBreakdown.js";
+import { AggregationType, BreakdownResponse } from "../../application/visualisation/visualisation.types.js";
 import { toBreakdownResponse } from "../mappers/visualisationMapper.js";
-import { BreakdownResponse, AggregationType } from "../types/visualisation.types.js";
 
 export interface VisualisationControllerDeps {
   dataLakeReader: DataLakeReader;
@@ -32,7 +33,11 @@ export class VisualisationController extends Controller {
     /** Aggregation function: "avg", "sum", "count", "min", "max" */
     @Query() aggregation?: AggregationType,
     /** Maximum number of categories to return (default: 10) */
-    @Query() limit?: number
+    @Query() limit?: number,
+    /** Filter: start year (inclusive) */
+    @Query() year_from?: number,
+    /** Filter: end year (inclusive) */
+    @Query() year_to?: number
   ): Promise<BreakdownResponse> {
     const result = await getBreakdown(
       {
@@ -41,6 +46,8 @@ export class VisualisationController extends Controller {
         metric,
         aggregation,
         limit,
+        year_from,
+        year_to,
       },
       this.deps
     );

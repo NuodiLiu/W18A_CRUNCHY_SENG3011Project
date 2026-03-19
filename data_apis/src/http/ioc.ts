@@ -6,12 +6,12 @@
 import type { IocContainer } from "tsoa";
 import { CollectionController, CollectionControllerDeps } from "./controllers/CollectionController.js";
 import { EventsController, EventsControllerDeps } from "./controllers/EventsController.js";
+import { PreprocessingController, PreprocessingControllerDeps } from "./controllers/PreprocessingController.js";
 import { VisualisationController, VisualisationControllerDeps } from "./controllers/VisualisationController.js";
-import { PreprocessingController } from "./controllers/PreprocessingController.js";
 import { HealthController } from "./controllers/HealthController.js";
 import { FileUploadService } from "../domain/ports/fileUploadService.js";
 
-export type AppDeps = CollectionControllerDeps & EventsControllerDeps & VisualisationControllerDeps;
+export type AppDeps = CollectionControllerDeps & EventsControllerDeps & PreprocessingControllerDeps & VisualisationControllerDeps;
 export type { FileUploadService };
 
 let _deps: AppDeps;
@@ -31,7 +31,7 @@ export const iocContainer: IocContainer = {
       case VisualisationController:
         return new VisualisationController(_deps) as unknown as T;
       case PreprocessingController:
-        return new PreprocessingController() as unknown as T;
+        return new PreprocessingController(_deps) as unknown as T;
       case HealthController:
         return new HealthController() as unknown as T;
       default:
