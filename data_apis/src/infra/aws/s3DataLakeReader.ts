@@ -1,7 +1,7 @@
 import { GetObjectCommand, ListObjectsV2Command, SelectObjectContentCommand, S3Client } from "@aws-sdk/client-s3";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
-import { DataLakeReader, EventQuery, EventQueryResult, BreakdownQuery, BreakdownResult } from "../../domain/ports/dataLakeReader.js";
+import { DataLakeReader, VisualisationReader, EventQuery, EventQueryResult, BreakdownQuery, BreakdownResult } from "../../domain/ports/dataLakeReader.js";
 
 interface ManifestJson {
   dataset_id: string;
@@ -27,7 +27,7 @@ export interface S3DataLakeReaderOptions {
   useS3Select?: boolean;
 }
 
-export class S3DataLakeReader implements DataLakeReader {
+export class S3DataLakeReader implements DataLakeReader, VisualisationReader {
   private readonly s3: S3Client;
   private readonly bucket: string;
   private readonly useS3Select: boolean;

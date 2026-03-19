@@ -1,7 +1,7 @@
-import { DataLakeReader, BreakdownResult, BreakdownQuery as DomainBreakdownQuery } from "../../domain/ports/dataLakeReader.js";
+import { VisualisationReader, BreakdownResult, BreakdownQuery as DomainBreakdownQuery } from "../../domain/ports/dataLakeReader.js";
 
 export interface GetBreakdownDeps {
-  dataLakeReader: DataLakeReader;
+  visualisationReader: VisualisationReader;
 }
 
 export interface BreakdownQuery {
@@ -36,7 +36,7 @@ export async function getBreakdown(
   } = query;
 
   // Delegate to data layer - filtering happens at database level
-  return deps.dataLakeReader.getAggregatedBreakdown({
+  return deps.visualisationReader.getAggregatedBreakdown({
     event_type,
     dimension,
     metric,

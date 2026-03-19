@@ -1,61 +1,85 @@
 import request from "supertest";
 import { createApp } from "../../src/http/app";
+import { BreakdownResult } from "../../src/domain/ports/dataLakeReader";
 
 beforeEach(() => jest.spyOn(console, "error").mockImplementation(() => {}));
 afterEach(() => jest.restoreAllMocks());
 
-const fakeHousingEvents = [
-  {
-    event_id: "h-1",
-    time_object: { timestamp: "2024-04-10T00:00:00Z", timezone: "UTC" },
-    event_type: "housing_sale",
-    attribute: {
-      property_id: "P001",
-      suburb: "Sydney",
-      postcode: 2000,
-      purchase_price: 1500000,
-      area: 120,
-      zoning: "R1",
-      nature_of_property: "Residential",
-      primary_purpose: "Dwelling",
-      contract_date: "2024-04-10",
-    },
-  },
-  {
-    event_id: "h-2",
-    time_object: { timestamp: "2024-04-15T00:00:00Z", timezone: "UTC" },
-    event_type: "housing_sale",
-    attribute: {
-      property_id: "P002",
-      suburb: "Sydney",
-      postcode: 2000,
-      purchase_price: 1200000,
-      area: 95,
-      zoning: "R1",
-      nature_of_property: "Residential",
-      primary_purpose: "Investment",
-      contract_date: "2024-04-15",
-    },
-  },
-  {
-    event_id: "h-3",
-    time_object: { timestamp: "2024-05-01T00:00:00Z", timezone: "UTC" },
-    event_type: "housing_sale",
-    attribute: {
-      property_id: "P003",
-      suburb: "Parramatta",
-      postcode: 2150,
-      purchase_price: 980000,
-      area: 85,
-      zoning: "R2",
-      nature_of_property: "Residential",
-      primary_purpose: "Dwelling",
-      contract_date: "2024-05-01",
-    },
-  },
-];
+// Pre-computed breakdown results for testing
+const defaultBreakdownResult: BreakdownResult = {
+  dimension: "suburb",
+  metric: "count",
+  aggregation: "sum",
+  event_type: "housing_sale",
+  entries: [
+    { category: "Sydney", value: 2, count: 2 },
+    { category: "Parramatta", value: 1, count: 1 },
+  ],
+};
+
+const avgPriceBreakdownResult: BreakdownResult = {
+  dimension: "suburb",
+  metric: "purchase_price",
+  aggregation: "avg",
+  event_type: "housing_sale",
+  entries: [
+    { category: "Sydney", value: 1350000, count: 2 },
+    { category: "Parramatta", value: 980000, count: 1 },
+  ],
+};
+
+const sumPriceBreakdownResult: BreakdownResult = {
+  dimension: "suburb",
+  metric: "purchase_price",
+  aggregation: "sum",
+  event_type: "housing_sale",
+  entries: [
+    { category: "Sydney", value: 2700000, count: 2 },
+    { category: "Parramatta", value: 980000, count: 1 },
+  ],
+};
+
+const zoningBreakdownResult: BreakdownResult = {
+  dimension: "zoning",
+  metric: "count",
+  aggregation: "sum",
+  event_type: "housing_sale",
+  entries: [
+    { category: "R1", value: 2, count: 2 },
+    { category: "R2", value: 1, count: 1 },
+  ],
+};
 
 function buildApp(overrides: Record<string, unknown> = {}) {
+  const mockGetAggregatedBreakdown = jest.fn().mockImplementation((query) => {
+    // Return different results based on query parameters
+    if (query.dimension === "zoning") {
+      return Promise.resolve(zoningBreakdownResult);
+    }
+    if (query.metric === "purchase_price" && query.aggregation === "avg") {
+      return Promise.resolve(avgPriceBreakdownResult);
+    }
+    if (query.metric === "purchase_price" && query.aggregation === "sum") {
+      return Promise.resolve(sumPriceBreakdownResult);
+    }
+    if (query.event_type === "esg_metric") {
+      return Promise.resolve({
+        ...defaultBreakdownResult,
+        event_type: "esg_metric",
+        dimension: query.dimension,
+        entries: [],
+      });
+    }
+    return Promise.resolve({
+      ...defaultBreakdownResult,
+      dimension: query.dimension || "suburb",
+      limit: query.limit,
+      entries: query.limit === 1
+        ? [defaultBreakdownResult.entries[0]]
+        : defaultBreakdownResult.entries,
+    });
+  });
+
   const deps = {
     jobRepo: {
       create: jest.fn(),
@@ -78,11 +102,13 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       completeMultipart: jest.fn(),
     },
     dataLakeReader: {
-      queryEvents: jest.fn().mockResolvedValue({ events: fakeHousingEvents, total: fakeHousingEvents.length }),
+      queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
       findEventById: jest.fn(),
       getDistinctEventTypes: jest.fn().mockResolvedValue(["housing_sale"]),
       getGroupProjection: jest.fn().mockResolvedValue([]),
-      getAllEvents: jest.fn().mockResolvedValue(fakeHousingEvents),
+      readDataset: jest.fn(),
+      getAllEvents: jest.fn().mockResolvedValue([]),
+      getAggregatedBreakdown: mockGetAggregatedBreakdown,
     },
     ...overrides,
   };
@@ -204,14 +230,30 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     expect(res.body.entries).toEqual([]);
   });
 
-  it("calls getAllEvents on dataLakeReader", async () => {
+  it("calls getAggregatedBreakdown on dataLakeReader", async () => {
     const { app, deps } = buildApp();
 
     await request(app)
       .get("/api/v1/visualisation/breakdown")
       .expect(200);
 
-    expect(deps.dataLakeReader.getAllEvents).toHaveBeenCalled();
+    expect(deps.dataLakeReader.getAggregatedBreakdown).toHaveBeenCalled();
+  });
+
+  it("passes year_from and year_to to getAggregatedBreakdown", async () => {
+    const { app, deps } = buildApp();
+
+    await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({ year_from: 2020, year_to: 2024 })
+      .expect(200);
+
+    expect(deps.dataLakeReader.getAggregatedBreakdown).toHaveBeenCalledWith(
+      expect.objectContaining({
+        year_from: 2020,
+        year_to: 2024,
+      })
+    );
   });
 
   it("handles empty dataset", async () => {
@@ -221,7 +263,15 @@ describe("GET /api/v1/visualisation/breakdown", () => {
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
+        readDataset: jest.fn(),
         getAllEvents: jest.fn().mockResolvedValue([]),
+        getAggregatedBreakdown: jest.fn().mockResolvedValue({
+          dimension: "suburb",
+          metric: "count",
+          aggregation: "sum",
+          event_type: "housing_sale",
+          entries: [],
+        }),
       },
     });
 

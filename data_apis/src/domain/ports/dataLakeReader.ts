@@ -64,6 +64,11 @@ export interface DataLakeReader {
   ): Promise<void>;
   /** Fetch all events without pagination (for aggregation/visualisation). */
   getAllEvents(): Promise<EventRecord[]>;
+}
+
+// ─── Visualisation-specific interface (separate from DataLakeReader) ─────────
+
+export interface VisualisationReader {
   /** Get aggregated breakdown data for visualisation (filters and aggregates at database level). */
   getAggregatedBreakdown(query: BreakdownQuery): Promise<BreakdownResult>;
 }

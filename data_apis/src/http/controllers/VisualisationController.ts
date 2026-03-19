@@ -1,13 +1,13 @@
+/* eslint-disable @typescript-eslint/no-require-imports */    
 import "reflect-metadata";
-import { Controller } from "@tsoa/runtime";
-import { Get, Route, Tags, Query, SuccessResponse } from "tsoa";
-import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
-import { getBreakdown } from "../../application/visualisation/getBreakdown.js";
-import { AggregationType, BreakdownResponse } from "../../application/visualisation/visualisation.types.js";
-import { toBreakdownResponse } from "../mappers/visualisationMapper.js";
+import { Controller, Get, Route, Tags, Query, SuccessResponse } from "tsoa";
+import { VisualisationReader } from "../../domain/ports/dataLakeReader";
+import { getBreakdown } from "../../application/visualisation/getBreakdown";
+import { AggregationType, BreakdownResponse } from "../../application/visualisation/visualisation.types";
+import { toBreakdownResponse } from "../mappers/visualisationMapper";
 
 export interface VisualisationControllerDeps {
-  dataLakeReader: DataLakeReader;
+  visualisationReader: VisualisationReader;
 }
 
 @Route("api/v1/visualisation")
@@ -33,11 +33,7 @@ export class VisualisationController extends Controller {
     /** Aggregation function: "avg", "sum", "count", "min", "max" */
     @Query() aggregation?: AggregationType,
     /** Maximum number of categories to return (default: 10) */
-    @Query() limit?: number,
-    /** Filter: start year (inclusive) */
-    @Query() year_from?: number,
-    /** Filter: end year (inclusive) */
-    @Query() year_to?: number
+    @Query() limit?: number
   ): Promise<BreakdownResponse> {
     const result = await getBreakdown(
       {
@@ -46,8 +42,6 @@ export class VisualisationController extends Controller {
         metric,
         aggregation,
         limit,
-        year_from,
-        year_to,
       },
       this.deps
     );

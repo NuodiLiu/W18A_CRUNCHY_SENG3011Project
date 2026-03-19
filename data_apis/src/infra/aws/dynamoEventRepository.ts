@@ -8,13 +8,13 @@ import {
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
-import { DataLakeReader, EventQuery, EventQueryResult, BreakdownQuery, BreakdownResult } from "../../domain/ports/dataLakeReader.js";
+import { DataLakeReader, VisualisationReader, EventQuery, EventQueryResult, BreakdownQuery, BreakdownResult } from "../../domain/ports/dataLakeReader.js";
 import { EventRepository } from "../../domain/ports/eventRepository.js";
 
 // DynamoDB BatchWriteItem hard limit
 const DYNAMO_BATCH_SIZE = 25;
 
-export class DynamoEventRepository implements DataLakeReader, EventRepository {
+export class DynamoEventRepository implements DataLakeReader, VisualisationReader, EventRepository {
   private readonly client: DynamoDBClient;
   private readonly table: string;
 

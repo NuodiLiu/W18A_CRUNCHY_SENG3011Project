@@ -11,7 +11,9 @@ import { VisualisationController, VisualisationControllerDeps } from "./controll
 import { HealthController } from "./controllers/HealthController.js";
 import { FileUploadService } from "../domain/ports/fileUploadService.js";
 
-export type AppDeps = CollectionControllerDeps & EventsControllerDeps & PreprocessingControllerDeps & VisualisationControllerDeps;
+// Note: VisualisationControllerDeps uses 'visualisationReader' which is provided via dataLakeReader
+// since the implementations (S3DataLakeReader, DynamoEventRepository) implement both interfaces
+export type AppDeps = CollectionControllerDeps & EventsControllerDeps & PreprocessingControllerDeps;
 export type { FileUploadService };
 
 let _deps: AppDeps;
@@ -29,7 +31,8 @@ export const iocContainer: IocContainer = {
       case EventsController:
         return new EventsController(_deps) as unknown as T;
       case VisualisationController:
-        return new VisualisationController(_deps) as unknown as T;
+        // dataLakeReader implements VisualisationReader at runtime (S3DataLakeReader/DynamoEventRepository)
+        return new VisualisationController({ visualisationReader: _deps.dataLakeReader as unknown as import("../domain/ports/dataLakeReader.js").VisualisationReader }) as unknown as T;
       case PreprocessingController:
         return new PreprocessingController(_deps) as unknown as T;
       case HealthController:
