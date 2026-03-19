@@ -27,7 +27,9 @@ export class EventsController extends Controller {
 
   /**
    * Query normalized events from the data lake.
-   * Supports filtering by company, metric name, ESG pillar, and year range.
+   * Supports filtering by dataset_type (esg | housing),
+   * ESG fields (company, permid, metric name, pillar, year range),
+   * and Housing fields (postcode, suburb, street_name, nature_of_property).
    * Results are paginated via limit/offset.
    */
   @Get("/")

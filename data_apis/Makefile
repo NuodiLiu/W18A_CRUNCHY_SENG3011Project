@@ -77,6 +77,9 @@ test: ## Run unit tests
 
 test-integration: ## Run integration tests (ephemeral in-memory infra)
 	$(DC_TEST) up -d dynamodb-local localstack
+	@echo "Waiting for services to become healthy…"
+	@$(DC_TEST) exec -T dynamodb-local sh -c 'until curl -sf http://localhost:8000 > /dev/null 2>&1 || [ $$? -eq 22 ]; do sleep 1; done' 2>/dev/null || sleep 5
+	@$(DC_TEST) exec -T localstack sh -c 'until curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; do sleep 1; done' 2>/dev/null || sleep 5
 	npm run infra:local:init
 	npm run test:integration
 	$(DC_TEST) down

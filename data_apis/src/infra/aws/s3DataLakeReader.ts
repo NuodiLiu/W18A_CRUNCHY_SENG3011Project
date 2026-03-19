@@ -35,6 +35,8 @@ export class S3DataLakeReader implements DataLakeReader {
   constructor(config: AppConfig, opts?: S3DataLakeReaderOptions) {
     this.s3 = new S3Client({
       region: config.region,
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       ...(config.s3Endpoint && {
         endpoint: config.s3Endpoint,
         forcePathStyle: true,
@@ -62,14 +64,6 @@ export class S3DataLakeReader implements DataLakeReader {
       );
       allMatched = this.applyQueryFilter(results.flat(), query);
     }
-
-    // Filter by dataset type if specified
-    if (query.dataset_type === "esg") {
-      allMatched = allMatched.filter((e) => e.attribute.dataset_type === "esg");
-    } else if (query.dataset_type === "housing") {
-      allMatched = allMatched.filter((e) => e.attribute.dataset_type === "housing");
-    }
-    // fallback: no filtering if dataset_type omitted (mixed results)
 
     const total = allMatched.length;
     const offset = query.offset ?? 0;
@@ -187,13 +181,11 @@ export class S3DataLakeReader implements DataLakeReader {
 
   private buildQuerySql(query: EventQuery): { sql: string; params: string[] } {
     const conditions: string[] = [];
-    
-    if (query.dataset_type === "esg") {
-      conditions.push(`s.dataset_type = 'esg'`);
-    }
 
-    if (query.dataset_type === "housing") {
-      conditions.push(`s.dataset_type = 'housing'`);
+    if (query.dataset_type === "esg") {
+      conditions.push(`s.event_type = 'esg_metric'`);
+    } else if (query.dataset_type === "housing") {
+      conditions.push(`(s.event_type = 'property_sale' OR s.event_type = 'housing_sale')`);
     }
 
     // ESG fields
@@ -251,7 +243,7 @@ export class S3DataLakeReader implements DataLakeReader {
   }
 
   private escapeSql(value: string): string {
-    return value.replace(/'/g, "''");
+    return value.replace(/\\/g, "\\\\").replace(/'/g, "''");
   }
 
   // ── S3 Select execution ───────────────────────────────────────
@@ -300,6 +292,9 @@ export class S3DataLakeReader implements DataLakeReader {
 
   private applyQueryFilter(events: EventRecord[], query: EventQuery): EventRecord[] {
     return events.filter((e) => {
+      if (query.dataset_type === "esg" && e.event_type !== "esg_metric") return false;
+      if (query.dataset_type === "housing" && e.event_type !== "property_sale" && e.event_type !== "housing_sale") return false;
+
       const attr = (e.attribute ?? {}) as Record<string, unknown>;
       
       // ESG fields
