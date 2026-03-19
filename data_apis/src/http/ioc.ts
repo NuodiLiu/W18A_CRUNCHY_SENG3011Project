@@ -7,7 +7,7 @@ import type { IocContainer } from "tsoa";
 import { CollectionController, CollectionControllerDeps } from "./controllers/CollectionController.js";
 import { EventsController, EventsControllerDeps } from "./controllers/EventsController.js";
 import { PreprocessingController, PreprocessingControllerDeps } from "./controllers/PreprocessingController.js";
-import { VisualisationController, VisualisationControllerDeps } from "./controllers/VisualisationController.js";
+import { VisualisationController } from "./controllers/VisualisationController.js";
 import { HealthController } from "./controllers/HealthController.js";
 import { FileUploadService } from "../domain/ports/fileUploadService.js";
 

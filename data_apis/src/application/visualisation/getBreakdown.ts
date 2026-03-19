@@ -1,4 +1,4 @@
-import { VisualisationReader, BreakdownResult, BreakdownQuery as DomainBreakdownQuery } from "../../domain/ports/dataLakeReader.js";
+import { VisualisationReader, BreakdownResult } from "../../domain/ports/dataLakeReader.js";
 
 export interface GetBreakdownDeps {
   visualisationReader: VisualisationReader;
