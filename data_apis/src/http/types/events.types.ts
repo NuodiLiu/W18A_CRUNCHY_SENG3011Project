@@ -78,3 +78,4 @@ export interface HousingSaleAttributeResponse {
   nature_of_property: string;
   primary_purpose: string;
 }
+
