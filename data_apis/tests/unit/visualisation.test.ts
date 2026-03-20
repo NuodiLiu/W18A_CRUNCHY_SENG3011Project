@@ -156,8 +156,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       queryEvents: jest.fn().mockResolvedValue({ events: fakeHousingEvents, total: fakeHousingEvents.length }),
       findEventById: jest.fn(),
       getDistinctEventTypes: jest.fn().mockResolvedValue(["housing_sale"]),
-      getGroupProjection: jest.fn().mockResolvedValue([]),
-      getAllEvents: jest.fn().mockResolvedValue(fakeHousingEvents),
+      getGroupProjection: jest.fn().mockResolvedValue(fakeHousingEvents),
       readDataset: jest.fn().mockResolvedValue(undefined),
     },
     ...overrides,
@@ -300,7 +299,14 @@ describe("GET /api/v1/visualisation/breakdown", () => {
   });
 
   it("returns empty entries for non-matching event_type", async () => {
-    const { app } = buildApp();
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn(),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+      },
+    });
 
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
@@ -310,14 +316,14 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     expect(res.body.entries).toEqual([]);
   });
 
-  it("calls getAllEvents on dataLakeReader", async () => {
+  it("calls getGroupProjection on dataLakeReader", async () => {
     const { app, deps } = buildApp();
 
     await request(app)
       .get("/api/v1/visualisation/breakdown")
       .expect(200);
 
-    expect(deps.dataLakeReader.getAllEvents).toHaveBeenCalled();
+    expect(deps.dataLakeReader.getGroupProjection).toHaveBeenCalled();
   });
 
   it("handles empty dataset", async () => {
@@ -327,7 +333,6 @@ describe("GET /api/v1/visualisation/breakdown", () => {
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
-        getAllEvents: jest.fn().mockResolvedValue([]),
       },
     });
 
@@ -357,8 +362,7 @@ describe("GET /api/v1/visualisation/breakdown", () => {
         queryEvents: jest.fn().mockResolvedValue({ events: fakeEsgEvents, total: fakeEsgEvents.length }),
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue(["esg_metric"]),
-        getGroupProjection: jest.fn().mockResolvedValue([]),
-        getAllEvents: jest.fn().mockResolvedValue(fakeEsgEvents),
+        getGroupProjection: jest.fn().mockResolvedValue(fakeEsgEvents),
       },
     });
 
@@ -543,7 +547,14 @@ describe("GET /api/v1/visualisation/timeseries", () => {
   });
 
   it("returns empty data for non-matching event_type", async () => {
-    const { app } = buildApp();
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn(),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+      },
+    });
 
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
@@ -560,7 +571,6 @@ describe("GET /api/v1/visualisation/timeseries", () => {
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
-        getAllEvents: jest.fn().mockResolvedValue([]),
       },
     });
 
@@ -571,14 +581,14 @@ describe("GET /api/v1/visualisation/timeseries", () => {
     expect(res.body.data).toEqual([]);
   });
 
-  it("calls getAllEvents on dataLakeReader", async () => {
+  it("calls getGroupProjection on dataLakeReader", async () => {
     const { app, deps } = buildApp();
 
     await request(app)
       .get("/api/v1/visualisation/timeseries")
       .expect(200);
 
-    expect(deps.dataLakeReader.getAllEvents).toHaveBeenCalled();
+    expect(deps.dataLakeReader.getGroupProjection).toHaveBeenCalled();
   });
 
   it("aggregates esg metrics over time by year", async () => {
@@ -587,8 +597,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
         queryEvents: jest.fn().mockResolvedValue({ events: fakeEsgEvents, total: fakeEsgEvents.length }),
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue(["esg_metric"]),
-        getGroupProjection: jest.fn().mockResolvedValue([]),
-        getAllEvents: jest.fn().mockResolvedValue(fakeEsgEvents),
+        getGroupProjection: jest.fn().mockResolvedValue(fakeEsgEvents),
       },
     });
 
@@ -612,8 +621,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
         queryEvents: jest.fn().mockResolvedValue({ events: fakeEsgEvents, total: fakeEsgEvents.length }),
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue(["esg_metric"]),
-        getGroupProjection: jest.fn().mockResolvedValue([]),
-        getAllEvents: jest.fn().mockResolvedValue(fakeEsgEvents),
+        getGroupProjection: jest.fn().mockResolvedValue(fakeEsgEvents),
       },
     });
 
@@ -679,8 +687,7 @@ describe("Visualisation endpoints — error handling", () => {
         queryEvents: jest.fn().mockRejectedValue(new Error("S3 error")),
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
-        getGroupProjection: jest.fn().mockResolvedValue([]),
-        getAllEvents: jest.fn().mockRejectedValue(new Error("S3 error")),
+        getGroupProjection: jest.fn().mockRejectedValue(new Error("S3 error")),
       },
     });
 
@@ -695,8 +702,7 @@ describe("Visualisation endpoints — error handling", () => {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
         findEventById: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
-        getGroupProjection: jest.fn().mockResolvedValue([]),
-        getAllEvents: jest.fn().mockRejectedValue(new Error("S3 error")),
+        getGroupProjection: jest.fn().mockRejectedValue(new Error("S3 error")),
       },
     });
 

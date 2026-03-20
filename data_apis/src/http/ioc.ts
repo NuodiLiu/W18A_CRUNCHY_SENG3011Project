@@ -1,15 +1,15 @@
 import type { IocContainer } from "tsoa";
 import { CollectionController, CollectionControllerDeps } from "./controllers/CollectionController.js";
 import { EventsController, EventsControllerDeps } from "./controllers/EventsController.js";
-import { VisualisationController } from "./controllers/VisualisationController.js";
-import { PreprocessingController } from "./controllers/PreprocessingController.js";
+import { VisualisationController, VisualisationControllerDeps } from "./controllers/VisualisationController.js";
+import { PreprocessingController, PreprocessingControllerDeps } from "./controllers/PreprocessingController.js";
 import { HealthController } from "./controllers/HealthController.js";
 import { FileUploadService } from "../domain/ports/fileUploadService.js";
-import { DataLakeReader } from "@domain/ports/dataLakeReader.js";
 
 export type AppDeps = CollectionControllerDeps &
   EventsControllerDeps &
-  { dataLakeReader: DataLakeReader };
+  VisualisationControllerDeps &
+  PreprocessingControllerDeps;
 export type { FileUploadService };
 
 let _deps: AppDeps;

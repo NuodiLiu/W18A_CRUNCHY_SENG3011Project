@@ -109,7 +109,6 @@ function buildApp(overrides: Record<string, unknown> = {}) {
         fakeHousingEvents.map((e) => ({ event_type: e.event_type, attribute: e.attribute }))
       ),
       readDataset: jest.fn(),
-      getAllEvents: jest.fn().mockResolvedValue([]),
     },
     ...overrides,
   };

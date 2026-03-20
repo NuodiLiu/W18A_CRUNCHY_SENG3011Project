@@ -5,7 +5,7 @@ import {
   BreakdownEntry,
   TimeSeriesResponse,
   TimeSeriesDataPoint,
-} from "@application/visualisation/visualisation.types.js";
+} from "../../application/visualisation/visualisation.types.js";
 
 /**
  * Maps the breakdown result from the application layer to the HTTP response format.
@@ -40,6 +40,8 @@ export function toTimeSeriesResponse(result: TimeSeriesResult): TimeSeriesRespon
     metric: result.metric,
     aggregation: result.aggregation,
     event_type: result.event_type,
+    time_period: result.time_period,
+    dimension: result.dimension,
     data: result.entries.map(toTimeSeriesDataPoint),
   };
 }
@@ -53,6 +55,7 @@ function toTimeSeriesDataPoint(entry: {
   return {
     period: entry.period,
     value: entry.value,
+    count: entry.count,
     series: entry.series,
   };
 }

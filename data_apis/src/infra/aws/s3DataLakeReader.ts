@@ -47,22 +47,6 @@ export class S3DataLakeReader implements DataLakeReader {
   }
 
   // ── Public interface ──────────────────────────────────────────
-  async getAllEvents(): Promise<EventRecord[]> {
-    const segmentKeys = await this.getAllSegmentKeys();
-  
-    if (this.useS3Select) {
-      const sql = `SELECT * FROM s3object s`;
-      const results = await Promise.all(
-        segmentKeys.map((key) => this.selectFromSegment<EventRecord>(key, sql))
-      );
-      return results.flat();
-    }
-  
-    const results = await Promise.all(
-      segmentKeys.map((key) => this.readJsonLines<EventRecord>(key))
-    );
-    return results.flat();
-  }
 
   async queryEvents(query: EventQuery): Promise<EventQueryResult> {
     const segmentKeys = await this.getAllSegmentKeys();
@@ -139,12 +123,15 @@ export class S3DataLakeReader implements DataLakeReader {
     return [...types];
   }
 
-  async getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]> {
+  async getGroupProjection(fields: string[], eventType?: string): Promise<Record<string, unknown>[]> {
     const segmentKeys = await this.getAllSegmentKeys();
 
     if (this.useS3Select) {
       const projection = fields.map((f) => `s.${f}`).join(", ");
-      const sql = `SELECT ${projection} FROM s3object s`;
+      const where = eventType
+        ? ` WHERE s.event_type = '${this.escapeSql(eventType)}'`
+        : "";
+      const sql = `SELECT ${projection} FROM s3object s${where}`;
       const results = await Promise.all(
         segmentKeys.map((key) =>
           this.selectFromSegment<Record<string, unknown>>(key, sql)
@@ -153,11 +140,15 @@ export class S3DataLakeReader implements DataLakeReader {
       return results.flat();
     }
 
-    // Fallback: read full records and reconstruct nested projection structure
+    // Fallback: read full records, filter by eventType, then project
     const results = await Promise.all(
       segmentKeys.map((key) => this.readJsonLines<Record<string, unknown>>(key))
     );
-    return results.flat().map((row) => {
+    let all = results.flat();
+    if (eventType) {
+      all = all.filter((r) => (r as Record<string, unknown>).event_type === eventType);
+    }
+    return all.map((row) => {
       const projected: Record<string, unknown> = {};
       for (const f of fields) {
         const parts = f.split(".");

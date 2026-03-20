@@ -1,5 +1,15 @@
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
-import { AggregationType } from "@application/visualisation/visualisation.types.js";
+import {
+  AggregationType,
+  validateDimension,
+  validateMetric,
+  validateAggregation,
+  dimensionProjectionField,
+  getDimensionValue,
+  getMetricValue,
+  calculateAggregation,
+  extractTimePeriod,
+} from "../../domain/models/aggregation.js";
 
 export interface TimeSeriesQuery {
   event_type?: string;
@@ -31,6 +41,7 @@ export interface GetTimeSeriesDeps {
 
 /**
  * Aggregates event data by time period for line charts.
+ * Uses getGroupProjection to only fetch the fields needed for aggregation.
  * Optionally groups by a dimension (e.g., suburb) for multi-line charts.
  */
 export async function getTimeSeries(
@@ -45,10 +56,23 @@ export async function getTimeSeries(
     time_period = "year",
   } = query;
 
-  const allEvents = await deps.dataLakeReader.getAllEvents();
+  // Validate inputs against allowlist before building projection fields
+  if (dimension) {
+    validateDimension(dimension);
+  }
+  validateMetric(metric);
+  validateAggregation(aggregation);
 
-  // Filter by event type
-  const filtered = allEvents.filter((e) => e.event_type === event_type);
+  // Only request the fields we actually need
+  const fields = ["time_object.timestamp"];
+  if (dimension) {
+    fields.push(dimensionProjectionField(dimension));
+  }
+  if (metric !== "count") {
+    fields.push(`attribute.${metric}`);
+  }
+
+  const rows = await deps.dataLakeReader.getGroupProjection(fields, event_type);
 
   // Group by time period and optionally by dimension
   // Structure: Map<period, Map<series, { values: number[], count: number }>>
@@ -57,12 +81,14 @@ export async function getTimeSeries(
     Map<string, { values: number[]; count: number }>
   >();
 
-  for (const event of filtered) {
-    const attr = event.attribute as Record<string, unknown>;
-    
-    // Extract period from event's time_object
-    const period = extractTimePeriod(event.time_object.timestamp, time_period);
-    
+  for (const row of rows) {
+    const timeObj = (row.time_object ?? {}) as Record<string, unknown>;
+    const attr = (row.attribute ?? {}) as Record<string, unknown>;
+
+    // Extract period from time_object.timestamp
+    const period = extractTimePeriod(String(timeObj.timestamp ?? ""), time_period);
+    if (period === null) continue; // skip rows with invalid timestamps
+
     // Extract series (dimension) if grouping
     const series = dimension
       ? String(getDimensionValue(attr, dimension) ?? "unknown")
@@ -113,84 +139,4 @@ export async function getTimeSeries(
     dimension,
     entries,
   };
-}
-
-/**
- * Extract time period from ISO timestamp based on granularity.
- */
-function extractTimePeriod(timestamp: string, period: string): string {
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  switch (period) {
-    case "year":
-      return String(year);
-    case "month":
-      return `${year}-${month}`;
-    case "day":
-      return `${year}-${month}-${day}`;
-    default:
-      return String(year);
-  }
-}
-
-/**
- * Extract dimension value from event attributes.
- */
-function getDimensionValue(
-  attr: Record<string, unknown>,
-  dimension: string,
-  // event: any
-): unknown {
-  if (dimension === "contract_year") {
-    const contractDate = attr.contract_date;
-    if (typeof contractDate === "string" && contractDate.length >= 4) {
-      return contractDate.slice(0, 4);
-    }
-    return "unknown";
-  }
-  return attr[dimension];
-}
-
-/**
- * Extract metric value from event attributes.
- */
-function getMetricValue(attr: Record<string, unknown>, metric: string): number | null {
-  const value = attr[metric];
-  if (value === null || value === undefined) return null;
-  const num = Number(value);
-  return isNaN(num) ? null : num;
-}
-
-/**
- * Calculate aggregation over a set of values.
- */
-function calculateAggregation(
-  values: number[],
-  count: number,
-  aggregation: string,
-  metric: string
-): number {
-  if (metric === "count") {
-    return count;
-  }
-
-  if (values.length === 0) return 0;
-
-  switch (aggregation) {
-    case "sum":
-      return values.reduce((a, b) => a + b, 0);
-    case "avg":
-      return values.reduce((a, b) => a + b, 0) / values.length;
-    case "min":
-      return Math.min(...values);
-    case "max":
-      return Math.max(...values);
-    case "count":
-      return count;
-    default:
-      return values.reduce((a, b) => a + b, 0);
-  }
 }

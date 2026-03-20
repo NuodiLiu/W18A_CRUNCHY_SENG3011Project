@@ -3,13 +3,12 @@ import { Controller, Get, Route, Tags, Query, SuccessResponse } from "tsoa";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 import { getBreakdown } from "../../application/visualisation/getBreakdown.js";
 import { getTimeSeries } from "../../application/visualisation/getTimeSeries.js";
-import { toBreakdownResponse } from "../mappers/visualisationMapper.js"
-import { toTimeSeriesResponse } from "../mappers/visualisationMapper.js";
+import { toBreakdownResponse, toTimeSeriesResponse } from "../mappers/visualisationMapper.js";
 import {
   BreakdownResponse,
   TimeSeriesResponse,
-  AggregationType,
-} from "@application/visualisation/visualisation.types.js";
+} from "../../application/visualisation/visualisation.types.js";
+import { AggregationType } from "../../domain/models/aggregation.js";
 
 export interface VisualisationControllerDeps {
   dataLakeReader: DataLakeReader;
