@@ -7,6 +7,132 @@
 		"requestBodies": {},
 		"responses": {},
 		"schemas": {
+			"BreakdownEntry": {
+				"properties": {
+					"category": {
+						"type": "string",
+						"description": "Category label (e.g., suburb name, pillar name)"
+					},
+					"value": {
+						"type": "number",
+						"format": "double",
+						"description": "Aggregated value for this category"
+					},
+					"count": {
+						"type": "number",
+						"format": "double",
+						"description": "Number of events in this category"
+					}
+				},
+				"required": [
+					"category",
+					"value",
+					"count"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"BreakdownResponse": {
+				"properties": {
+					"dimension": {
+						"type": "string",
+						"description": "The dimension used for grouping (e.g., \"suburb\", \"pillar\")"
+					},
+					"metric": {
+						"type": "string",
+						"description": "The metric being aggregated"
+					},
+					"aggregation": {
+						"type": "string",
+						"description": "Aggregation function used"
+					},
+					"event_type": {
+						"type": "string",
+						"description": "Event type filter applied"
+					},
+					"entries": {
+						"items": {
+							"$ref": "#/components/schemas/BreakdownEntry"
+						},
+						"type": "array",
+						"description": "Breakdown entries, sorted by value descending"
+					}
+				},
+				"required": [
+					"dimension",
+					"metric",
+					"aggregation",
+					"event_type",
+					"entries"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"AggregationType": {
+				"type": "string",
+				"enum": [
+					"avg",
+					"sum",
+					"count",
+					"min",
+					"max"
+				]
+			},
+			"TimeSeriesDataPoint": {
+				"description": "HTTP response types for visualisation endpoints.\nThese are consumed by frontend charting libraries or other services.",
+				"properties": {
+					"period": {
+						"type": "string",
+						"description": "Time period (e.g., \"2020\", \"2020-Q1\", \"2020-01\")"
+					},
+					"value": {
+						"type": "number",
+						"format": "double",
+						"description": "Aggregated value for this period"
+					},
+					"series": {
+						"type": "string",
+						"description": "Series identifier when using group_by (e.g., suburb name, pillar)"
+					}
+				},
+				"required": [
+					"period",
+					"value"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
+			"TimeSeriesResponse": {
+				"properties": {
+					"metric": {
+						"type": "string",
+						"description": "The metric being aggregated (e.g., \"purchase_price\", \"metric_value\")"
+					},
+					"aggregation": {
+						"type": "string",
+						"description": "Aggregation function used (avg, sum, count, min, max)"
+					},
+					"event_type": {
+						"type": "string",
+						"description": "Event type filter applied"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/TimeSeriesDataPoint"
+						},
+						"type": "array",
+						"description": "Time series data points"
+					}
+				},
+				"required": [
+					"metric",
+					"aggregation",
+					"event_type",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
 			"PreprocessJobAccepted": {
 				"properties": {
 					"job_id": {
@@ -763,6 +889,145 @@
 		"contact": {}
 	},
 	"paths": {
+		"/api/v1/visualisation/breakdown": {
+			"get": {
+				"operationId": "GetBreakdown",
+				"responses": {
+					"200": {
+						"description": "Breakdown data for bar/pie charts",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BreakdownResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns aggregated data grouped by a dimension for bar/pie charts.",
+				"tags": [
+					"Visualisation"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "event_type",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "dimension",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "metric",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "aggregation",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/AggregationType"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/api/v1/visualisation/timeseries": {
+			"get": {
+				"operationId": "GetTimeSeries",
+				"responses": {
+					"200": {
+						"description": "Time series data for line charts",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TimeSeriesResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns time series data for line charts.\nAggregates events by time period, optionally grouped by a dimension for multi-line charts.",
+				"tags": [
+					"Visualisation"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"description": "Event type to filter: \"housing_sale\" or \"esg_metric\"",
+						"in": "query",
+						"name": "event_type",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Time granularity: \"year\" | \"month\" | \"day\" (default: \"year\")",
+						"in": "query",
+						"name": "time_period",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"year",
+								"month",
+								"day"
+							]
+						}
+					},
+					{
+						"description": "Optional dimension to group by for multi-line chart (e.g., \"suburb\", \"pillar\")",
+						"in": "query",
+						"name": "dimension",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Metric to aggregate (e.g., \"purchase_price\", \"metric_value\", or \"count\")",
+						"in": "query",
+						"name": "metric",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Aggregation function: \"avg\", \"sum\", \"count\", \"min\", \"max\"",
+						"in": "query",
+						"name": "aggregation",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/AggregationType"
+						}
+					}
+				]
+			}
+		},
 		"/api/v1/preprocessing/jobs": {
 			"post": {
 				"operationId": "CreateJob",

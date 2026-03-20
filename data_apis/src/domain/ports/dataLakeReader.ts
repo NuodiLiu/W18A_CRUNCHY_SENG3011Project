@@ -31,9 +31,10 @@ export interface DataLakeReader {
   queryEvents(query: EventQuery): Promise<EventQueryResult>;
   findEventById(eventId: string): Promise<EventRecord | undefined>;
   getDistinctEventTypes(): Promise<string[]>;
-  /** Project only the fields needed for aggregation (avoids full record transfer). */
-  getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]>;
-  /** Read all events from a specific dataset, invoking the callback per-segment for streaming. */
+  /** Project only the fields needed for aggregation (avoids full record transfer).
+   *  Pass eventType to push the filter down to the data source and avoid a full scan. */
+  getGroupProjection(fields: string[], eventType?: string): Promise<Record<string, unknown>[]>;
+  /** Stream events from a dataset in batches. */
   readDataset(
     datasetId: string,
     onBatch: (events: EventRecord[]) => Promise<void>,

@@ -4,6 +4,7 @@ import {
   ScanCommand,
   GetItemCommand,
   BatchWriteItemCommand,
+  AttributeValue,
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { AppConfig } from "../../config/index.js";
@@ -135,12 +136,10 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
     } while (lastKey);
   }
 
-  async getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]> {
+  async getGroupProjection(fields: string[], eventType?: string): Promise<Record<string, unknown>[]> {
     if (fields.length === 0) return [];
 
     // Build a ProjectionExpression handling nested paths (e.g. "attribute.pillar").
-    // Each path segment needs its own ExpressionAttributeNames placeholder because
-    // a single placeholder maps to one attribute name token (no dots allowed inside).
     const exprNames: Record<string, string> = {};
     const projParts: string[] = [];
     fields.forEach((f, fieldIdx) => {
@@ -153,6 +152,16 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
       projParts.push(segAliases.join("."));
     });
 
+    // Optional event_type filter
+    let filterExpression: string | undefined;
+    const filterValues: Record<string, unknown> = {};
+    if (eventType) {
+      // Use a guaranteed-unique alias to avoid collisions with projection aliases
+      exprNames["#_et"] = "event_type";
+      filterExpression = "#_et = :_et";
+      filterValues[":_et"] = eventType;
+    }
+
     const results: Record<string, unknown>[] = [];
     let lastKey: Record<string, unknown> | undefined;
 
@@ -162,6 +171,10 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
           TableName: this.table,
           ProjectionExpression: projParts.join(", "),
           ExpressionAttributeNames: exprNames,
+          ...(filterExpression && { FilterExpression: filterExpression }),
+          ...(Object.keys(filterValues).length > 0 && {
+            ExpressionAttributeValues: marshall(filterValues, { removeUndefinedValues: true }),
+          }),
           ...(lastKey && { ExclusiveStartKey: marshall(lastKey) }),
         })
       );
@@ -223,7 +236,7 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
     KeyConditionExpression?: string;
     FilterExpression?: string;
     ExpressionAttributeNames?: Record<string, string>;
-    ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+    ExpressionAttributeValues?: Record<string, AttributeValue>;
   }): Promise<number> {
     let total = 0;
     let lastKey: Record<string, unknown> | undefined;
@@ -250,7 +263,7 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
       KeyConditionExpression?: string;
       FilterExpression?: string;
       ExpressionAttributeNames?: Record<string, string>;
-      ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+      ExpressionAttributeValues?: Record<string, AttributeValue>;
     },
     need: number,
   ): Promise<EventRecord[]> {
@@ -312,7 +325,7 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
     TableName: string;
     FilterExpression?: string;
     ExpressionAttributeNames?: Record<string, string>;
-    ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+    ExpressionAttributeValues?: Record<string, AttributeValue>;
   }): Promise<number> {
     let total = 0;
     let lastKey: Record<string, unknown> | undefined;
@@ -337,7 +350,7 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
       TableName: string;
       FilterExpression?: string;
       ExpressionAttributeNames?: Record<string, string>;
-      ExpressionAttributeValues?: Record<string, import("@aws-sdk/client-dynamodb").AttributeValue>;
+      ExpressionAttributeValues?: Record<string, AttributeValue>;
     },
     need: number,
   ): Promise<EventRecord[]> {
