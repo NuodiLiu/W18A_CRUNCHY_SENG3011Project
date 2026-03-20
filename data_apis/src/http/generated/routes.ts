@@ -4,6 +4,8 @@
 import type { TsoaRoute } from '@tsoa/runtime';
 import {  fetchMiddlewares, ExpressTemplateService } from '@tsoa/runtime';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { VisualisationController } from './../controllers/VisualisationController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { PreprocessingController } from './../controllers/PreprocessingController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { HealthController } from './../controllers/HealthController';
@@ -20,6 +22,54 @@ import type { Request as ExRequest, Response as ExResponse, RequestHandler, Rout
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
 const models: TsoaRoute.Models = {
+    "BreakdownEntry": {
+        "dataType": "refObject",
+        "properties": {
+            "category": {"dataType":"string","required":true},
+            "value": {"dataType":"double","required":true},
+            "count": {"dataType":"double","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "BreakdownResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "dimension": {"dataType":"string","required":true},
+            "metric": {"dataType":"string","required":true},
+            "aggregation": {"dataType":"string","required":true},
+            "event_type": {"dataType":"string","required":true},
+            "entries": {"dataType":"array","array":{"dataType":"refObject","ref":"BreakdownEntry"},"required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AggregationType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["avg"]},{"dataType":"enum","enums":["sum"]},{"dataType":"enum","enums":["count"]},{"dataType":"enum","enums":["min"]},{"dataType":"enum","enums":["max"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "TimeSeriesDataPoint": {
+        "dataType": "refObject",
+        "properties": {
+            "period": {"dataType":"string","required":true},
+            "value": {"dataType":"double","required":true},
+            "series": {"dataType":"string"},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "TimeSeriesResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "metric": {"dataType":"string","required":true},
+            "aggregation": {"dataType":"string","required":true},
+            "event_type": {"dataType":"string","required":true},
+            "data": {"dataType":"array","array":{"dataType":"refObject","ref":"TimeSeriesDataPoint"},"required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreprocessJobAccepted": {
         "dataType": "refObject",
         "properties": {
@@ -334,6 +384,84 @@ export function RegisterRoutes(app: Router) {
 
 
     
+        const argsVisualisationController_getBreakdown: Record<string, TsoaRoute.ParameterSchema> = {
+                event_type: {"in":"query","name":"event_type","dataType":"string"},
+                dimension: {"in":"query","name":"dimension","dataType":"string"},
+                metric: {"in":"query","name":"metric","dataType":"string"},
+                aggregation: {"in":"query","name":"aggregation","ref":"AggregationType"},
+                limit: {"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/v1/visualisation/breakdown',
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController)),
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController.prototype.getBreakdown)),
+
+            async function VisualisationController_getBreakdown(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsVisualisationController_getBreakdown, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<VisualisationController>(VisualisationController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'getBreakdown',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsVisualisationController_getTimeSeries: Record<string, TsoaRoute.ParameterSchema> = {
+                event_type: {"in":"query","name":"event_type","dataType":"string"},
+                time_period: {"in":"query","name":"time_period","dataType":"union","subSchemas":[{"dataType":"enum","enums":["year"]},{"dataType":"enum","enums":["month"]},{"dataType":"enum","enums":["day"]}]},
+                dimension: {"in":"query","name":"dimension","dataType":"string"},
+                metric: {"in":"query","name":"metric","dataType":"string"},
+                aggregation: {"in":"query","name":"aggregation","ref":"AggregationType"},
+        };
+        app.get('/api/v1/visualisation/timeseries',
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController)),
+            ...(fetchMiddlewares<RequestHandler>(VisualisationController.prototype.getTimeSeries)),
+
+            async function VisualisationController_getTimeSeries(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsVisualisationController_getTimeSeries, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<VisualisationController>(VisualisationController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'getTimeSeries',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsPreprocessingController_createJob: Record<string, TsoaRoute.ParameterSchema> = {
                 body: {"in":"body","name":"body","required":true,"ref":"PreprocessJobRequest"},
         };
@@ -473,14 +601,19 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsEventsController_getEvents: Record<string, TsoaRoute.ParameterSchema> = {
+                dataset_type: {"in":"query","name":"dataset_type","dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]}]},
                 company_name: {"in":"query","name":"company_name","dataType":"string"},
                 permid: {"in":"query","name":"permid","dataType":"string"},
                 metric_name: {"in":"query","name":"metric_name","dataType":"string"},
                 pillar: {"in":"query","name":"pillar","dataType":"string"},
                 year_from: {"in":"query","name":"year_from","dataType":"double"},
                 year_to: {"in":"query","name":"year_to","dataType":"double"},
-                limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
-                offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
+                postcode: {"in":"query","name":"postcode","dataType":"double"},
+                suburb: {"in":"query","name":"suburb","dataType":"string"},
+                street_name: {"in":"query","name":"street_name","dataType":"string"},
+                nature_of_property: {"in":"query","name":"nature_of_property","dataType":"string"},
+                _limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
+                _offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
         };
         app.get('/api/v1/events',
             ...(fetchMiddlewares<RequestHandler>(EventsController)),

@@ -35,6 +35,8 @@ export class S3DataLakeReader implements DataLakeReader {
   constructor(config: AppConfig, opts?: S3DataLakeReaderOptions) {
     this.s3 = new S3Client({
       region: config.region,
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       ...(config.s3Endpoint && {
         endpoint: config.s3Endpoint,
         forcePathStyle: true,
@@ -121,12 +123,15 @@ export class S3DataLakeReader implements DataLakeReader {
     return [...types];
   }
 
-  async getGroupProjection(fields: string[]): Promise<Record<string, unknown>[]> {
+  async getGroupProjection(fields: string[], eventType?: string): Promise<Record<string, unknown>[]> {
     const segmentKeys = await this.getAllSegmentKeys();
 
     if (this.useS3Select) {
       const projection = fields.map((f) => `s.${f}`).join(", ");
-      const sql = `SELECT ${projection} FROM s3object s`;
+      const where = eventType
+        ? ` WHERE s.event_type = '${this.escapeSql(eventType)}'`
+        : "";
+      const sql = `SELECT ${projection} FROM s3object s${where}`;
       const results = await Promise.all(
         segmentKeys.map((key) =>
           this.selectFromSegment<Record<string, unknown>>(key, sql)
@@ -135,11 +140,15 @@ export class S3DataLakeReader implements DataLakeReader {
       return results.flat();
     }
 
-    // Fallback: read full records and reconstruct nested projection structure
+    // Fallback: read full records, filter by eventType, then project
     const results = await Promise.all(
       segmentKeys.map((key) => this.readJsonLines<Record<string, unknown>>(key))
     );
-    return results.flat().map((row) => {
+    let all = results.flat();
+    if (eventType) {
+      all = all.filter((r) => (r as Record<string, unknown>).event_type === eventType);
+    }
+    return all.map((row) => {
       const projected: Record<string, unknown> = {};
       for (const f of fields) {
         const parts = f.split(".");
@@ -180,6 +189,13 @@ export class S3DataLakeReader implements DataLakeReader {
   private buildQuerySql(query: EventQuery): { sql: string; params: string[] } {
     const conditions: string[] = [];
 
+    if (query.dataset_type === "esg") {
+      conditions.push(`s.event_type = 'esg_metric'`);
+    } else if (query.dataset_type === "housing") {
+      conditions.push(`(s.event_type = 'property_sale' OR s.event_type = 'housing_sale')`);
+    }
+
+    // ESG fields
     if (query.company_name) {
       conditions.push(
         `LOWER(s.attribute.company_name) LIKE '%${this.escapeSql(query.company_name.toLowerCase())}%'`
@@ -209,12 +225,32 @@ export class S3DataLakeReader implements DataLakeReader {
       );
     }
 
+    // Housing fields
+    if (query.postcode != null) {
+      conditions.push(`s.attribute.postcode = ${Number(query.postcode)}`);
+    }
+    if (query.suburb) {
+      conditions.push(
+        `LOWER(s.attribute.suburb) = '${this.escapeSql(query.suburb.toLowerCase())}'`
+      );
+    }
+    if (query.street_name) {
+      conditions.push(
+        `LOWER(s.attribute.street_name) LIKE '%${this.escapeSql(query.street_name.toLowerCase())}%'`
+      );
+    }
+    if (query.nature_of_property) {
+      conditions.push(
+        `LOWER(s.attribute.nature_of_property) = '${this.escapeSql(query.nature_of_property.toLowerCase())}'`
+      );
+    }
+
     const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
     return { sql: `SELECT * FROM s3object s${where}`, params: [] };
   }
 
   private escapeSql(value: string): string {
-    return value.replace(/'/g, "''");
+    return value.replace(/\\/g, "\\\\").replace(/'/g, "''");
   }
 
   // ── S3 Select execution ───────────────────────────────────────
@@ -263,13 +299,25 @@ export class S3DataLakeReader implements DataLakeReader {
 
   private applyQueryFilter(events: EventRecord[], query: EventQuery): EventRecord[] {
     return events.filter((e) => {
+      if (query.dataset_type === "esg" && e.event_type !== "esg_metric") return false;
+      if (query.dataset_type === "housing" && e.event_type !== "property_sale" && e.event_type !== "housing_sale") return false;
+
       const attr = (e.attribute ?? {}) as Record<string, unknown>;
+      
+      // ESG fields
       if (query.company_name && !String(attr.company_name ?? "").toLowerCase().includes(query.company_name.toLowerCase())) return false;
       if (query.permid && String(attr.permid ?? "") !== query.permid) return false;
       if (query.metric_name && !String(attr.metric_name ?? "").toLowerCase().includes(query.metric_name.toLowerCase())) return false;
       if (query.pillar && String(attr.pillar ?? "").toLowerCase() !== query.pillar.toLowerCase()) return false;
       if (query.year_from != null && Number(attr.metric_year ?? 0) < query.year_from) return false;
       if (query.year_to != null && Number(attr.metric_year ?? 0) > query.year_to) return false;
+      
+      // Housing fields
+      if (query.postcode != null && Number(attr.postcode ?? 0) !== query.postcode) return false;
+      if (query.suburb && String(attr.suburb ?? "").toLowerCase() !== query.suburb.toLowerCase()) return false;
+      if (query.street_name && !String(attr.street_name ?? "").toLowerCase().includes(query.street_name.toLowerCase())) return false;
+      if (query.nature_of_property && String(attr.nature_of_property ?? "").toLowerCase() !== query.nature_of_property.toLowerCase()) return false;
+      
       return true;
     });
   }

@@ -1,16 +1,15 @@
-/**
- * IoC container for tsoa.
- * Stores runtime dependencies (AWS clients, repos, etc.) in a module-level singleton
- * and injects them into controllers that need them.
- */
 import type { IocContainer } from "tsoa";
 import { CollectionController, CollectionControllerDeps } from "./controllers/CollectionController.js";
 import { EventsController, EventsControllerDeps } from "./controllers/EventsController.js";
+import { VisualisationController, VisualisationControllerDeps } from "./controllers/VisualisationController.js";
 import { PreprocessingController, PreprocessingControllerDeps } from "./controllers/PreprocessingController.js";
 import { HealthController } from "./controllers/HealthController.js";
 import { FileUploadService } from "../domain/ports/fileUploadService.js";
 
-export type AppDeps = CollectionControllerDeps & EventsControllerDeps & PreprocessingControllerDeps;
+export type AppDeps = CollectionControllerDeps &
+  EventsControllerDeps &
+  VisualisationControllerDeps &
+  PreprocessingControllerDeps;
 export type { FileUploadService };
 
 let _deps: AppDeps;
@@ -27,6 +26,8 @@ export const iocContainer: IocContainer = {
         return new CollectionController(_deps) as unknown as T;
       case EventsController:
         return new EventsController(_deps) as unknown as T;
+      case VisualisationController:
+        return new VisualisationController(_deps) as unknown as T;
       case PreprocessingController:
         return new PreprocessingController(_deps) as unknown as T;
       case HealthController:
