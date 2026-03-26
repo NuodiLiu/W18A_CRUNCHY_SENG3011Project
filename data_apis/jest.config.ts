@@ -24,6 +24,30 @@ const shared = {
 
 const config: Config = {
   testTimeout: 30_000,
+  reporters: [
+    "default",
+    [
+      "jest-junit",
+      {
+        outputDirectory: process.env.JEST_JUNIT_OUTPUT_DIR ?? "reports",
+        outputName: "junit.xml",
+        classNameTemplate: "{classname}",
+        titleTemplate: "{title}",
+        ancestorSeparator: " › ",
+        addFileAttribute: "true",
+      },
+    ],
+    [
+      "jest-html-reporter",
+      {
+        outputPath: process.env.JEST_HTML_REPORTER_OUTPUT_PATH ?? "reports/report.html",
+        pageTitle: "Test Report",
+        includeFailureMsg: true,
+        includeConsoleLog: true,
+        sort: "status",
+      },
+    ],
+  ],
   projects: [
     {
       ...shared,
