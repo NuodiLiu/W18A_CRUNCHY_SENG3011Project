@@ -3,6 +3,7 @@ import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./generated/routes.js";
 import { initDeps, AppDeps } from "./ioc.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,6 +20,9 @@ export function createApp(deps: AppDeps): Express {
 
   // ── Body parsing ──────────────────────────────────
   app.use(express.json());
+
+  // ── Structured request logging + EMF metrics ─────
+  app.use(requestLogger);
 
   // ── Wire tsoa IoC container ───────────────────────
   initDeps(deps);

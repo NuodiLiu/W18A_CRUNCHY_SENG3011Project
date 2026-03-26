@@ -484,14 +484,14 @@ log "Lambda Environment Variables (ensure PG_CONNECTION_STRING is set)"
 
 aws lambda update-function-configuration \
   --function-name "$API_FN_NAME" \
-  --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING}}" \
+  --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING},SERVICE_NAME=datalake-ingest-api,LOG_LEVEL=info}" \
   --region "$REGION" \
   --output text > /dev/null
 ok "$API_FN_NAME  env vars updated"
 
 aws lambda update-function-configuration \
   --function-name "$WORKER_FN_NAME" \
-  --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING}}" \
+  --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING},SERVICE_NAME=datalake-ingest-worker,LOG_LEVEL=info}" \
   --region "$REGION" \
   --output text > /dev/null
 ok "$WORKER_FN_NAME  env vars updated"
@@ -619,3 +619,106 @@ echo "║  Add PG_CONNECTION_STRING as a GitHub Repository Secret             �
 echo "║  Next: push to main branch to trigger lambda-deploy.yml CI/CD      ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
+
+# ── CloudWatch Dashboard ─────────────────────────────────────────────────────
+log "CloudWatch Dashboard"
+
+DASHBOARD_NAME="${BASE}-overview"
+
+DASHBOARD_BODY=$(cat << DASHBOARD
+{
+  "widgets": [
+    {
+      "type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+      "properties": {
+        "title": "Lambda Invocations and Errors",
+        "metrics": [
+          ["AWS/Lambda", "Invocations", "FunctionName", "${API_FN_NAME}",    {"label": "API Invocations"}],
+          ["AWS/Lambda", "Errors",      "FunctionName", "${API_FN_NAME}",    {"label": "API Errors",     "color": "#d62728"}],
+          ["AWS/Lambda", "Invocations", "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker Invocations"}],
+          ["AWS/Lambda", "Errors",      "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker Errors",  "color": "#ff7f0e"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+      "properties": {
+        "title": "Lambda Duration p50 and p99 (ms)",
+        "metrics": [
+          ["AWS/Lambda", "Duration", "FunctionName", "${API_FN_NAME}",    {"label": "API p50",    "stat": "p50"}],
+          ["AWS/Lambda", "Duration", "FunctionName", "${API_FN_NAME}",    {"label": "API p99",    "stat": "p99"}],
+          ["AWS/Lambda", "Duration", "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker p50", "stat": "p50"}],
+          ["AWS/Lambda", "Duration", "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker p99", "stat": "p99"}]
+        ],
+        "view": "timeSeries", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 0, "y": 6, "width": 12, "height": 6,
+      "properties": {
+        "title": "Import Jobs (Created / Done / Failed)",
+        "metrics": [
+          ["ESG/DataLake", "ImportJobCreated", "service", "datalake-ingest-api",    {"label": "Created", "color": "#1f77b4"}],
+          ["ESG/DataLake", "ImportJobDone",    "service", "datalake-ingest-worker", {"label": "Done",    "color": "#2ca02c"}],
+          ["ESG/DataLake", "ImportJobFailed",  "service", "datalake-ingest-worker", {"label": "Failed",  "color": "#d62728"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 300, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 12, "y": 6, "width": 12, "height": 6,
+      "properties": {
+        "title": "Events Ingested per Period",
+        "metrics": [
+          ["ESG/DataLake", "EventsIngested", "service", "datalake-ingest-worker", {"label": "Events"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 300, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 0, "y": 12, "width": 12, "height": 6,
+      "properties": {
+        "title": "HTTP Requests and Errors",
+        "metrics": [
+          ["ESG/DataLake", "HttpRequests", "service", "datalake-ingest-api", {"label": "Requests"}],
+          ["ESG/DataLake", "HttpErrors",   "service", "datalake-ingest-api", {"label": "Errors", "color": "#d62728"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 12, "y": 12, "width": 12, "height": 6,
+      "properties": {
+        "title": "HTTP Latency p50 / p99 (ms)",
+        "metrics": [
+          ["ESG/DataLake", "HttpLatency", "service", "datalake-ingest-api", {"label": "p50", "stat": "p50"}],
+          ["ESG/DataLake", "HttpLatency", "service", "datalake-ingest-api", {"label": "p99", "stat": "p99"}]
+        ],
+        "view": "timeSeries", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "log", "x": 0, "y": 18, "width": 24, "height": 6,
+      "properties": {
+        "title": "Recent Errors",
+        "query": "SOURCE '/aws/lambda/${API_FN_NAME}' | SOURCE '/aws/lambda/${WORKER_FN_NAME}' | fields @timestamp, service, msg, jobId, requestId\n| filter level = 'error'\n| sort @timestamp desc\n| limit 50",
+        "region": "${REGION}",
+        "view": "table"
+      }
+    }
+  ]
+}
+DASHBOARD
+)
+
+if aws cloudwatch put-dashboard \
+     --dashboard-name "$DASHBOARD_NAME" \
+     --dashboard-body "$DASHBOARD_BODY" \
+     --region "$REGION" \
+     --output text > /dev/null 2>&1; then
+  ok "Dashboard: ${DASHBOARD_NAME}"
+  echo "  https://${REGION}.console.aws.amazon.com/cloudwatch/home?region=${REGION}#dashboards:name=${DASHBOARD_NAME}"
+else
+  echo "  Warning: Dashboard creation failed (non-fatal — create manually in CloudWatch console)"
+fi

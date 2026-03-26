@@ -1,163 +1,559 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="77" failures="0" errors="0" time="13.984">
-  <testsuite name="POST /api/v1/collection/imports — integration" errors="0" failures="0" skipped="0" timestamp="2026-03-26T04:41:07" time="13.598" tests="24">
-    <testcase classname="POST /api/v1/collection/imports — integration" name="returns 202 with job_id, connection_id, status_url" time="0.609" file="tests/integration/importFlow.test.ts">
+<testsuites name="jest tests" tests="258" failures="1" errors="0" time="6.073">
+  <testsuite name="normalizeEsgMetrics" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="2.621" tests="18">
+    <testcase classname="normalizeEsgMetrics" name="maps all 15 attribute fields correctly" time="0.003" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/imports — integration" name="creates a PENDING job record in DynamoDB" time="0.553" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="converts metric_year to ISO timestamp YYYY-01-01T00:00:00Z" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/imports — integration" name="persists job config to S3" time="0.543" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="falls back to runTimestamp when metric_year is missing" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/imports — integration" name="sends a message to SQS with job_id" time="0.537" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="sets event_type to esg_metric" time="0.001" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/imports — integration" name="returns 400 for missing connector_type" time="0.511" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="sets duration_unit to year" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/imports — integration" name="returns 400 for empty source_spec (no s3_uris or s3_prefix)" time="0.516" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="uses config timezone" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/collection/jobs/:jobId — integration" name="returns the job after creation" time="0.551" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="returns null for metric_value when empty" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/collection/jobs/:jobId — integration" name="returns 404 for non-existent job" time="0.53" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="returns null for nb_points_of_observations when empty" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/presign — integration" name="returns 200 with upload_url, s3_uri, expires_in" time="0.526" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="returns null for reported_date and metric_period when empty" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/presign — integration" name="s3_uri points to raw-uploads prefix in datalake bucket" time="0.519" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="defaults missing string fields to empty string" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/presign — integration" name="each presign call returns a unique s3_uri (uuid in key)" time="0.522" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="handles multiple records" time="0.001" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/presign — integration" name="upload_url is a valid HTTPS URL" time="0.517" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="returns empty array for empty input" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/presign — integration" name="returned s3_uri is accepted as source_spec.s3_uris in /imports" time="0.544" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="extracts permid from PK column (strips COMP# prefix)" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/presign — integration" name="returns 400 for filename without .csv extension" time="0.517" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="prefers PK over permid when both exist" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/presign — integration" name="returns 400 for unsupported content_type" time="0.519" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="treats string &apos;null&apos; as null for reported_date and metric_period" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/init — integration" name="returns 200 with upload_id, s3_uri, parts, expires_in" time="0.537" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="treats string &apos;null&apos; as null for metric_value" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/init — integration" name="s3_uri is under raw-uploads prefix in datalake bucket" time="0.525" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="treats string &apos;null&apos; as null for nb_points_of_observations" time="0" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/init — integration" name="each part has valid upload_url and byte_range" time="0.522" file="tests/integration/importFlow.test.ts">
-    </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/init — integration" name="each init call produces a unique s3_uri" time="0.531" file="tests/integration/importFlow.test.ts">
-    </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/init — integration" name="returns 400 for invalid filename" time="0.516" file="tests/integration/importFlow.test.ts">
-    </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/init — integration" name="returns 400 when file_size is missing" time="0.511" file="tests/integration/importFlow.test.ts">
-    </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/complete — integration" name="completes a real multipart upload and s3_uri is usable in /imports" time="0.564" file="tests/integration/importFlow.test.ts">
-    </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/complete — integration" name="returns 400 when s3_uri does not start with s3://" time="0.513" file="tests/integration/importFlow.test.ts">
-    </testcase>
-    <testcase classname="POST /api/v1/collection/uploads/multipart/complete — integration" name="returns 400 when parts array is empty" time="0.517" file="tests/integration/importFlow.test.ts">
+    <testcase classname="normalizeEsgMetrics" name="handles real DynamoDB CSV row format" time="0.001" file="tests/unit/normalizeEsgMetrics.test.ts">
     </testcase>
   </testsuite>
-  <testsuite name="GET /api/v1/events/:eventId — integration" errors="0" failures="0" skipped="0" timestamp="2026-03-26T04:41:20" time="0.211" tests="25">
-    <testcase classname="GET /api/v1/events/:eventId — integration" name="returns a single event by ID" time="0.005" file="tests/integration/eventRetrieval.test.ts">
+  <testsuite name="normalizeHousingSales" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="2.754" tests="15">
+    <testcase classname="normalizeHousingSales › field mapping" name="maps all attribute fields correctly" time="0.004" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events/:eventId — integration" name="returns 404 for non-existent event ID" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › field mapping" name="sets event_type to property_sale" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events/types — integration" name="returns distinct event types" time="0.002" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › field mapping" name="uses config timezone in time_object" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="returns all events with total" time="0.013" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › timestamp handling" name="converts contract_date to ISO timestamp" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="returns correct event structure" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › timestamp handling" name="falls back to runTimestamp when contract_date is empty" time="0.001" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="respects limit param" time="0.002" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › timestamp handling" name="trims whitespace from contract_date" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="respects offset param" time="0.003" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › filtering" name="filters out records with purchase_price = 0" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events/stats — integration" name="returns stats with total_events" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › filtering" name="filters out records with missing contract_date" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events/stats — integration" name="groups by pillar" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › filtering" name="keeps records with non-zero purchase_price and valid contract_date" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="returns all events with total" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › filtering" name="filters invalid rows and keeps valid ones in a mixed batch" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="returns correct event structure" time="0.002" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › numeric parsing" name="parses float strings to numbers" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="respects limit param" time="0.002" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › numeric parsing" name="sets area to null when area is empty" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="respects offset param" time="0.003" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › numeric parsing" name="sets dealing_number to null when empty" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="supports limit and offset pagination" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › empty input" name="returns empty array for no records" time="0.001" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by company_name" time="0.002" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="returns empty events for non-matching filter" time="0.001" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by dataset_type=esg (returns only ESG events)" time="0.002" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by dataset_type=housing (returns only housing events)" time="0.002" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by suburb" time="0.002" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by postcode" time="0.001" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by street_name (partial match)" time="0.002" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by nature_of_property" time="0.001" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by pillar" time="0.002" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="filters by permid" time="0.001" file="tests/integration/eventRetrieval.test.ts">
-    </testcase>
-    <testcase classname="GET /api/v1/events — integration" name="returns empty for suburb that does not exist" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+    <testcase classname="normalizeHousingSales › empty input" name="returns empty array when all records are filtered out" time="0" file="tests/unit/normalizeHousingSales.test.ts">
     </testcase>
   </testsuite>
-  <testsuite name="GET /api/v1/visualisation/breakdown — integration" errors="0" failures="0" skipped="0" timestamp="2026-03-26T04:41:20" time="0.145" tests="28">
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="returns housing breakdown by suburb" time="0.005" file="tests/integration/visualisationIntegration.test.ts">
+  <testsuite name="importRequestSchema" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="2.801" tests="19">
+    <testcase classname="importRequestSchema" name="accepts a fully valid payload" time="0.004" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="returns housing breakdown by zoning" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="accepts incremental ingestion_mode" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="calculates average purchase_price by suburb" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="applies default delimiter and has_header" time="0.001" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="calculates total purchase_price by suburb (sum)" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects unknown connector_type" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="finds min and max purchase_price by suburb" time="0.002" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects missing connector_type" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="calculates total area by suburb (sum)" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects missing source_spec" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="breaks down esg metrics by pillar" time="0.003" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects missing mapping_profile" time="0.001" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="aggregates esg metric_value by pillar" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects missing data_source" time="0.013" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="breaks down esg metrics by company_name" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects missing dataset_type" time="0.001" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="breaks down esg metrics by industry" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects missing ingestion_mode" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/breakdown — integration" name="respects limit parameter" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects invalid ingestion_mode value" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns housing count by month" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects source_spec with neither s3_uris nor s3_prefix" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns housing count by year" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects source_spec with empty s3_uris and no s3_prefix" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns average purchase_price over time by month" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="accepts source_spec with s3_prefix instead of s3_uris" time="0.017" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns total purchase_price over time by month (sum)" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects s3_uris not starting with s3://" time="0.003" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns purchase_price min/max over time" time="0.002" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects s3_prefix not starting with s3://" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns multi-line housing timeseries by suburb" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="rejects missing timezone in source_spec" time="0.001" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns multi-line housing timeseries with average price by suburb" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="accepts optional idempotency_key" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns esg metrics over time by year" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="importRequestSchema" name="allows custom delimiter and has_header overrides" time="0" file="tests/unit/importRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns esg metric_value over time by year" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+  </testsuite>
+  <testsuite name="presignRequestSchema" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:09" time="0.379" tests="7">
+    <testcase classname="presignRequestSchema" name="accepts valid csv filename and text/csv content type" time="0.005" file="tests/unit/presignRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns average esg metric_value by year" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="presignRequestSchema" name="accepts application/octet-stream content type" time="0" file="tests/unit/presignRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns multi-line esg timeseries by company_name" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="presignRequestSchema" name="rejects filename not ending in .csv" time="0.001" file="tests/unit/presignRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns multi-line esg timeseries with metric_value by company_name" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="presignRequestSchema" name="rejects empty filename" time="0" file="tests/unit/presignRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns esg timeseries by pillar" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="presignRequestSchema" name="rejects unsupported content type" time="0" file="tests/unit/presignRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="data points are sorted by period ascending" time="0.002" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="presignRequestSchema" name="rejects missing filename" time="0" file="tests/unit/presignRequestValidator.test.ts">
     </testcase>
-    <testcase classname="GET /api/v1/visualisation/timeseries — integration" name="returns day-level granularity" time="0.001" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="presignRequestSchema" name="rejects missing content_type" time="0" file="tests/unit/presignRequestValidator.test.ts">
     </testcase>
-    <testcase classname="Visualisation endpoints — combined scenarios" name="can generate a dashboard with breakdown and timeseries together" time="0.002" file="tests/integration/visualisationIntegration.test.ts">
+  </testsuite>
+  <testsuite name="presignUpload" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:09" time="0.216" tests="4">
+    <testcase classname="presignUpload" name="returns the result from fileUploadService" time="0.004" file="tests/unit/presignUpload.test.ts">
     </testcase>
-    <testcase classname="Visualisation endpoints — combined scenarios" name="supports querying both event types independently" time="0.004" file="tests/integration/visualisationIntegration.test.ts">
+    <testcase classname="presignUpload" name="delegates filename and contentType to the service" time="0.002" file="tests/unit/presignUpload.test.ts">
+    </testcase>
+    <testcase classname="presignUpload" name="calls presignPut exactly once" time="0.001" file="tests/unit/presignUpload.test.ts">
+    </testcase>
+    <testcase classname="presignUpload" name="propagates errors from the service" time="0.008" file="tests/unit/presignUpload.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="createConnector" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:09" time="0.812" tests="4">
+    <testcase classname="createConnector" name="returns an EsgCsvBatchConnector for &apos;esg_csv_batch&apos;" time="0.092" file="tests/unit/connectorFactory.test.ts">
+    </testcase>
+    <testcase classname="createConnector" name="throws UnprocessableError for unknown connector type" time="0.029" file="tests/unit/connectorFactory.test.ts">
+    </testcase>
+    <testcase classname="createConnector" name="error message includes the unknown type name" time="0.001" file="tests/unit/connectorFactory.test.ts">
+    </testcase>
+    <testcase classname="createConnector" name="returns a new instance on each call" time="0" file="tests/unit/connectorFactory.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="getNormalizer registry" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:10" time="0.117" tests="5">
+    <testcase classname="getNormalizer registry" name="returns normalizeEsgMetrics for &apos;esg_v1&apos;" time="0" file="tests/unit/normalizerRegistry.test.ts">
+    </testcase>
+    <testcase classname="getNormalizer registry" name="returns normalizeHousingSales for &apos;housing_v1&apos;" time="0" file="tests/unit/normalizerRegistry.test.ts">
+    </testcase>
+    <testcase classname="getNormalizer registry" name="throws UnprocessableError for unknown mapping profile" time="0.001" file="tests/unit/normalizerRegistry.test.ts">
+    </testcase>
+    <testcase classname="getNormalizer registry" name="error message includes the unknown profile" time="0.001" file="tests/unit/normalizerRegistry.test.ts">
+    </testcase>
+    <testcase classname="getNormalizer registry" name="returned function is callable" time="0" file="tests/unit/normalizerRegistry.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="AppError hierarchy" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:10" time="0.09" tests="13">
+    <testcase classname="AppError hierarchy" name="AppError sets message, statusCode, code, and details" time="0.001" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="AppError hierarchy" name="AppError is an instance of Error" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="AppError hierarchy" name="AppError name equals class name" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="AppError hierarchy" name="AppError captures a stack trace" time="0.003" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="AppError hierarchy" name="details is undefined when omitted" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="ValidationError" name="has statusCode 400 and code VALIDATION_ERROR" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="ValidationError" name="carries optional details" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="ValidationError" name="is an instanceof AppError and Error" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="NotFoundError" name="has statusCode 404 and formatted message" time="0.001" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="ConflictError" name="has statusCode 409" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="UnprocessableError" name="has statusCode 422" time="0.001" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="InternalError" name="has statusCode 500 and default message" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+    <testcase classname="InternalError" name="accepts a custom message" time="0" file="tests/unit/errors.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="loadConfig" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:10" time="0.056" tests="6">
+    <testcase classname="loadConfig" name="returns default values when no env vars are set" time="0.002" file="tests/unit/config.test.ts">
+    </testcase>
+    <testcase classname="loadConfig" name="uses PROJECT_PREFIX and ENV_SUFFIX in resource names" time="0" file="tests/unit/config.test.ts">
+    </testcase>
+    <testcase classname="loadConfig" name="reads explicit env var overrides" time="0" file="tests/unit/config.test.ts">
+    </testcase>
+    <testcase classname="loadConfig" name="sets optional endpoints to undefined when not provided" time="0.001" file="tests/unit/config.test.ts">
+    </testcase>
+    <testcase classname="loadConfig" name="reads optional endpoint env vars when set" time="0" file="tests/unit/config.test.ts">
+    </testcase>
+    <testcase classname="loadConfig" name="uses individual table env vars over prefix convention" time="0" file="tests/unit/config.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="getJobStatus" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:10" time="0.018" tests="5">
+    <testcase classname="getJobStatus" name="returns mapped result when job exists" time="0.001" file="tests/unit/getJobStatus.test.ts">
+    </testcase>
+    <testcase classname="getJobStatus" name="returns undefined when job does not exist" time="0" file="tests/unit/getJobStatus.test.ts">
+    </testcase>
+    <testcase classname="getJobStatus" name="calls jobRepo.findById with the correct jobId" time="0" file="tests/unit/getJobStatus.test.ts">
+    </testcase>
+    <testcase classname="getJobStatus" name="includes error field when job has error" time="0.001" file="tests/unit/getJobStatus.test.ts">
+    </testcase>
+    <testcase classname="getJobStatus" name="maps PENDING job correctly (no dataset_id or error)" time="0" file="tests/unit/getJobStatus.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="canonicalizeSourceSpec" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="4.544" tests="10">
+    <testcase classname="canonicalizeSourceSpec" name="sorts s3_uris alphabetically" time="0.002" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="canonicalizeSourceSpec" name="strips trailing slashes from s3_prefix" time="0.001" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="canonicalizeSourceSpec" name="does not mutate the original spec" time="0" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="canonicalizeSourceSpec" name="preserves other fields unchanged" time="0" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="computeConnectionId" name="returns a 64-char hex string (sha256)" time="0.004" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="computeConnectionId" name="is deterministic — same inputs produce same output" time="0.001" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="computeConnectionId" name="changes when connector_type differs" time="0" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="computeConnectionId" name="changes when source_spec differs" time="0" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="computeConnectionId" name="changes when mapping_profile differs" time="0" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+    <testcase classname="computeConnectionId" name="changes when dataset_type differs" time="0" file="tests/unit/createImportJob.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="runJob" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="4.657" tests="7">
+    <testcase classname="runJob" name="skips silently when job is already claimed" time="0.006" file="tests/unit/runJob.test.ts">
+    </testcase>
+    <testcase classname="runJob" name="runs full pipeline and marks job DONE" time="0.001" file="tests/unit/runJob.test.ts">
+    </testcase>
+    <testcase classname="runJob" name="marks job FAILED and re-throws when connector throws" time="0.026" file="tests/unit/runJob.test.ts">
+    </testcase>
+    <testcase classname="runJob" name="marks job FAILED when dataLakeWriter throws" time="0.001" file="tests/unit/runJob.test.ts">
+    </testcase>
+    <testcase classname="runJob" name="does not save state for full_refresh mode" time="0" file="tests/unit/runJob.test.ts">
+    </testcase>
+    <testcase classname="runJob" name="saves connector state for incremental mode" time="0" file="tests/unit/runJob.test.ts">
+    </testcase>
+    <testcase classname="runJob" name="normalizes records with esg_metric event_type" time="0.001" file="tests/unit/runJob.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="errorHandler middleware" errors="0" failures="1" skipped="0" timestamp="2026-03-26T05:01:09" time="2.42" tests="7">
+    <testcase classname="errorHandler middleware" name="returns 400 for ValidationError with details" time="0.023" file="tests/unit/errorHandler.test.ts">
+    </testcase>
+    <testcase classname="errorHandler middleware" name="returns 404 for NotFoundError without details field" time="0.002" file="tests/unit/errorHandler.test.ts">
+    </testcase>
+    <testcase classname="errorHandler middleware" name="returns 409 for ConflictError" time="0.001" file="tests/unit/errorHandler.test.ts">
+    </testcase>
+    <testcase classname="errorHandler middleware" name="returns 422 for UnprocessableError" time="0.001" file="tests/unit/errorHandler.test.ts">
+    </testcase>
+    <testcase classname="errorHandler middleware" name="returns 500 for InternalError" time="0.001" file="tests/unit/errorHandler.test.ts">
+    </testcase>
+    <testcase classname="errorHandler middleware" name="returns generic 500 for unknown Error (does not leak internals)" time="0.003" file="tests/unit/errorHandler.test.ts">
+      <failure>Error: expect(jest.fn()).toHaveBeenCalled()
+
+Expected number of calls: &gt;= 1
+Received number of calls:    0
+    at Object.&lt;anonymous&gt; (/Users/liunuodi/Desktop/SENG3011Project/data_apis/tests/unit/errorHandler.test.ts:80:24)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)</failure>
+    </testcase>
+    <testcase classname="errorHandler middleware" name="returns generic 500 for non-Error thrown values" time="0.002" file="tests/unit/errorHandler.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="GET /api/v1/preprocessing/pipelines" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="5.58" tests="33">
+    <testcase classname="GET /api/v1/preprocessing/pipelines" name="returns 200" time="0.028" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/pipelines" name="response has a pipelines array" time="0.005" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/pipelines" name="includes housing_clean_v1 pipeline" time="0.003" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/pipelines" name="housing_clean_v1 has required fields" time="0.002" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/pipelines" name="housing_clean_v1 params_schema has expected cleaning params" time="0.001" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/pipelines" name="pipelines response matches PIPELINE_CATALOGUE exactly" time="0.006" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/preprocessing/jobs" name="returns 202 with valid body" time="0.005" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/preprocessing/jobs" name="calls jobRepo.create with preprocess job_type" time="0.003" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/preprocessing/jobs" name="enqueues message with job_type preprocess" time="0.001" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/preprocessing/jobs" name="returns 400 for unknown pipeline" time="0.006" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/preprocessing/jobs" name="returns 400 when dataset_id is missing" time="0.004" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/preprocessing/jobs" name="passes params to jobRepo.create" time="0.006" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/jobs/:jobId" name="returns 200 with job status" time="0.003" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/jobs/:jobId" name="returns 404 for non-existent job" time="0.002" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/jobs/:jobId" name="returns 404 for import job (not preprocess)" time="0.001" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/jobs/:jobId" name="returns null output_dataset_id and quality_report when status is PENDING" time="0.001" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/jobs/:jobId" name="returns null output_dataset_id and quality_report when status is RUNNING" time="0.002" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/preprocessing/jobs/:jobId" name="returns null output_dataset_id and quality_report when status is FAILED" time="0.001" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="removes zero-price records" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="removes records with empty contract_date" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="deduplicates by dealing_number" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="uppercases suburb names" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="nullifies zero area" time="0.001" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="respects custom price_min param" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="skips dedup when dedup_by_dealing is false" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="returns correct report totals" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="fixes corrupted area_type from csv parse shift" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="keeps valid area_type values" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="trims whitespace on string fields" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="skips suburb uppercasing when normalize_suburb is false" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="skips area nullification when nullify_zero_area is false" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="skips area_type fix when fix_area_type is false" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+    <testcase classname="runHousingCleanPipeline" name="skips whitespace trimming when trim_whitespace is false" time="0" file="tests/unit/preprocessingPipelines.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="POST /api/v1/collection/uploads/multipart/init" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="5.634" tests="19">
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="returns 200 with upload_id, s3_uri, parts, expires_in" time="0.032" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="each part has part_number, upload_url, byte_range" time="0.003" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="delegates filename, content_type, file_size to fileUploadService" time="0.003" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="calls initMultipart exactly once" time="0.004" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="returns 400 when filename does not end in .csv" time="0.01" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="returns 400 for unsupported content_type" time="0.002" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="returns 400 when file_size is missing" time="0.002" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="returns 400 when file_size is zero or negative" time="0.001" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="returns 400 for empty body" time="0.005" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/init" name="returns 500 when fileUploadService throws" time="0.003" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="returns 200 with s3_uri" time="0.002" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="delegates s3_uri, upload_id, parts to fileUploadService" time="0.002" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="calls completeMultipart exactly once" time="0.001" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="returns 400 when s3_uri does not start with s3://" time="0.002" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="returns 400 when upload_id is missing" time="0.002" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="returns 400 when parts array is empty" time="0.001" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="returns 400 for empty body" time="0.001" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="returns 500 when fileUploadService throws" time="0.001" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/multipart/complete" name="returned s3_uri is accepted as source_spec.s3_uris in /imports" time="0.005" file="tests/unit/multipartUpload.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="GET /api/v1/visualisation/breakdown" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="5.66" tests="35">
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="returns 200 with breakdown data structure" time="0.022" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="groups by suburb with count aggregation by default" time="0.005" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="calculates average purchase_price by suburb" time="0.004" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="calculates sum of purchase_price by suburb" time="0.006" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="calculates min purchase_price by suburb" time="0.003" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="calculates max purchase_price by suburb" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="groups by zoning dimension" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="respects limit parameter and sorts by value descending" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="filters by event_type" time="0.004" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="returns empty entries for non-matching event_type" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="calls getGroupProjection on dataLakeReader" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="handles empty dataset" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="aggregates area metric by suburb" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/breakdown" name="aggregates esg metric_value by pillar" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="returns 200 with time series data structure" time="0.004" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="returns data points grouped by year by default" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="groups data by month when time_period=month" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="groups data by day when time_period=day" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="aggregates metrics by time period (sum)" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="calculates average price by month" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="supports min aggregation" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="supports max aggregation" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="aggregates count by default" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="supports multi-line chart with dimension grouping" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="data points are sorted by period ascending" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="filters by event_type" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="returns empty data for non-matching event_type" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="handles empty dataset" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="calls getGroupProjection on dataLakeReader" time="0.003" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="aggregates esg metrics over time by year" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="supports multi-line timeseries by company_name" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="returns response with expected field names" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/visualisation/timeseries" name="includes series field only when dimension is provided" time="0.003" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="Visualisation endpoints — error handling" name="breakdown handles dataLakeReader errors gracefully" time="0.001" file="tests/unit/visualisation.test.ts">
+    </testcase>
+    <testcase classname="Visualisation endpoints — error handling" name="timeseries handles dataLakeReader errors gracefully" time="0.002" file="tests/unit/visualisation.test.ts">
+    </testcase>
+  </testsuite>
+  <testsuite name="POST /api/v1/collection/imports" errors="0" failures="0" skipped="0" timestamp="2026-03-26T05:01:06" time="5.673" tests="51">
+    <testcase classname="POST /api/v1/collection/imports" name="returns 202 with valid body" time="0.029" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/imports" name="calls jobRepo.create with PENDING status" time="0.003" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/imports" name="calls configStore.putConfig" time="0.003" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/imports" name="calls queue.sendMessage with job_id" time="0.006" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/imports" name="returns 400 for invalid body (missing connector_type)" time="0.004" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/imports" name="returns 400 for empty body" time="0.004" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/imports" name="returns 400 when source_spec has no s3_uris or s3_prefix" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/collection/jobs/:jobId" name="returns 200 with job details when job exists" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/collection/jobs/:jobId" name="returns 404 when job does not exist" time="0.003" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/collection/jobs/:jobId" name="calls jobRepo.findById with the path parameter" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/presign" name="returns 200 with upload_url, s3_uri, expires_in" time="0.003" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/presign" name="delegates filename and content_type to fileUploadService" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/presign" name="returns 400 when filename does not end in .csv" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/presign" name="returns 400 for unsupported content_type" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/presign" name="returns 400 for empty body" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="POST /api/v1/collection/uploads/presign" name="returns 500 when fileUploadService throws" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/types" name="returns 200 with event_types array" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/types" name="calls dataLakeReader.getDistinctEventTypes" time="0.003" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/types" name="returns empty array when data lake is empty" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/:eventId" name="returns 200 with housing event if it exists" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/:eventId" name="returns 404 if housing event does not exist" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/:eventId" name="calls dataLakeReader.findEventById with the path parameter" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/:eventId" name="response contains correct time_object" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats" name="returns total_events and groups" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats" name="group by suburb" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats" name="group by postcode" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats" name="group by zoning" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats" name="group by contract year" time="0.002" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats" name="returns empty groups for empty dataset" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="returns 200 with events array and total" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="returns mapped event records" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes ESG query filters to dataLakeReader.queryEvents" time="0.004" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes housing query filters to dataLakeReader.queryEvents" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes mixed filters without dataset_type to dataLakeReader.queryEvents" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="returns mapped event records with correct shape" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes pillar filter to dataLakeReader.queryEvents" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes metric_name filter to dataLakeReader.queryEvents" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="uses default limit=50 and offset=0 when not specified" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="returns empty events array when data lake is empty" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="filters results by ESG dataset when dataset_type=esg is specified" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="filters results by housing dataset when dataset_type=housing is specified" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes year_from and year_to filters for ESG metrics" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes permid filter for ESG company lookup" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes postcode filter for housing sales" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes street_name and nature_of_property filters for housing" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="supports pagination with offset and custom limit" time="0.003" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="combines ESG company and pillar filters" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="combines housing suburb and postcode filters" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="returns correct total count in response" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="passes metric_name filter for ESG metrics" time="0.001" file="tests/unit/controllers.test.ts">
+    </testcase>
+    <testcase classname="GET /api/v1/events" name="returns dataset envelope with correct structure" time="0.001" file="tests/unit/controllers.test.ts">
     </testcase>
   </testsuite>
 </testsuites>

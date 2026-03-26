@@ -10,6 +10,7 @@
  */
 import type { SQSEvent, SQSBatchResponse } from "aws-lambda";
 import { loadConfig } from "./config/index.js";
+import { logger, emitMetric } from "./infra/logger.js";
 import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { DynamoStateStore } from "./infra/aws/dynamoStateStore.js";
 import { S3ConfigStore } from "./infra/aws/s3ConfigStore.js";
@@ -40,8 +41,8 @@ export async function handler(event: SQSEvent): Promise<SQSBatchResponse> {
       }
       await runJob(parsed.job_id, deps);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(`[lambda-worker] record ${record.messageId} failed:`, err);
+      logger.error({ messageId: record.messageId, err }, "sqs_record_failed");
+      emitMetric("SqsRecordFailed", 1, "Count", { service: "datalake-ingest-worker" });
       // Return the messageId so Lambda/SQS retries only this record.
       batchItemFailures.push({ itemIdentifier: record.messageId });
     }

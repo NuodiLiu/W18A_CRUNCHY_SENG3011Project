@@ -1,6 +1,6 @@
-/* eslint-disable no-console */
 import { loadConfig } from "./config/index.js";
 import { createApp } from "./http/app.js";
+import { logger } from "./infra/logger.js";
 import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { S3ConfigStore } from "./infra/aws/s3ConfigStore.js";
 import { SQSQueueService } from "./infra/aws/sqsQueueService.js";
@@ -20,6 +20,5 @@ const dataLakeReader = new PostgresEventRepository(config);
 const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
 
 app.listen(config.port, () => {
-  // eslint-disable-next-line no-console
-  console.log(`[API] listening on :${config.port}`);
+  logger.info({ port: config.port }, "api_server_started");
 });
