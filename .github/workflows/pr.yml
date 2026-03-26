@@ -1,4 +1,6 @@
 name: CI — Lint, Typecheck, Test, Build
+# These credentials are LocalStack/test-only placeholders — not real secrets.
+# They are intentionally defined here so CI works without repository secret configuration.
 
 on:
   pull_request:
@@ -15,6 +17,13 @@ jobs:
     defaults:
       run:
         working-directory: data_apis
+    env:
+      CI_POSTGRES_USER: postgres
+      CI_POSTGRES_PASSWORD: ci_local_only
+      CI_POSTGRES_DB: eia_dev
+      CI_AWS_KEY_ID: local
+      CI_AWS_SECRET: ci_local_only
+      CI_PG_CONN: postgres://postgres:ci_local_only@localhost:5432/eia_dev
 
     steps:
       - uses: actions/checkout@v4
@@ -44,9 +53,9 @@ jobs:
       - name: Start PostgreSQL
         run: |
           docker run -d --name postgres -p 5432:5432 \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=postgres \
-            -e POSTGRES_DB=eia_dev \
+            -e POSTGRES_USER=${{ env.CI_POSTGRES_USER }} \
+            -e POSTGRES_PASSWORD=${{ env.CI_POSTGRES_PASSWORD }} \
+            -e POSTGRES_DB=${{ env.CI_POSTGRES_DB }} \
             postgres:16-alpine
 
       - name: Start DynamoDB Local
@@ -98,25 +107,25 @@ jobs:
       - name: Init local infra
         run: npm run infra:local:init
         env:
-          AWS_ACCESS_KEY_ID: local
-          AWS_SECRET_ACCESS_KEY: local
+          AWS_ACCESS_KEY_ID: ${{ env.CI_AWS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.CI_AWS_SECRET }}
           AWS_REGION: ap-southeast-2
           DYNAMODB_ENDPOINT: http://localhost:8000
           S3_ENDPOINT: http://localhost:4566
           SQS_ENDPOINT: http://localhost:4566
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/eia_dev
+          PG_CONNECTION_STRING: ${{ env.CI_PG_CONN }}
 
       - name: Integration tests
         run: npm run test:integration
         env:
           NODE_OPTIONS: --experimental-vm-modules
-          AWS_ACCESS_KEY_ID: local
-          AWS_SECRET_ACCESS_KEY: local
+          AWS_ACCESS_KEY_ID: ${{ env.CI_AWS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.CI_AWS_SECRET }}
           AWS_REGION: ap-southeast-2
           DYNAMODB_ENDPOINT: http://localhost:8000
           S3_ENDPOINT: http://localhost:4566
           SQS_ENDPOINT: http://localhost:4566
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/eia_dev
+          PG_CONNECTION_STRING: ${{ env.CI_PG_CONN }}
 
       - name: Docker build (smoke)
         if: github.base_ref == 'develop' || github.ref == 'refs/heads/develop'

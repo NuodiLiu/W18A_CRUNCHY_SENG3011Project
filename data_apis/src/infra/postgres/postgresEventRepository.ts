@@ -95,14 +95,15 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
   ): Promise<void> {
     const PAGE_SIZE = 500;
     let offset = 0;
-    while (true) {
+    let hasMore = true;
+    while (hasMore) {
       const res = await this.pool.query<EventRow>(
         "SELECT event_id, event_type, time_object, attribute FROM events WHERE dataset_id = $1 LIMIT $2 OFFSET $3",
         [datasetId, PAGE_SIZE, offset],
       );
       if (res.rows.length === 0) break;
       await onBatch(res.rows.map(rowToRecord));
-      if (res.rows.length < PAGE_SIZE) break;
+      hasMore = res.rows.length >= PAGE_SIZE;
       offset += PAGE_SIZE;
     }
   }

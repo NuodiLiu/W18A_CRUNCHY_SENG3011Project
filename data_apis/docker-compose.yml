@@ -25,9 +25,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: eia_dev
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-eia_dev}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -80,13 +80,13 @@ services:
         condition: service_healthy
     environment:
       - AWS_REGION=ap-southeast-2
-      - AWS_ACCESS_KEY_ID=local
-      - AWS_SECRET_ACCESS_KEY=local
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-local}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-local}
       - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
-      - PROJECT_PREFIX=eia
-      - PG_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/eia_dev
+      - PROJECT_PREFIX=${PROJECT_PREFIX:-eia}
+      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-eia_dev}}
     command: ["node", "dist/scripts/init-local-infra.js"]
     # exits after init; api & worker wait for it
     restart: "no"
@@ -104,13 +104,13 @@ services:
       - APP_MODE=api
       - PORT=3000
       - AWS_REGION=ap-southeast-2
-      - AWS_ACCESS_KEY_ID=local
-      - AWS_SECRET_ACCESS_KEY=local
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-local}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-local}
       - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
-      - PROJECT_PREFIX=eia
-      - PG_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/eia_dev
+      - PROJECT_PREFIX=${PROJECT_PREFIX:-eia}
+      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-eia_dev}}
     command: ["node", "dist/main.js"]
 
   # ── Application: Worker (SQS consumer) ─────────────────────
@@ -123,13 +123,13 @@ services:
     environment:
       - APP_MODE=worker
       - AWS_REGION=ap-southeast-2
-      - AWS_ACCESS_KEY_ID=local
-      - AWS_SECRET_ACCESS_KEY=local
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-local}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-local}
       - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
-      - PROJECT_PREFIX=eia
-      - PG_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/eia_dev
+      - PROJECT_PREFIX=${PROJECT_PREFIX:-eia}
+      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-eia_dev}}
     command: ["node", "dist/worker.js"]
 
 volumes:
