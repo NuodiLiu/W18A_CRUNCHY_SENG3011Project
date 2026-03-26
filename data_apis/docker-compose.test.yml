@@ -12,9 +12,11 @@
 
 services:
   postgres:
-    tmpfs:
+    # In test mode use an anonymous (ephemeral) volume so each run starts clean.
+    # The Makefile stops data-postgres before starting this container to free port 5432.
+    container_name: test-postgres
+    volumes:
       - /var/lib/postgresql/data
-    volumes: []
 
   dynamodb-local:
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"

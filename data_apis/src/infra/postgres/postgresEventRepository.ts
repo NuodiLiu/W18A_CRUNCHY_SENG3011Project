@@ -14,6 +14,10 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     });
   }
 
+  async close(): Promise<void> {
+    await this.pool.end();
+  }
+
   // ── EventRepository (write) ───────────────────────────────────
 
   async writeEvents(events: EventRecord[], datasetId: string): Promise<void> {
@@ -118,13 +122,21 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       params,
     );
 
-    // Re-map aliased columns back to original field names
+    // Re-map aliased columns back to nested objects matching EventRecord shape.
+    // e.g. fields ["attribute.suburb", "time_object.timestamp"]
+    // → { attribute: { suburb: "Sydney" }, time_object: { timestamp: "2024-..." } }
     return res.rows.map((row) => {
-      const out: Record<string, unknown> = {};
+      const out: Record<string, Record<string, unknown>> = {};
       fields.forEach((f, i) => {
-        out[f] = row[`f${i}`];
+        const dotIdx = f.indexOf(".");
+        if (dotIdx !== -1) {
+          const ns = f.slice(0, dotIdx);   // e.g. "attribute"
+          const key = f.slice(dotIdx + 1); // e.g. "suburb"
+          if (!out[ns]) out[ns] = {};
+          out[ns][key] = row[`f${i}`];
+        }
       });
-      return out;
+      return out as Record<string, unknown>;
     });
   }
 
@@ -140,7 +152,7 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
 
     if (query.dataset_type) {
       conditions.push(`event_type = $${idx++}`);
-      params.push(query.dataset_type === "esg" ? "esg_metric" : "property_sale");
+      params.push(query.dataset_type === "esg" ? "esg_metric" : "housing_sale");
     }
     if (query.company_name) {
       conditions.push(`attribute->>'company_name' ILIKE $${idx++}`);
@@ -216,6 +228,10 @@ function buildFieldSelect(field: string): string {
   if (field.startsWith("attribute.")) {
     const key = field.slice("attribute.".length);
     return `attribute->>'${key}'`;
+  }
+  if (field.startsWith("time_object.")) {
+    const key = field.slice("time_object.".length);
+    return `time_object->>'${key}'`;
   }
   // Top-level columns: event_id, event_type, dataset_id
   return `"${field}"`;
