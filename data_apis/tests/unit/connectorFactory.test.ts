@@ -11,9 +11,9 @@ const fakeConfig: AppConfig = {
   ddbJobsTable: "test-jobs",
   ddbStateTable: "test-state",
   ddbIdempotencyTable: "test-idempotency",
-  ddbEventsTable: "test-events",
   s3ConfigBucket: "test-config",
   s3DatalakeBucket: "test-datalake",
+  pgConnectionString: "postgres://postgres:postgres@localhost:5432/test",
 };
 
 describe("createConnector", () => {

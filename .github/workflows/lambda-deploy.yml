@@ -3,7 +3,9 @@ name: Lambda — Build & Deploy
 # Deploys data_apis to AWS Lambda (ap-southeast-2 / Sydney)..
 #
 # Required GitHub secrets:
-#   AWS_ROLE_ARN 
+#   AWS_ROLE_ARN
+#   PG_CONNECTION_STRING  — postgres connection URL for the events RDS instance
+#                            (set via setup-lambda-infra.sh, stored in SSM)
 
 on:
   push:

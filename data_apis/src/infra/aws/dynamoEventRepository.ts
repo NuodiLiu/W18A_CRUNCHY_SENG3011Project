@@ -24,7 +24,11 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
       region: config.region,
       ...(config.dynamoEndpoint && { endpoint: config.dynamoEndpoint }),
     });
-    this.table = config.ddbEventsTable;
+    // Table name derived from prefix/suffix convention; not in AppConfig since
+    // this repository is no longer used for the events data path.
+    const prefix = process.env["PROJECT_PREFIX"] ?? "eia";
+    const suffix = process.env["ENV_SUFFIX"] ?? "dev";
+    this.table = process.env["DDB_EVENTS_TABLE"] ?? `${prefix}-${suffix}-events`;
   }
 
   // ── EventRepository (write) ───────────────────────────────────

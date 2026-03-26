@@ -9,15 +9,34 @@
 # Architecture:
 #   ┌──────────┐  ┌──────────┐      (simulated AWS)
 #   │   API    │  │  Worker  │   ┌──────────────────────┐
-#   │ :3000    │  │ SQS poll │   │  DynamoDB Local :8000│
-#   └────┬─────┘  └────┬─────┘   │  LocalStack    :4566│
-#        └──────┬───────┘         │   └─ S3             │
-#               └─────────────────│   └─ SQS            │
+#   │ :3000    │  │ SQS poll │   │  PostgreSQL    :5432 │
+#   └────┬─────┘  └────┬─────┘   │  DynamoDB Local:8000 │
+#        └──────┬───────┘         │  LocalStack    :4566 │
+#               └─────────────────│   └─ S3              │
+#                                 │   └─ SQS             │
 #                                 └──────────────────────┘
 # ─────────────────────────────────────────────────────────────
 
 services:
-  # ── Simulated AWS infrastructure ───────────────────────────
+  # ── PostgreSQL (events store) ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: data-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eia_dev
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # ── DynamoDB Local (jobs / state / idempotency) ─────────────
   dynamodb-local:
     image: amazon/dynamodb-local:3.3.0
     container_name: data-dynamodb-local
@@ -48,11 +67,13 @@ services:
       interval: 5s
       retries: 10
 
-  # ── Bootstrap: create DynamoDB tables, S3 buckets, SQS queue ──
+  # ── Bootstrap: create tables, S3 buckets, SQS queue ──────────
   infra-init:
     build: .
     container_name: data-infra-init
     depends_on:
+      postgres:
+        condition: service_healthy
       dynamodb-local:
         condition: service_started
       localstack:
@@ -65,6 +86,7 @@ services:
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
       - PROJECT_PREFIX=eia
+      - PG_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/eia_dev
     command: ["node", "dist/scripts/init-local-infra.js"]
     # exits after init; api & worker wait for it
     restart: "no"
@@ -88,6 +110,7 @@ services:
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
       - PROJECT_PREFIX=eia
+      - PG_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/eia_dev
     command: ["node", "dist/main.js"]
 
   # ── Application: Worker (SQS consumer) ─────────────────────
@@ -106,8 +129,10 @@ services:
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
       - PROJECT_PREFIX=eia
+      - PG_CONNECTION_STRING=postgres://postgres:postgres@postgres:5432/eia_dev
     command: ["node", "dist/worker.js"]
 
 volumes:
+  postgres-data:
   dynamodb-data:
   localstack-data:
