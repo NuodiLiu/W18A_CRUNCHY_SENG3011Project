@@ -159,7 +159,7 @@ jobs:
           retention-days: 30
 
       - name: Publish unit test results
-        if: always()
+        if: always() && hashFiles('data_apis/reports/unit/junit.xml') != ''
         uses: dorny/test-reporter@v1
         with:
           name: Unit Test Results
@@ -168,7 +168,7 @@ jobs:
           fail-on-error: false
 
       - name: Publish integration test results
-        if: always()
+        if: always() && hashFiles('data_apis/reports/integration/junit.xml') != ''
         uses: dorny/test-reporter@v1
         with:
           name: Integration Test Results
