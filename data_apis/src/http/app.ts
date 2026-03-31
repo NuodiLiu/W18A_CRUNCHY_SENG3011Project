@@ -27,7 +27,20 @@ export function createApp(deps: AppDeps): Express {
   RegisterRoutes(app);
 
   // ── Swagger UI ────────────────────────────────────
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  // Use CDN assets so swagger-ui renders correctly on Lambda (local static
+  // files served by express.static don't survive API Gateway binary encoding).
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerDocument, {
+      customCssUrl:
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui.min.css",
+      customJs: [
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui-bundle.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui-standalone-preset.min.js",
+      ],
+    })
+  );
   app.get("/api-docs.json", (_req: Request, res: Response) => {
     res.json(swaggerDocument);
   });
