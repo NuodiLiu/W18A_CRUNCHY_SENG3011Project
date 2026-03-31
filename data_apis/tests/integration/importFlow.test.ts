@@ -24,7 +24,7 @@ import { DynamoJobRepository } from "../../src/infra/aws/dynamoJobRepository";
 import { S3ConfigStore } from "../../src/infra/aws/s3ConfigStore";
 import { SQSQueueService } from "../../src/infra/aws/sqsQueueService";
 import { S3PresignService } from "../../src/infra/aws/s3PresignService";
-import { S3DataLakeReader } from "../../src/infra/aws/s3DataLakeReader";
+import { PostgresEventRepository } from "../../src/infra/postgres/postgresEventRepository";
 
 // --- setup ---
 
@@ -33,7 +33,7 @@ const jobRepo = new DynamoJobRepository(config);
 const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
-const dataLakeReader = new S3DataLakeReader(config, { useS3Select: false });
+const dataLakeReader = new PostgresEventRepository(config);
 const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
 
 const ddbRaw = new DynamoDBClient({

@@ -1,15 +1,23 @@
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # Docker Compose OVERRIDE — ephemeral infra for integration tests
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d dynamodb-local localstack
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d postgres dynamodb-local localstack
 #
 # Overrides:
-#   • DynamoDB Local  → -inMemory (no SQLite, no volume)
-#   • LocalStack      → no PERSISTENCE, no volume
-# ─────────────────────────────────────────────────────────────
+#   * PostgreSQL     -> tmpfs (no disk writes)
+#   * DynamoDB Local -> -inMemory (no SQLite, no volume)
+#   * LocalStack     -> no PERSISTENCE, no volume
+# -------------------------------------------------------------
 
 services:
+  postgres:
+    # In test mode use an anonymous (ephemeral) volume so each run starts clean.
+    # The Makefile stops data-postgres before starting this container to free port 5432.
+    container_name: test-postgres
+    volumes:
+      - /var/lib/postgresql/data
+
   dynamodb-local:
     command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
     volumes: []

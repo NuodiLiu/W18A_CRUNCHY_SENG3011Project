@@ -1,0 +1,11 @@
+version: 2
+
+# These findings correspond to ephemeral, non-production test placeholder values
+# that were used in CI configuration before being replaced with randomly-generated
+# per-run credentials.  They have no value outside a local test container and
+# are safe to ignore.
+ignore_known_secrets:
+  - id: 20953379
+    comment: "CI-only test placeholder (ci_local_only) — not a real credential"
+  - id: 20953380
+    comment: "Local dev docker-compose default (postgres) — not a real credential"

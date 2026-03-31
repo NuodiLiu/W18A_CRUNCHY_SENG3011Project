@@ -1,4 +1,6 @@
 name: CI — Lint, Typecheck, Test, Build
+# Credentials used here are ephemeral, randomly-generated per-run values
+# for isolated test containers.  No real secrets are stored in this file.
 
 on:
   pull_request:
@@ -9,15 +11,32 @@ on:
 env:
   NODE_VERSION: "20"
 
+permissions:
+  checks: write        # needed for dorny/test-reporter to post check runs
+  pull-requests: write # needed for PR annotations
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: data_apis
+    env:
+      CI_POSTGRES_USER: postgres
+      CI_POSTGRES_DB: eia_dev
+      CI_AWS_KEY_ID: local
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Generate ephemeral CI credentials
+        run: |
+          PG_PASS=$(openssl rand -hex 16)
+          AWS_SECRET=$(openssl rand -hex 16)
+          echo "CI_POSTGRES_PASSWORD=${PG_PASS}" >> "$GITHUB_ENV"
+          echo "CI_AWS_SECRET=${AWS_SECRET}" >> "$GITHUB_ENV"
+          echo "CI_PG_CONN=postgres://postgres:${PG_PASS}@localhost:5432/eia_dev" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -35,12 +54,31 @@ jobs:
         run: npm run typecheck
 
       - name: Unit tests
-        run: npm test
+        run: npm run test:ci:unit
+        env:
+          JEST_JUNIT_OUTPUT_DIR: reports/unit
+          JEST_HTML_REPORTER_OUTPUT_PATH: reports/unit/report.html
+
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report-${{ github.sha }}
+          path: data_apis/reports/unit/
+          retention-days: 30
 
       - name: Build Lambda bundles
         run: npm run build:lambda
 
       # ── Start containers only for integration tests ──
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name postgres -p 5432:5432 \
+            -e POSTGRES_USER=${{ env.CI_POSTGRES_USER }} \
+            -e POSTGRES_PASSWORD=${{ env.CI_POSTGRES_PASSWORD }} \
+            -e POSTGRES_DB=${{ env.CI_POSTGRES_DB }} \
+            postgres:16-alpine
+
       - name: Start DynamoDB Local
         run: |
           docker run -d --name dynamodb-local -p 8000:8000 \
@@ -56,6 +94,16 @@ jobs:
 
       - name: Wait for services
         run: |
+          echo "Waiting for PostgreSQL on :5432..."
+          for i in $(seq 1 30); do
+            if docker exec postgres pg_isready -U postgres > /dev/null 2>&1; then
+              echo "PostgreSQL ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then echo "PostgreSQL failed to start"; docker logs postgres; exit 1; fi
+            sleep 2
+          done
+
           echo "Waiting for DynamoDB Local on :8000..."
           for i in $(seq 1 30); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 || true)
@@ -80,23 +128,53 @@ jobs:
       - name: Init local infra
         run: npm run infra:local:init
         env:
-          AWS_ACCESS_KEY_ID: local
-          AWS_SECRET_ACCESS_KEY: local
+          AWS_ACCESS_KEY_ID: local  # pragma: allowlist secret
+          AWS_SECRET_ACCESS_KEY: local  # pragma: allowlist secret
           AWS_REGION: ap-southeast-2
           DYNAMODB_ENDPOINT: http://localhost:8000
           S3_ENDPOINT: http://localhost:4566
           SQS_ENDPOINT: http://localhost:4566
+          PG_CONNECTION_STRING: ${{ env.CI_PG_CONN }}
 
       - name: Integration tests
-        run: npm run test:integration
+        run: npm run test:ci:integration
         env:
           NODE_OPTIONS: --experimental-vm-modules
-          AWS_ACCESS_KEY_ID: local
-          AWS_SECRET_ACCESS_KEY: local
+          AWS_ACCESS_KEY_ID: local  # pragma: allowlist secret
+          AWS_SECRET_ACCESS_KEY: local  # pragma: allowlist secret
           AWS_REGION: ap-southeast-2
           DYNAMODB_ENDPOINT: http://localhost:8000
           S3_ENDPOINT: http://localhost:4566
           SQS_ENDPOINT: http://localhost:4566
+          PG_CONNECTION_STRING: ${{ env.CI_PG_CONN }}
+          JEST_JUNIT_OUTPUT_DIR: reports/integration
+          JEST_HTML_REPORTER_OUTPUT_PATH: reports/integration/report.html
+
+      - name: Upload integration test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-report-${{ github.sha }}
+          path: data_apis/reports/integration/
+          retention-days: 30
+
+      - name: Publish unit test results
+        if: always() && hashFiles('data_apis/reports/unit/junit.xml') != ''
+        uses: dorny/test-reporter@v1
+        with:
+          name: Unit Test Results
+          path: 'data_apis/reports/unit/junit.xml'
+          reporter: jest-junit
+          fail-on-error: false
+
+      - name: Publish integration test results
+        if: always() && hashFiles('data_apis/reports/integration/junit.xml') != ''
+        uses: dorny/test-reporter@v1
+        with:
+          name: Integration Test Results
+          path: 'data_apis/reports/integration/junit.xml'
+          reporter: jest-junit
+          fail-on-error: false
 
       - name: Docker build (smoke)
         if: github.base_ref == 'develop' || github.ref == 'refs/heads/develop'

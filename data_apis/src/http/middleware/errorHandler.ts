@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { ValidateError } from "tsoa";
 import { AppError } from "../../domain/errors.js";
+import { logger } from "../../infra/logger.js";
 
 interface ErrorResponse {
   error: {
@@ -42,8 +43,7 @@ export function errorHandler(
   }
 
   // unexpected error — don't expose internals
-  // eslint-disable-next-line no-console
-  console.error("[unhandled]", err);
+  logger.error({ err }, "unhandled_error");
   res.status(500).json({
     error: {
       code: "INTERNAL_ERROR",

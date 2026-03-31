@@ -76,13 +76,18 @@ test: ## Run unit tests
 	npm test
 
 test-integration: ## Run integration tests (ephemeral in-memory infra)
-	$(DC_TEST) up -d dynamodb-local localstack
+	@echo "Stopping any postgres containers on port 5432…"
+	-docker stop data-postgres ticketing-postgres 2>/dev/null || true
+	$(DC_TEST) up -d dynamodb-local localstack postgres
 	@echo "Waiting for services to become healthy…"
 	@$(DC_TEST) exec -T dynamodb-local sh -c 'until curl -sf http://localhost:8000 > /dev/null 2>&1 || [ $$? -eq 22 ]; do sleep 1; done' 2>/dev/null || sleep 5
 	@$(DC_TEST) exec -T localstack sh -c 'until curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; do sleep 1; done' 2>/dev/null || sleep 5
-	npm run infra:local:init
-	npm run test:integration
+	@$(DC_TEST) exec -T test-postgres sh -c 'until pg_isready -U postgres > /dev/null 2>&1; do sleep 1; done' 2>/dev/null || sleep 5
+	PG_CONNECTION_STRING=postgres://postgres:postgres@localhost:5432/eia_dev npm run infra:local:init
+	PG_CONNECTION_STRING=postgres://postgres:postgres@localhost:5432/eia_dev npm run test:integration
 	$(DC_TEST) down
+	@echo "Restarting dev postgres containers…"
+	-docker start data-postgres ticketing-postgres 2>/dev/null || true
 
 # ── Docker image ─────────────────────────────────
 

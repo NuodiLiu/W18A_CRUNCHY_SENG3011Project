@@ -32,7 +32,6 @@ BASE="${PREFIX}-${ENV}"          # e.g. eia-dev
 JOBS_TABLE="${BASE}-jobs"
 STATE_TABLE="${BASE}-connector-state"
 IDEM_TABLE="${BASE}-idempotency"
-EVENTS_TABLE="${BASE}-events"
 CONFIG_BUCKET="${BASE}-config"
 DATALAKE_BUCKET="${BASE}-datalake"
 DLQ_NAME="${BASE}-import-jobs-dlq"
@@ -41,6 +40,9 @@ ROLE_NAME="${BASE}-lambda-role"
 API_FN_NAME="${BASE}-api"
 WORKER_FN_NAME="${BASE}-worker"
 APIGW_NAME="${BASE}-http-api"
+RDS_INSTANCE_ID="${BASE}-events-db"
+RDS_DB_NAME="events"
+RDS_DB_USER="postgres"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 log()  { echo ""; echo "── $* ──────────────────────────────────────────"; }
@@ -108,24 +110,124 @@ create_table "$JOBS_TABLE"   "job_id"
 create_table "$STATE_TABLE"  "connection_id"
 create_table "$IDEM_TABLE"   "idempotency_key"
 
-# Events table (query layer replacing S3 Select)
-if aws dynamodb describe-table \
-     --table-name "$EVENTS_TABLE" \
+# ── 3. RDS PostgreSQL (events store) ──────────────────────────────────────────
+log "RDS PostgreSQL (events store)"
+
+# Retrieve default VPC
+DEFAULT_VPC=$(aws ec2 describe-vpcs \
+  --filters "Name=isDefault,Values=true" \
+  --region "$REGION" \
+  --query "Vpcs[0].VpcId" --output text)
+
+# Collect all subnets in the default VPC
+SUBNET_IDS=$(aws ec2 describe-subnets \
+  --filters "Name=vpc-id,Values=${DEFAULT_VPC}" \
+  --region "$REGION" \
+  --query "Subnets[].SubnetId" --output text | tr '\t' ' ')
+SUBNET_LIST=$(echo "$SUBNET_IDS" | tr ' ' '\n' | head -2 | tr '\n' ' ')
+
+# DB subnet group
+DB_SUBNET_GROUP="${BASE}-db-subnet"
+if aws rds describe-db-subnet-groups \
+     --db-subnet-group-name "$DB_SUBNET_GROUP" \
      --region "$REGION" \
      --output text > /dev/null 2>&1; then
-  skip "$EVENTS_TABLE"
+  skip "$DB_SUBNET_GROUP"
 else
-  aws dynamodb create-table \
-    --table-name "$EVENTS_TABLE" \
-    --attribute-definitions \
-      "AttributeName=event_id,AttributeType=S" \
-    --key-schema \
-      "AttributeName=event_id,KeyType=HASH" \
-    --billing-mode PAY_PER_REQUEST \
+  # shellcheck disable=SC2086
+  aws rds create-db-subnet-group \
+    --db-subnet-group-name "$DB_SUBNET_GROUP" \
+    --db-subnet-group-description "Subnet group for ${BASE} events DB" \
+    --subnet-ids $SUBNET_LIST \
     --region "$REGION" \
     --output text > /dev/null
-  ok "$EVENTS_TABLE  (PK: event_id)"
+  ok "$DB_SUBNET_GROUP"
 fi
+
+# Security group allowing port 5432 (test environment — restrict in production)
+SG_NAME="${BASE}-rds-sg"
+EXISTING_SG=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=${SG_NAME}" "Name=vpc-id,Values=${DEFAULT_VPC}" \
+  --region "$REGION" \
+  --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || echo "None")
+
+if [ "$EXISTING_SG" != "None" ] && [ -n "$EXISTING_SG" ]; then
+  skip "$SG_NAME ($EXISTING_SG)"
+  RDS_SG_ID="$EXISTING_SG"
+else
+  RDS_SG_ID=$(aws ec2 create-security-group \
+    --group-name "$SG_NAME" \
+    --description "RDS PostgreSQL for ${BASE} (test only)" \
+    --vpc-id "$DEFAULT_VPC" \
+    --region "$REGION" \
+    --query GroupId --output text)
+  aws ec2 authorize-security-group-ingress \
+    --group-id "$RDS_SG_ID" \
+    --protocol tcp \
+    --port 5432 \
+    --cidr 0.0.0.0/0 \
+    --region "$REGION" > /dev/null
+  ok "$SG_NAME ($RDS_SG_ID)  — port 5432 open (TEST ONLY)"
+fi
+
+# Generate or retrieve RDS password from SSM Parameter Store
+RDS_PARAM_NAME="/${BASE}/rds/password"
+if aws ssm get-parameter --name "$RDS_PARAM_NAME" --region "$REGION" --output text > /dev/null 2>&1; then
+  RDS_PASSWORD=$(aws ssm get-parameter \
+    --name "$RDS_PARAM_NAME" \
+    --with-decryption \
+    --region "$REGION" \
+    --query "Parameter.Value" --output text)
+  skip "SSM parameter $RDS_PARAM_NAME"
+else
+  RDS_PASSWORD=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)
+  aws ssm put-parameter \
+    --name "$RDS_PARAM_NAME" \
+    --value "$RDS_PASSWORD" \
+    --type SecureString \
+    --region "$REGION" \
+    --output text > /dev/null
+  ok "SSM SecureString $RDS_PARAM_NAME stored"
+fi
+
+# Create RDS instance
+if aws rds describe-db-instances \
+     --db-instance-identifier "$RDS_INSTANCE_ID" \
+     --region "$REGION" \
+     --output text > /dev/null 2>&1; then
+  skip "$RDS_INSTANCE_ID"
+else
+  aws rds create-db-instance \
+    --db-instance-identifier "$RDS_INSTANCE_ID" \
+    --db-instance-class db.t3.micro \
+    --engine postgres \
+    --engine-version "16" \
+    --master-username "$RDS_DB_USER" \
+    --master-user-password "$RDS_PASSWORD" \
+    --db-name "$RDS_DB_NAME" \
+    --db-subnet-group-name "$DB_SUBNET_GROUP" \
+    --vpc-security-group-ids "$RDS_SG_ID" \
+    --publicly-accessible \
+    --allocated-storage 20 \
+    --storage-type gp2 \
+    --no-multi-az \
+    --no-deletion-protection \
+    --region "$REGION" \
+    --output text > /dev/null
+  ok "$RDS_INSTANCE_ID  — db.t3.micro PostgreSQL 16, 20GB (waiting for available...)"
+  aws rds wait db-instance-available \
+    --db-instance-identifier "$RDS_INSTANCE_ID" \
+    --region "$REGION"
+  ok "$RDS_INSTANCE_ID  available"
+fi
+
+# Get RDS endpoint
+RDS_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier "$RDS_INSTANCE_ID" \
+  --region "$REGION" \
+  --query "DBInstances[0].Endpoint.Address" --output text)
+PG_CONNECTION_STRING="postgres://${RDS_DB_USER}:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/${RDS_DB_NAME}"
+ok "RDS endpoint: $RDS_ENDPOINT"
 
 # ── 3. S3 Buckets ─────────────────────────────────────────────────────────────
 log "S3 Buckets"
@@ -270,9 +372,7 @@ INLINE_POLICY=$(cat <<EOF
       "Resource": [
         "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${JOBS_TABLE}",
         "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${STATE_TABLE}",
-        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${IDEM_TABLE}",
-        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${EVENTS_TABLE}",
-        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${EVENTS_TABLE}/index/*"
+        "arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${IDEM_TABLE}"
       ]
     },
     {
@@ -347,7 +447,7 @@ else
     --zip-file "fileb://${TMPZIP}/handler.zip" \
     --timeout 30 \
     --memory-size 512 \
-    --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
+    --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING}}" \
     --description "ESG Data Service — HTTP API (Lambda)" \
     --region "$REGION" \
     --output text > /dev/null
@@ -369,7 +469,7 @@ else
     --zip-file "fileb://${TMPZIP}/handler.zip" \
     --timeout 900 \
     --memory-size 1024 \
-    --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
+    --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING}}" \
     --description "ESG Data Service — SQS Worker (Lambda)" \
     --region "$REGION" \
     --output text > /dev/null
@@ -380,18 +480,18 @@ rm -rf "$TMPZIP"
 
 # ── 6b. Ensure env vars are up-to-date on existing functions ─────────────────
 # update-function-configuration is idempotent and safe to re-run.
-log "Lambda Environment Variables (ensure DDB_EVENTS_TABLE is set)"
+log "Lambda Environment Variables (ensure PG_CONNECTION_STRING is set)"
 
 aws lambda update-function-configuration \
   --function-name "$API_FN_NAME" \
-  --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
+  --environment "Variables={APP_MODE=api,PORT=3000,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING},SERVICE_NAME=datalake-ingest-api,LOG_LEVEL=info}" \
   --region "$REGION" \
   --output text > /dev/null
 ok "$API_FN_NAME  env vars updated"
 
 aws lambda update-function-configuration \
   --function-name "$WORKER_FN_NAME" \
-  --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},DDB_EVENTS_TABLE=${EVENTS_TABLE}}" \
+  --environment "Variables={APP_MODE=worker,PROJECT_PREFIX=${PREFIX},ENV_SUFFIX=${ENV},PG_CONNECTION_STRING=${PG_CONNECTION_STRING},SERVICE_NAME=datalake-ingest-worker,LOG_LEVEL=info}" \
   --region "$REGION" \
   --output text > /dev/null
 ok "$WORKER_FN_NAME  env vars updated"
@@ -508,9 +608,117 @@ printf "║  %-20s %s\n" "Worker Lambda:"    "  ${WORKER_FN_NAME}"
 printf "║  %-20s %s\n" "SQS Queue:"        "  ${QUEUE_NAME}"
 printf "║  %-20s %s\n" "IAM Role:"         "  ${ROLE_NAME}"
 printf "║  %-20s %s\n" "DynamoDB tables:"  "  ${JOBS_TABLE}, ${STATE_TABLE},"
-printf "║  %-20s %s\n" ""                  "  ${IDEM_TABLE}, ${EVENTS_TABLE}"
+printf "║  %-20s %s\n" ""                  "  ${IDEM_TABLE}"
+printf "║  %-20s %s\n" "RDS (events):"     "  ${RDS_INSTANCE_ID}"
 printf "║  %-20s %s\n" "S3 buckets:"       "  ${CONFIG_BUCKET}, ${DATALAKE_BUCKET}"
 echo "╠══════════════════════════════════════════════════════════════════════╣"
+printf "║  %-20s %s\n" "PG_CONNECTION_STRING:" ""
+printf "║    %s\n"     "${PG_CONNECTION_STRING}"
+echo "╠══════════════════════════════════════════════════════════════════════╣"
+echo "║  Add PG_CONNECTION_STRING as a GitHub Repository Secret             ║"
 echo "║  Next: push to main branch to trigger lambda-deploy.yml CI/CD      ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
+
+# ── CloudWatch Dashboard ─────────────────────────────────────────────────────
+log "CloudWatch Dashboard"
+
+DASHBOARD_NAME="${BASE}-overview"
+
+DASHBOARD_BODY=$(cat << DASHBOARD
+{
+  "widgets": [
+    {
+      "type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+      "properties": {
+        "title": "Lambda Invocations and Errors",
+        "metrics": [
+          ["AWS/Lambda", "Invocations", "FunctionName", "${API_FN_NAME}",    {"label": "API Invocations"}],
+          ["AWS/Lambda", "Errors",      "FunctionName", "${API_FN_NAME}",    {"label": "API Errors",     "color": "#d62728"}],
+          ["AWS/Lambda", "Invocations", "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker Invocations"}],
+          ["AWS/Lambda", "Errors",      "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker Errors",  "color": "#ff7f0e"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+      "properties": {
+        "title": "Lambda Duration p50 and p99 (ms)",
+        "metrics": [
+          ["AWS/Lambda", "Duration", "FunctionName", "${API_FN_NAME}",    {"label": "API p50",    "stat": "p50"}],
+          ["AWS/Lambda", "Duration", "FunctionName", "${API_FN_NAME}",    {"label": "API p99",    "stat": "p99"}],
+          ["AWS/Lambda", "Duration", "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker p50", "stat": "p50"}],
+          ["AWS/Lambda", "Duration", "FunctionName", "${WORKER_FN_NAME}", {"label": "Worker p99", "stat": "p99"}]
+        ],
+        "view": "timeSeries", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 0, "y": 6, "width": 12, "height": 6,
+      "properties": {
+        "title": "Import Jobs (Created / Done / Failed)",
+        "metrics": [
+          ["ESG/DataLake", "ImportJobCreated", "service", "datalake-ingest-api",    {"label": "Created", "color": "#1f77b4"}],
+          ["ESG/DataLake", "ImportJobDone",    "service", "datalake-ingest-worker", {"label": "Done",    "color": "#2ca02c"}],
+          ["ESG/DataLake", "ImportJobFailed",  "service", "datalake-ingest-worker", {"label": "Failed",  "color": "#d62728"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 300, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 12, "y": 6, "width": 12, "height": 6,
+      "properties": {
+        "title": "Events Ingested per Period",
+        "metrics": [
+          ["ESG/DataLake", "EventsIngested", "service", "datalake-ingest-worker", {"label": "Events"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 300, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 0, "y": 12, "width": 12, "height": 6,
+      "properties": {
+        "title": "HTTP Requests and Errors",
+        "metrics": [
+          ["ESG/DataLake", "HttpRequests", "service", "datalake-ingest-api", {"label": "Requests"}],
+          ["ESG/DataLake", "HttpErrors",   "service", "datalake-ingest-api", {"label": "Errors", "color": "#d62728"}]
+        ],
+        "view": "timeSeries", "stat": "Sum", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "metric", "x": 12, "y": 12, "width": 12, "height": 6,
+      "properties": {
+        "title": "HTTP Latency p50 / p99 (ms)",
+        "metrics": [
+          ["ESG/DataLake", "HttpLatency", "service", "datalake-ingest-api", {"label": "p50", "stat": "p50"}],
+          ["ESG/DataLake", "HttpLatency", "service", "datalake-ingest-api", {"label": "p99", "stat": "p99"}]
+        ],
+        "view": "timeSeries", "period": 60, "region": "${REGION}"
+      }
+    },
+    {
+      "type": "log", "x": 0, "y": 18, "width": 24, "height": 6,
+      "properties": {
+        "title": "Recent Errors",
+        "query": "SOURCE '/aws/lambda/${API_FN_NAME}' | SOURCE '/aws/lambda/${WORKER_FN_NAME}' | fields @timestamp, service, msg, jobId, requestId\n| filter level = 'error'\n| sort @timestamp desc\n| limit 50",
+        "region": "${REGION}",
+        "view": "table"
+      }
+    }
+  ]
+}
+DASHBOARD
+)
+
+if aws cloudwatch put-dashboard \
+     --dashboard-name "$DASHBOARD_NAME" \
+     --dashboard-body "$DASHBOARD_BODY" \
+     --region "$REGION" \
+     --output text > /dev/null 2>&1; then
+  ok "Dashboard: ${DASHBOARD_NAME}"
+  echo "  https://${REGION}.console.aws.amazon.com/cloudwatch/home?region=${REGION}#dashboards:name=${DASHBOARD_NAME}"
+else
+  echo "  Warning: Dashboard creation failed (non-fatal — create manually in CloudWatch console)"
+fi
