@@ -1,44 +1,29 @@
 import request from "supertest";
-import {
-  S3Client,
-  PutObjectCommand,
-  CreateBucketCommand,
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-} from "@aws-sdk/client-s3";
 import { loadConfig } from "../../src/config/index";
 import { createApp } from "../../src/http/app";
 import { DynamoJobRepository } from "../../src/infra/aws/dynamoJobRepository";
 import { S3ConfigStore } from "../../src/infra/aws/s3ConfigStore";
 import { SQSQueueService } from "../../src/infra/aws/sqsQueueService";
 import { S3PresignService } from "../../src/infra/aws/s3PresignService";
-import { S3DataLakeReader } from "../../src/infra/aws/s3DataLakeReader";
+import { PostgresEventRepository } from "../../src/infra/postgres/postgresEventRepository";
+import { EventRecord } from "../../src/domain/models/event";
 
 // --- setup ---
 
 const config = loadConfig();
+const pgRepo = new PostgresEventRepository(config);
 const jobRepo = new DynamoJobRepository(config);
 const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
-// useS3Select: false → uses GetObject + in-memory filter (LocalStack community doesn't support S3 Select)
-const dataLakeReader = new S3DataLakeReader(config, { useS3Select: false });
 
-const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
-
-const s3 = new S3Client({
-  region: config.region,
-  endpoint: config.s3Endpoint,
-  forcePathStyle: true,
-  requestChecksumCalculation: "WHEN_REQUIRED",
-  responseChecksumValidation: "WHEN_REQUIRED",
-});
+const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader: pgRepo });
 
 // ── Seed data ─────────────────────────────────────────────────
 
-const DATASET_PREFIX = "datasets/esg_test";
+const DATASET_ID = "esg_test_retrieval";
 
-const sampleEvents = [
+const sampleEvents: EventRecord[] = [
   {
     event_id: "evt-001",
     event_type: "esg_metric",
@@ -93,71 +78,22 @@ const sampleEvents = [
   },
 ];
 
-const manifest = {
-  dataset_id: "esg_test",
-  data_source: "test",
-  dataset_type: "esg_metrics",
-  time_object: { timestamp: new Date().toISOString(), timezone: "UTC" },
-  total_events: sampleEvents.length,
-  segments: [`s3://${config.s3DatalakeBucket}/${DATASET_PREFIX}/segment-0.jsonl`],
-  created_at: new Date().toISOString(),
-};
-
-const segmentBody = sampleEvents.map((e) => JSON.stringify(e)).join("\n") + "\n";
-
-// ── Helpers ──────────────────────────────────────────────────
-
-async function ensureBucket() {
-  try {
-    await s3.send(new CreateBucketCommand({ Bucket: config.s3DatalakeBucket }));
-  } catch {
-    // bucket already exists
-  }
-}
-
-async function seedData() {
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${DATASET_PREFIX}/manifest.json`,
-      Body: JSON.stringify(manifest),
-      ContentType: "application/json",
-    })
-  );
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${DATASET_PREFIX}/segment-0.jsonl`,
-      Body: segmentBody,
-      ContentType: "application/x-ndjson",
-    })
-  );
-}
-
-async function cleanupData() {
-  try {
-    const list = await s3.send(
-      new ListObjectsV2Command({ Bucket: config.s3DatalakeBucket, Prefix: DATASET_PREFIX })
-    );
-    for (const obj of list.Contents ?? []) {
-      await s3.send(
-        new DeleteObjectCommand({ Bucket: config.s3DatalakeBucket, Key: obj.Key! })
-      );
-    }
-  } catch {
-    // ignore
-  }
-}
-
 // ── Lifecycle ────────────────────────────────────────────────
 
 beforeAll(async () => {
-  await ensureBucket();
-  await seedData();
+  await pgRepo.writeEvents(sampleEvents, DATASET_ID);
 });
 
 afterAll(async () => {
-  await cleanupData();
+  const ids = sampleEvents.map((e) => e.event_id);
+  // Use the repo's internal pool indirectly via a raw query through the repo for cleanup,
+  // or just close — cleanup is handled by the tmpfs postgres in CI.
+  // We delete by known event_ids for isolation.
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: config.pgConnectionString });
+  await pool.query("DELETE FROM events WHERE event_id = ANY($1::text[])", [ids]);
+  await pool.end();
+  await pgRepo.close();
 });
 
 // ── Tests ────────────────────────────────────────────────────
