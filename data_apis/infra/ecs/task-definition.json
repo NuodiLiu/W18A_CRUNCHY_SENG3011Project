@@ -25,6 +25,9 @@
         { "name": "PROJECT_PREFIX", "value": "esgpipeline" },
         { "name": "ENV_SUFFIX", "value": "prod" }
       ],
+      "secrets": [
+        { "name": "PG_CONNECTION_STRING", "valueFrom": "/esgpipeline-prod/rds/connection_string" }
+      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
@@ -51,6 +54,9 @@
         { "name": "AWS_REGION", "value": "ap-southeast-2" },
         { "name": "PROJECT_PREFIX", "value": "esgpipeline" },
         { "name": "ENV_SUFFIX", "value": "prod" }
+      ],
+      "secrets": [
+        { "name": "PG_CONNECTION_STRING", "valueFrom": "/esgpipeline-prod/rds/connection_string" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

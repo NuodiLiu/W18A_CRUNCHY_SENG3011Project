@@ -4,7 +4,7 @@ import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { DynamoStateStore } from "./infra/aws/dynamoStateStore.js";
 import { S3ConfigStore } from "./infra/aws/s3ConfigStore.js";
 import { S3DataLakeWriter } from "./infra/aws/s3DataLakeWriter.js";
-import { DynamoEventRepository } from "./infra/aws/dynamoEventRepository.js";
+import { PostgresEventRepository } from "./infra/postgres/postgresEventRepository.js";
 import { SQSQueueService } from "./infra/aws/sqsQueueService.js";
 import { createConnector } from "./infra/connectors/connectorFactory.js";
 import { runJob, RunJobDeps } from "./application/worker/runJob.js";
@@ -15,7 +15,7 @@ const config = loadConfig();
 const queue = new SQSQueueService(config);
 const jobRepo = new DynamoJobRepository(config);
 const dataLakeWriter = new S3DataLakeWriter(config);
-const eventRepository = new DynamoEventRepository(config);
+const eventRepository = new PostgresEventRepository(config);
 
 const importDeps: RunJobDeps = {
   jobRepo,

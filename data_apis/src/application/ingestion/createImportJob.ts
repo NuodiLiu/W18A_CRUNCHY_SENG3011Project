@@ -5,6 +5,7 @@ import { JobConfig, SourceSpec } from "../../domain/models/jobConfig.js";
 import { JobRepository } from "../../domain/ports/jobRepository.js";
 import { ConfigStore } from "../../domain/ports/configStore.js";
 import { QueueService } from "../../domain/ports/queueService.js";
+import { logger, emitMetric } from "../../infra/logger.js";
 
 export interface CreateImportJobCommand {
   connector_type: string;
@@ -99,6 +100,12 @@ export async function createImportJob(
   await deps.jobRepo.create(jobRecord);
 
   await deps.queue.sendMessage({ job_id: jobId });
+
+  logger.info(
+    { jobId, connectionId, connectorType: cmd.connector_type, datasetType: cmd.dataset_type, ingestionMode: cmd.ingestion_mode },
+    "import_job_created",
+  );
+  emitMetric("ImportJobCreated", 1, "Count", { service: "datalake-ingest-api", datasetType: cmd.dataset_type });
 
   return {
     job_id: jobId,
