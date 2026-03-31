@@ -24,6 +24,10 @@ const shared = {
 
 const config: Config = {
   testTimeout: 30_000,
+  // Silence Pino structured logs and EMF output during all test runs
+  testEnvironmentOptions: {
+    env: { LOG_LEVEL: "silent" },
+  },
   reporters: [
     "default",
     [

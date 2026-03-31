@@ -26,8 +26,9 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-eia_dev}
+      # trust auth: no password required for local dev
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -86,7 +87,7 @@ services:
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
       - PROJECT_PREFIX=${PROJECT_PREFIX:-eia}
-      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-eia_dev}}
+      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres@postgres:5432/${POSTGRES_DB:-eia_dev}}
     command: ["node", "dist/scripts/init-local-infra.js"]
     # exits after init; api & worker wait for it
     restart: "no"
@@ -110,7 +111,7 @@ services:
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
       - PROJECT_PREFIX=${PROJECT_PREFIX:-eia}
-      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-eia_dev}}
+      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres@postgres:5432/${POSTGRES_DB:-eia_dev}}
     command: ["node", "dist/main.js"]
 
   # ── Application: Worker (SQS consumer) ─────────────────────
@@ -129,7 +130,7 @@ services:
       - S3_ENDPOINT=http://localstack:4566
       - SQS_ENDPOINT=http://localstack:4566
       - PROJECT_PREFIX=${PROJECT_PREFIX:-eia}
-      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-eia_dev}}
+      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING:-postgres://postgres@postgres:5432/${POSTGRES_DB:-eia_dev}}
     command: ["node", "dist/worker.js"]
 
 volumes:

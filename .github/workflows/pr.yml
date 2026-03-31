@@ -1,6 +1,6 @@
 name: CI — Lint, Typecheck, Test, Build
-# These credentials are LocalStack/test-only placeholders — not real secrets.
-# They are intentionally defined here so CI works without repository secret configuration.
+# Credentials used here are ephemeral, randomly-generated per-run values
+# for isolated test containers.  No real secrets are stored in this file.
 
 on:
   pull_request:
@@ -24,14 +24,19 @@ jobs:
         working-directory: data_apis
     env:
       CI_POSTGRES_USER: postgres
-      CI_POSTGRES_PASSWORD: ci_local_only
       CI_POSTGRES_DB: eia_dev
       CI_AWS_KEY_ID: local
-      CI_AWS_SECRET: ci_local_only
-      CI_PG_CONN: postgres://postgres:ci_local_only@localhost:5432/eia_dev
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Generate ephemeral CI credentials
+        run: |
+          PG_PASS=$(openssl rand -hex 16)
+          AWS_SECRET=$(openssl rand -hex 16)
+          echo "CI_POSTGRES_PASSWORD=${PG_PASS}" >> "$GITHUB_ENV"
+          echo "CI_AWS_SECRET=${AWS_SECRET}" >> "$GITHUB_ENV"
+          echo "CI_PG_CONN=postgres://postgres:${PG_PASS}@localhost:5432/eia_dev" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -153,12 +158,21 @@ jobs:
           path: data_apis/reports/integration/
           retention-days: 30
 
-      - name: Publish test results
-        if: always()
+      - name: Publish unit test results
+        if: always() && hashFiles('data_apis/reports/unit/junit.xml') != ''
         uses: dorny/test-reporter@v1
         with:
-          name: Jest Test Results
-          path: 'data_apis/reports/**/junit.xml'
+          name: Unit Test Results
+          path: 'data_apis/reports/unit/junit.xml'
+          reporter: jest-junit
+          fail-on-error: false
+
+      - name: Publish integration test results
+        if: always() && hashFiles('data_apis/reports/integration/junit.xml') != ''
+        uses: dorny/test-reporter@v1
+        with:
+          name: Integration Test Results
+          path: 'data_apis/reports/integration/junit.xml'
           reporter: jest-junit
           fail-on-error: false
 

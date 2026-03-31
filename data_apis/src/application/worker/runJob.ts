@@ -8,6 +8,7 @@ import { EventRepository } from "../../domain/ports/eventRepository.js";
 import { ConnectorState } from "../../domain/models/connectorState.js";
 import { JobConfig } from "../../domain/models/jobConfig.js";
 import { getNormalizer } from "../normalizers/index.js";
+import { logger, emitMetric } from "../../infra/logger.js";
 
 export interface RunJobDeps {
   jobRepo: JobRepository;
@@ -25,7 +26,13 @@ const LEASE_DURATION_MS = 10 * 60 * 1000; // 10 min — covers up to ~2 min of 1
 export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   const leaseUntil = new Date(Date.now() + LEASE_DURATION_MS).toISOString();
   const claimed = await deps.jobRepo.claimJob(jobId, leaseUntil);
-  if (!claimed) return; // another worker already claimed it
+  if (!claimed) {
+    logger.info({ jobId }, "job_already_claimed");
+    return;
+  }
+
+  const jobStart = Date.now();
+  logger.info({ jobId }, "job_started");
 
   try {
     const job = await deps.jobRepo.findById(jobId);
@@ -54,6 +61,10 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
           await deps.eventRepository.writeEvents(events, datasetId);
         }
         totalEvents += events.length;
+        emitMetric("EventsIngested", events.length, "Count", {
+          service: "datalake-ingest-worker",
+          datasetType: config.dataset_type,
+        });
       },
     );
 
@@ -74,9 +85,16 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
     }
 
     await deps.jobRepo.updateStatus(jobId, "DONE", { dataset_id: datasetUri });
+
+    const durationMs = Date.now() - jobStart;
+    logger.info({ jobId, datasetType: config.dataset_type, totalEvents, durationMs, datasetUri }, "job_done");
+    emitMetric("ImportJobDone", 1, "Count", { service: "datalake-ingest-worker", datasetType: config.dataset_type });
+    emitMetric("JobDurationMs", durationMs, "Milliseconds", { service: "datalake-ingest-worker" });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await deps.jobRepo.updateStatus(jobId, "FAILED", { error: message });
+    logger.error({ jobId, err }, "job_failed");
+    emitMetric("ImportJobFailed", 1, "Count", { service: "datalake-ingest-worker" });
     throw err; // let caller decide whether to delete sqs message
   }
 }
