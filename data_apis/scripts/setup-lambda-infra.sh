@@ -29,6 +29,7 @@ BASE="${PREFIX}-${ENV}"          # e.g. eia-dev
 
 # Derived resource names — ensure ENV_SUFFIX matches the value set in the application
 # environment (config/index.ts defaults to "dev"; override here to match when deploying)
+FRONTEND_BUCKET="${BASE}-frontend"
 JOBS_TABLE="${BASE}-jobs"
 STATE_TABLE="${BASE}-connector-state"
 IDEM_TABLE="${BASE}-idempotency"
@@ -518,6 +519,17 @@ WORKER_LAMBDA_ARN=$(aws lambda get-function-configuration \
 # ── 7. API Gateway v2 (HTTP API) ──────────────────────────────────────────────
 log "API Gateway HTTP API"
 
+# Rate limiting: 100 req/s steady, burst up to 200
+# CORS: open to all origins, GET + OPTIONS only, no auth
+APIGW_CORS='{
+  "AllowOrigins": ["*"],
+  "AllowMethods": ["GET", "OPTIONS"],
+  "AllowHeaders": ["Content-Type", "X-Requested-With"],
+  "ExposeHeaders": ["X-Request-Id"],
+  "MaxAge": 86400
+}'
+APIGW_THROTTLE='{"ThrottlingBurstLimit":200,"ThrottlingRateLimit":100}'
+
 EXISTING_API_ID=$(aws apigatewayv2 get-apis \
   --region "$REGION" \
   --query "Items[?Name=='${APIGW_NAME}'].ApiId | [0]" \
@@ -525,13 +537,31 @@ EXISTING_API_ID=$(aws apigatewayv2 get-apis \
 
 if [ "$EXISTING_API_ID" != "None" ] && [ -n "$EXISTING_API_ID" ]; then
   skip "$APIGW_NAME  ($EXISTING_API_ID)"
-  API_URL="https://${EXISTING_API_ID}.execute-api.${REGION}.amazonaws.com"
+  API_ID="$EXISTING_API_ID"
+  API_URL="https://${API_ID}.execute-api.${REGION}.amazonaws.com"
+
+  # Ensure CORS and throttle are applied even on existing API
+  aws apigatewayv2 update-api \
+    --api-id "$API_ID" \
+    --cors-configuration "$APIGW_CORS" \
+    --region "$REGION" \
+    --output text > /dev/null
+  ok "$APIGW_NAME  CORS updated"
+
+  aws apigatewayv2 update-stage \
+    --api-id "$API_ID" \
+    --stage-name '$default' \
+    --default-route-settings "$APIGW_THROTTLE" \
+    --region "$REGION" \
+    --output text > /dev/null
+  ok "$APIGW_NAME  throttle updated (100 req/s, burst 200)"
 else
-  # Create the API
+  # Create the API with CORS configured (no auth)
   API_ID=$(aws apigatewayv2 create-api \
     --name "$APIGW_NAME" \
     --protocol-type HTTP \
-    --description "ESG Data Service HTTP API" \
+    --description "ESG Data Service HTTP API — public read-only, no auth" \
+    --cors-configuration "$APIGW_CORS" \
     --region "$REGION" \
     --query ApiId --output text)
 
@@ -544,7 +574,7 @@ else
     --region "$REGION" \
     --query IntegrationId --output text)
 
-  # Catch-all route
+  # Catch-all route — no authorizer
   aws apigatewayv2 create-route \
     --api-id "$API_ID" \
     --route-key '$default' \
@@ -552,11 +582,12 @@ else
     --region "$REGION" \
     --output text > /dev/null
 
-  # Auto-deployed default stage
+  # Auto-deployed default stage with rate limiting
   aws apigatewayv2 create-stage \
     --api-id "$API_ID" \
     --stage-name '$default' \
     --auto-deploy \
+    --default-route-settings "$APIGW_THROTTLE" \
     --region "$REGION" \
     --output text > /dev/null
 
@@ -572,6 +603,8 @@ else
 
   API_URL="https://${API_ID}.execute-api.${REGION}.amazonaws.com"
   ok "$APIGW_NAME  →  $API_URL"
+  ok "CORS: AllowOrigins=* AllowMethods=GET,OPTIONS  MaxAge=86400"
+  ok "Rate limit: 100 req/s steady, burst 200"
 fi
 
 # ── 8. SQS → Worker Lambda Event Source Mapping ───────────────────────────────
@@ -597,6 +630,136 @@ else
   ok "SQS → $WORKER_FN_NAME  (batch 10, partial-batch failure reporting ON)"
 fi
 
+# ── 9. S3 Frontend Bucket ─────────────────────────────────────────────────────
+log "S3 Frontend Bucket (static site)"
+
+if aws s3api head-bucket \
+     --bucket "$FRONTEND_BUCKET" \
+     --region "$REGION" 2>/dev/null; then
+  skip "$FRONTEND_BUCKET"
+else
+  aws s3api create-bucket \
+    --bucket "$FRONTEND_BUCKET" \
+    --region "$REGION" \
+    --create-bucket-configuration LocationConstraint="$REGION" \
+    --output text > /dev/null
+
+  # Block all public access — CloudFront OAC will serve the content
+  aws s3api put-public-access-block \
+    --bucket "$FRONTEND_BUCKET" \
+    --public-access-block-configuration \
+      "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true" \
+    --region "$REGION"
+  ok "$FRONTEND_BUCKET  (public access blocked, served via CloudFront)"
+fi
+
+# ── 10. CloudFront Distribution ───────────────────────────────────────────────
+log "CloudFront Distribution (frontend)"
+
+EXISTING_CF_ID=$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Origins.Items[0].DomainName=='${FRONTEND_BUCKET}.s3.${REGION}.amazonaws.com'].Id | [0]" \
+  --output text 2>/dev/null)
+
+if [ "$EXISTING_CF_ID" != "None" ] && [ -n "$EXISTING_CF_ID" ]; then
+  skip "CloudFront distribution  ($EXISTING_CF_ID)"
+  CF_DOMAIN=$(aws cloudfront get-distribution \
+    --id "$EXISTING_CF_ID" \
+    --query "Distribution.DomainName" --output text)
+else
+  # Create Origin Access Control for S3
+  OAC_CONFIG=$(cat <<OACEOF
+{
+  "Name": "${BASE}-frontend-oac",
+  "Description": "OAC for ${BASE} frontend S3 bucket",
+  "SigningProtocol": "sigv4",
+  "SigningBehavior": "always",
+  "OriginAccessControlOriginType": "s3"
+}
+OACEOF
+)
+  OAC_ID=$(aws cloudfront create-origin-access-control \
+    --origin-access-control-config "$OAC_CONFIG" \
+    --query "OriginAccessControl.Id" --output text)
+  ok "Origin Access Control  →  $OAC_ID"
+
+  # Create CloudFront distribution
+  CF_CONFIG=$(cat <<CFEOF
+{
+  "CallerReference": "${BASE}-frontend-$(date +%s)",
+  "Comment": "${BASE} frontend static site",
+  "DefaultRootObject": "index.html",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [{
+      "Id": "s3-frontend",
+      "DomainName": "${FRONTEND_BUCKET}.s3.${REGION}.amazonaws.com",
+      "S3OriginConfig": { "OriginAccessIdentity": "" },
+      "OriginAccessControlId": "${OAC_ID}"
+    }]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "s3-frontend",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+    "Compress": true,
+    "AllowedMethods": {
+      "Quantity": 2,
+      "Items": ["GET", "HEAD"],
+      "CachedMethods": { "Quantity": 2, "Items": ["GET", "HEAD"] }
+    }
+  },
+  "CustomErrorResponses": {
+    "Quantity": 1,
+    "Items": [{
+      "ErrorCode": 403,
+      "ResponsePagePath": "/index.html",
+      "ResponseCode": "200",
+      "ErrorCachingMinTTL": 10
+    }]
+  },
+  "Enabled": true,
+  "HttpVersion": "http2",
+  "PriceClass": "PriceClass_All"
+}
+CFEOF
+)
+
+  CF_RESULT=$(aws cloudfront create-distribution \
+    --distribution-config "$CF_CONFIG" \
+    --query "{Id:Distribution.Id,Domain:Distribution.DomainName}" \
+    --output json)
+  EXISTING_CF_ID=$(echo "$CF_RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['Id'])")
+  CF_DOMAIN=$(echo "$CF_RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['Domain'])")
+
+  # Grant CloudFront OAC permission to read from the S3 bucket
+  BUCKET_POLICY=$(cat <<BPEOF
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Sid": "AllowCloudFrontOAC",
+    "Effect": "Allow",
+    "Principal": { "Service": "cloudfront.amazonaws.com" },
+    "Action": "s3:GetObject",
+    "Resource": "arn:aws:s3:::${FRONTEND_BUCKET}/*",
+    "Condition": {
+      "StringEquals": {
+        "AWS:SourceArn": "arn:aws:cloudfront::${ACCOUNT_ID}:distribution/${EXISTING_CF_ID}"
+      }
+    }
+  }]
+}
+BPEOF
+)
+  aws s3api put-bucket-policy \
+    --bucket "$FRONTEND_BUCKET" \
+    --policy "$BUCKET_POLICY" \
+    --region "$REGION"
+
+  ok "CloudFront distribution  →  https://${CF_DOMAIN}"
+  ok "S3 bucket policy updated for OAC access"
+  echo "  ⏳ Distribution deploying (~5-10 min to become fully active)"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════════════════════════════════╗"
@@ -611,6 +774,8 @@ printf "║  %-20s %s\n" "DynamoDB tables:"  "  ${JOBS_TABLE}, ${STATE_TABLE},"
 printf "║  %-20s %s\n" ""                  "  ${IDEM_TABLE}"
 printf "║  %-20s %s\n" "RDS (events):"     "  ${RDS_INSTANCE_ID}"
 printf "║  %-20s %s\n" "S3 buckets:"       "  ${CONFIG_BUCKET}, ${DATALAKE_BUCKET}"
+printf "║  %-20s %s\n" "Frontend bucket:"  "  ${FRONTEND_BUCKET}"
+printf "║  %-20s %s\n" "CloudFront URL:"   "  https://${CF_DOMAIN}"
 echo "╠══════════════════════════════════════════════════════════════════════╣"
 printf "║  %-20s %s\n" "PG_CONNECTION_STRING:" ""
 printf "║    %s\n"     "${PG_CONNECTION_STRING}"
