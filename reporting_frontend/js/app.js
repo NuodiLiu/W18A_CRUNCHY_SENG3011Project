@@ -1,6 +1,6 @@
 import { DEFAULTS } from "./config.js";
 import { fetchGdpData } from "./api/gdpMock.js";
-import { fetchHousingData } from "./api/housingApi.js";
+import { fetchHousingTimeSeries } from "./api/housingApi.js";
 import { normaliseGdp, normaliseHousing } from "./transforms/normalise.js";
 import { mergeByPeriod } from "./transforms/merge.js";
 import { toDualAxisData } from "./transforms/toChartData.js";
@@ -19,7 +19,7 @@ async function loadCharts(yearStart, yearEnd) {
     let housingNorm;
 
     try {
-      const housingRaw = await fetchHousingData();
+      const housingRaw = await fetchHousingTimeSeries();
       housingNorm = normaliseHousing(housingRaw);
     } catch {
       housingNorm = [];
