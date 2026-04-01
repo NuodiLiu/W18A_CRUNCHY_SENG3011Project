@@ -227,8 +227,30 @@ RDS_ENDPOINT=$(aws rds describe-db-instances \
   --db-instance-identifier "$RDS_INSTANCE_ID" \
   --region "$REGION" \
   --query "DBInstances[0].Endpoint.Address" --output text)
-PG_CONNECTION_STRING="postgres://${RDS_DB_USER}:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/${RDS_DB_NAME}"
+PG_CONNECTION_STRING="postgres://${RDS_DB_USER}:${RDS_PASSWORD}@${RDS_ENDPOINT}:5432/${RDS_DB_NAME}?sslmode=no-verify"
 ok "RDS endpoint: $RDS_ENDPOINT"
+
+# ── 3b. Database Schema ───────────────────────────────────────────────────────
+log "Database Schema"
+
+if command -v psql > /dev/null 2>&1; then
+  psql "$PG_CONNECTION_STRING" <<'SQL'
+CREATE TABLE IF NOT EXISTS events (
+  event_id    TEXT PRIMARY KEY,
+  event_type  TEXT NOT NULL,
+  dataset_id  TEXT NOT NULL,
+  time_object JSONB NOT NULL,
+  attribute   JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_event_type ON events (event_type);
+CREATE INDEX IF NOT EXISTS idx_events_dataset_id  ON events (dataset_id);
+SQL
+  ok "Schema applied (events table + indexes)"
+else
+  echo "  ⚠  psql not found — run the following manually:"
+  echo "     psql \"${PG_CONNECTION_STRING}\" -c \\"
+  echo "       \"CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, dataset_id TEXT NOT NULL, time_object JSONB NOT NULL, attribute JSONB NOT NULL);\""
+fi
 
 # ── 3. S3 Buckets ─────────────────────────────────────────────────────────────
 log "S3 Buckets"
