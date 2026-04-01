@@ -3,6 +3,9 @@ import type { Config } from "jest";
 const shared = {
   preset: "ts-jest",
   testEnvironment: "node",
+  testEnvironmentOptions: {
+    env: { LOG_LEVEL: "silent" },
+  },
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { diagnostics: { ignoreCodes: [151002] } }],
   },
@@ -24,10 +27,6 @@ const shared = {
 
 const config: Config = {
   testTimeout: 30_000,
-  // Silence Pino structured logs and EMF output during all test runs
-  testEnvironmentOptions: {
-    env: { LOG_LEVEL: "silent" },
-  },
   reporters: [
     "default",
     [
