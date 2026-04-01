@@ -14,6 +14,7 @@ const fakeConfig: AppConfig = {
   s3ConfigBucket: "test-config",
   s3DatalakeBucket: "test-datalake",
   pgConnectionString: "postgres://postgres:postgres@localhost:5432/test",
+  pgSsl: false,
 };
 
 describe("createConnector", () => {

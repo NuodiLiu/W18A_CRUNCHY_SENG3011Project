@@ -1,158 +1,80 @@
 # Retrieval API Integration Guide
 
-面向其他 team 的最小调用说明（基于当前代码实现）。
+Minimal usage guide for other teams.
 
-## Base URL
+## Base URLs
 
-- Local: `http://localhost:3000`
-- Swagger: `http://localhost:3000/api-docs`
-- OpenAPI JSON: `http://localhost:3000/api-docs.json`
+- API base: `https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com`
+- Swagger UI: `https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com/api-docs`
+- OpenAPI JSON: `https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com/api-docs.json`
 
 ## Endpoints
 
-1. `GET /api/v1/events`
-2. `GET /api/v1/events/{eventId}`
-3. `GET /api/v1/events/types`
-4. `GET /api/v1/events/stats`
+- `GET /api/v1/events`
+- `GET /api/v1/events/{eventId}`
+- `GET /api/v1/events/types`
+- `GET /api/v1/events/stats`
 
-## 1) List Events
+## List Events
 
 `GET /api/v1/events`
 
-### Query Parameters
+Query params:
+- common: `dataset_type` (`esg|housing`), `limit` (default `50`), `offset` (default `0`)
+- esg: `company_name`, `permid`, `metric_name`, `pillar`, `year_from`, `year_to`
+- housing: `postcode`, `suburb`, `street_name`, `nature_of_property`
 
-- Common
-  - `dataset_type`: `esg` | `housing`
-  - `limit`: number, default `50`
-  - `offset`: number, default `0`
-- ESG filters
-  - `company_name` (partial match, case-insensitive)
-  - `permid` (exact)
-  - `metric_name` (partial match, case-insensitive)
-  - `pillar` (exact, e.g. `Environmental`)
-  - `year_from` (metric_year >=)
-  - `year_to` (metric_year <=)
-- Housing filters
-  - `postcode` (exact)
-  - `suburb` (partial match, case-insensitive)
-  - `street_name` (partial match, case-insensitive)
-  - `nature_of_property` (exact)
+Example:
 
-### Response
+```bash
+curl "https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com/api/v1/events?dataset_type=esg&company_name=TestCorp&limit=10&offset=0"
+```
+
+Response shape:
 
 ```json
 {
   "events": [
     {
       "event_id": "evt-001",
-      "time_object": {
-        "timestamp": "2024-01-15T00:00:00Z",
-        "timezone": "UTC"
-      },
+      "time_object": { "timestamp": "2024-01-15T00:00:00Z", "timezone": "UTC" },
       "event_type": "esg_metric",
-      "attribute": {
-        "company_name": "TestCorp",
-        "permid": "P12345",
-        "metric_name": "carbon_emissions",
-        "pillar": "Environmental",
-        "metric_year": 2023
-      }
+      "attribute": {}
     }
   ],
   "total": 2
 }
 ```
 
-### Example
-
-```bash
-curl "http://localhost:3000/api/v1/events?dataset_type=esg&company_name=TestCorp&limit=10&offset=0"
-```
-
-## 2) Get Event By ID
+## Get Event By ID
 
 `GET /api/v1/events/{eventId}`
 
-### Success Response
-
-```json
-{
-  "event_id": "evt-001",
-  "time_object": {
-    "timestamp": "2024-01-15T00:00:00Z",
-    "timezone": "UTC"
-  },
-  "event_type": "esg_metric",
-  "attribute": {}
-}
-```
-
-### 404 Response
-
-```json
-{
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Event not found: evt-nonexistent"
-  }
-}
-```
-
-### Example
-
 ```bash
-curl "http://localhost:3000/api/v1/events/evt-001"
+curl "https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com/api/v1/events/evt-001"
 ```
 
-## 3) Get Distinct Event Types
+## Get Event Types
 
 `GET /api/v1/events/types`
 
-### Response
-
-```json
-{
-  "event_types": ["esg_metric", "housing_sale"]
-}
-```
-
-### Example
-
 ```bash
-curl "http://localhost:3000/api/v1/events/types"
+curl "https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com/api/v1/events/types"
 ```
 
-## 4) Get Event Stats
+## Get Event Stats
 
 `GET /api/v1/events/stats`
 
-### Query Parameter
-
-- `group_by` (optional)
-  - ESG: `pillar`, `company_name`, `metric_year`, `industry`
-  - Housing: `suburb`, `postcode`, `zoning`, `nature_of_property`, `primary_purpose`, `contract_year`
-
-### Response
-
-```json
-{
-  "total_events": 3,
-  "groups": [
-    { "key": "Environmental", "count": 2 },
-    { "key": "Social", "count": 1 }
-  ]
-}
-```
-
-### Example
+`group_by` (optional):
+- esg: `pillar`, `company_name`, `metric_year`, `industry`
+- housing: `suburb`, `postcode`, `zoning`, `nature_of_property`, `primary_purpose`, `contract_year`
 
 ```bash
-curl "http://localhost:3000/api/v1/events/stats?group_by=pillar"
+curl "https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com/api/v1/events/stats?group_by=pillar"
 ```
 
 ## Error Format
-
-所有错误返回统一格式：
 
 ```json
 {
@@ -164,14 +86,4 @@ curl "http://localhost:3000/api/v1/events/stats?group_by=pillar"
 }
 ```
 
-常见状态码：
-
-- `400` 参数校验失败
-- `404` 资源不存在（如 eventId 不存在）
-- `500` 服务内部错误
-
-## Notes For Integrators
-
-- 当前 retrieval 接口不要求鉴权头（按当前服务实现）。
-- 数字参数（如 `limit`, `offset`, `postcode`, `year_from`）请传可解析为 number 的值。
-- `events` 查询支持 ESG 和 Housing 混合过滤；建议按 `dataset_type` 先分流再加领域过滤条件。
+Common status codes: `400`, `404`, `500`.

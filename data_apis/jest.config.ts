@@ -7,7 +7,7 @@ const shared = {
     env: { LOG_LEVEL: "silent" },
   },
   transform: {
-    "^.+\\.tsx?$": ["ts-jest", { diagnostics: { ignoreCodes: [151002] } }],
+    "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.test.json", diagnostics: { ignoreCodes: [151002] } }],
   },
   moduleNameMapper: {
     "^@config/(.*)$": "<rootDir>/src/config/$1",
@@ -56,13 +56,13 @@ const config: Config = {
       ...shared,
       displayName: "unit",
       roots: ["<rootDir>/tests/unit"],
-      // No setupFiles — unit tests must run with a clean environment
+      setupFiles: ["<rootDir>/tests/setup-silent-logs.ts"],
     },
     {
       ...shared,
       displayName: "integration",
       roots: ["<rootDir>/tests/integration"],
-      setupFiles: ["dotenv/config"], // loads .env for LocalStack endpoints
+      setupFiles: ["<rootDir>/tests/setup-silent-logs.ts", "dotenv/config"],
     },
   ],
 };
