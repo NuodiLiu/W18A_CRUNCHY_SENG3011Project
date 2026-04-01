@@ -149,6 +149,14 @@ async function cleanupData() {
   }
 }
 
+async function clearSeededDataset() {
+  await cleanupData();
+}
+
+async function restoreSeededDataset() {
+  await seedData();
+}
+
 // ── Lifecycle ────────────────────────────────────────────────
 
 beforeAll(async () => {
@@ -190,46 +198,19 @@ describe("GET /api/v1/events/types — integration", () => {
     expect(res.body.event_types).toContain("esg_metric");
     expect(res.body.event_types).toContain("housing_sale");
   });
-});
 
-describe("GET /api/v1/events — integration", () => {
-  it("returns all events with total", async () => {
-    const res = await request(app)
-      .get("/api/v1/events")
-      .expect(200);
-
-    expect(Array.isArray(res.body.events)).toBe(true);
-    expect(res.body.total).toBe(sampleEvents.length);
-    expect(res.body.events).toHaveLength(sampleEvents.length);
-  });
-
-  it("returns correct event structure", async () => {
-    const res = await request(app)
-      .get("/api/v1/events")
-      .expect(200);
-
-    const evt = res.body.events.find((e: { event_id: string }) => e.event_id === "evt-001");
-    expect(evt).toBeDefined();
-    expect(evt.event_type).toBe("esg_metric");
-    expect(evt.time_object.timestamp).toBe("2024-01-15T00:00:00Z");
-    expect(evt.time_object.timezone).toBe("UTC");
-  });
-
-  it("respects limit param", async () => {
-    const res = await request(app)
-      .get("/api/v1/events?limit=1")
-      .expect(200);
-
-    expect(res.body.events).toHaveLength(1);
-    expect(res.body.total).toBe(sampleEvents.length);
-  });
-
-  it("respects offset param", async () => {
-    const resAll = await request(app).get("/api/v1/events").expect(200);
-    const resOffset = await request(app).get("/api/v1/events?offset=1").expect(200);
-
-    expect(resOffset.body.events).toHaveLength(sampleEvents.length - 1);
-    expect(resOffset.body.events[0].event_id).not.toBe(resAll.body.events[0].event_id);
+  it("returns empty array when no event types exist", async () => {
+    await clearSeededDataset();
+  
+    try {
+      const res = await request(app)
+        .get("/api/v1/events/types")
+        .expect(200);
+  
+      expect(res.body.event_types).toEqual([]);
+    } finally {
+      await restoreSeededDataset();
+    }
   });
 });
 
@@ -254,6 +235,36 @@ describe("GET /api/v1/events/stats — integration", () => {
     );
     expect(envGroup).toBeDefined();
     expect(envGroup.count).toBe(2);
+  });
+
+  it("groups by suburb", async () => {
+    const res = await request(app)
+      .get("/api/v1/events/stats?group_by=suburb")
+      .expect(200);
+  
+    expect(res.body.total_events).toBe(3);
+  
+    const suburbGroup = res.body.groups.find(
+      (g: Record<string, unknown>) => g.key === "Kensington"
+    );
+  
+    expect(suburbGroup).toBeDefined();
+    expect(suburbGroup.count).toBe(1);
+  });
+
+  it("returns empty result when dataset is empty", async () => {
+    await clearSeededDataset();
+  
+    try {
+      const res = await request(app)
+        .get("/api/v1/events/stats")
+        .expect(200);
+  
+      expect(res.body.total_events).toBe(0);
+      expect(res.body.groups).toEqual([]);
+    } finally {
+      await restoreSeededDataset();
+    }
   });
 });
 
@@ -378,6 +389,17 @@ describe("GET /api/v1/events — integration", () => {
 
     expect(res.body.events.length).toBe(1);
     expect(res.body.events[0].attribute.nature_of_property).toBe("Residential");
+  });
+
+  it("supports combined filters together", async () => {
+    const res = await request(app)
+      .get("/api/v1/events?dataset_type=housing&suburb=Kensington&postcode=2033")
+      .expect(200);
+  
+    expect(res.body.events).toHaveLength(1);
+    expect(res.body.events[0].event_type).toBe("housing_sale");
+    expect(res.body.events[0].attribute.suburb).toBe("Kensington");
+    expect(res.body.events[0].attribute.postcode).toBe(2033);
   });
 
   it("filters by pillar", async () => {
