@@ -3,6 +3,7 @@ import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./generated/routes.js";
 import { initDeps, AppDeps } from "./ioc.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -20,6 +21,9 @@ export function createApp(deps: AppDeps): Express {
   // ── Body parsing ──────────────────────────────────
   app.use(express.json());
 
+  // ── Structured request logging + EMF metrics ─────
+  app.use(requestLogger);
+
   // ── Wire tsoa IoC container ───────────────────────
   initDeps(deps);
 
@@ -27,7 +31,20 @@ export function createApp(deps: AppDeps): Express {
   RegisterRoutes(app);
 
   // ── Swagger UI ────────────────────────────────────
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  // Use CDN assets so swagger-ui renders correctly on Lambda (local static
+  // files served by express.static don't survive API Gateway binary encoding).
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerDocument, {
+      customCssUrl:
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui.min.css",
+      customJs: [
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui-bundle.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.18.2/swagger-ui-standalone-preset.min.js",
+      ],
+    })
+  );
   app.get("/api-docs.json", (_req: Request, res: Response) => {
     res.json(swaggerDocument);
   });

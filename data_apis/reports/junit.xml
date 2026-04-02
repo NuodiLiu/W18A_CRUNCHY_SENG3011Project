@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="25" failures="25" errors="0" time="3.463">
+  <testsuite name="GET /api/v1/events/:eventId — integration" errors="0" failures="25" skipped="0" timestamp="2026-04-02T01:17:28" time="3.308" tests="25">
+    <testcase classname="GET /api/v1/events/:eventId — integration" name="returns a single event by ID" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events/:eventId — integration" name="returns 404 for non-existent event ID" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events/types — integration" name="returns distinct event types" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events/types — integration" name="returns empty array when no event types exist" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats — integration" name="returns stats with total_events" time="0.001" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats — integration" name="groups by pillar" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats — integration" name="groups by suburb" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events/stats — integration" name="returns empty result when dataset is empty" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="returns all events with total" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="returns correct event structure" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="respects limit param" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="respects offset param" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="supports limit and offset pagination" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by company_name" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="returns empty events for non-matching filter" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by dataset_type=esg (returns only ESG events)" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by dataset_type=housing (returns only housing events)" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by suburb" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by postcode" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by street_name (partial match)" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by nature_of_property" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="supports combined filters together" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by pillar" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="filters by permid" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="GET /api/v1/events — integration" name="returns empty for suburb that does not exist" time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>Error: connect ECONNREFUSED 127.0.0.1:5432
+    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresEventRepository.writeEvents (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/src/infra/postgres/postgresEventRepository.ts:25:20)
+    at async seedData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:90:3)
+    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:116:3)</failure>
+    </testcase>
+    <testcase classname="" name="Test execution failure: could be caused by test hooks like &apos;afterAll&apos;." time="0" file="tests/integration/eventRetrieval.test.ts">
+      <failure>{&quot;message&quot;:&quot;&quot;,&quot;stack&quot;:&quot;Error: connect ECONNREFUSED 127.0.0.1:5432\n    at /import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/node_modules/pg-pool/index.js:45:11\n    at processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async cleanupData (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:99:5)\n    at async Object.&lt;anonymous&gt; (/import/glass/7/z5482705/SENG3011/W18A_CRUNCHY_SENG3011Project/data_apis/tests/integration/eventRetrieval.test.ts:120:3)&quot;}</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

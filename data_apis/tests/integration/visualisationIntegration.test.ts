@@ -1,41 +1,27 @@
 import request from "supertest";
-import {
-  S3Client,
-  PutObjectCommand,
-  CreateBucketCommand,
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-} from "@aws-sdk/client-s3";
 import { loadConfig } from "../../src/config/index";
 import { createApp } from "../../src/http/app";
 import { DynamoJobRepository } from "../../src/infra/aws/dynamoJobRepository";
 import { S3ConfigStore } from "../../src/infra/aws/s3ConfigStore";
 import { SQSQueueService } from "../../src/infra/aws/sqsQueueService";
 import { S3PresignService } from "../../src/infra/aws/s3PresignService";
-import { S3DataLakeReader } from "../../src/infra/aws/s3DataLakeReader";
+import { PostgresEventRepository } from "../../src/infra/postgres/postgresEventRepository";
+import { EventRecord } from "../../src/domain/models/event";
 
 const config = loadConfig();
+const pgRepo = new PostgresEventRepository(config);
 const jobRepo = new DynamoJobRepository(config);
 const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
-const dataLakeReader = new S3DataLakeReader(config, { useS3Select: false });
 
-const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
+const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader: pgRepo });
 
-const s3 = new S3Client({
-  region: config.region,
-  endpoint: config.s3Endpoint,
-  forcePathStyle: true,
-  requestChecksumCalculation: "WHEN_REQUIRED",
-  responseChecksumValidation: "WHEN_REQUIRED",
-});
-
-const HOUSING_DATASET_PREFIX = "datasets/housing_test";
-const ESG_DATASET_PREFIX = "datasets/esg_test";
+const HOUSING_DATASET_ID = "housing_vis_test";
+const ESG_DATASET_ID = "esg_vis_test";
 
 // Housing sale events spanning multiple months and suburbs
-const housingEvents = [
+const housingEvents: EventRecord[] = [
   // April 2024 - Sydney
   {
     event_id: "h-1",
@@ -114,7 +100,7 @@ const housingEvents = [
 ];
 
 // ESG events spanning multiple years and companies
-const esgEvents = [
+const esgEvents: EventRecord[] = [
   // 2020 - CompanyA
   {
     event_id: "e-1",
@@ -207,102 +193,21 @@ const esgEvents = [
   },
 ];
 
-const housingManifest = {
-  dataset_id: "housing_test",
-  data_source: "nsw_valuer",
-  dataset_type: "housing_sales",
-  time_object: { timestamp: new Date().toISOString(), timezone: "UTC" },
-  total_events: housingEvents.length,
-  segments: [`s3://${config.s3DatalakeBucket}/${HOUSING_DATASET_PREFIX}/segment-0.jsonl`],
-  created_at: new Date().toISOString(),
-};
-
-const esgManifest = {
-  dataset_id: "esg_test",
-  data_source: "clarity_ai",
-  dataset_type: "esg_metrics",
-  time_object: { timestamp: new Date().toISOString(), timezone: "UTC" },
-  total_events: esgEvents.length,
-  segments: [`s3://${config.s3DatalakeBucket}/${ESG_DATASET_PREFIX}/segment-0.jsonl`],
-  created_at: new Date().toISOString(),
-};
-
-const housingSegmentBody = housingEvents.map((e) => JSON.stringify(e)).join("\n") + "\n";
-const esgSegmentBody = esgEvents.map((e) => JSON.stringify(e)).join("\n") + "\n";
-
-
-async function ensureBucket() {
-  try {
-    await s3.send(new CreateBucketCommand({ Bucket: config.s3DatalakeBucket }));
-  } catch {
-    // bucket already exists
-  }
-}
-
-async function seedHousingData() {
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${HOUSING_DATASET_PREFIX}/manifest.json`,
-      Body: JSON.stringify(housingManifest),
-      ContentType: "application/json",
-    })
-  );
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${HOUSING_DATASET_PREFIX}/segment-0.jsonl`,
-      Body: housingSegmentBody,
-      ContentType: "application/x-ndjson",
-    })
-  );
-}
-
-async function seedEsgData() {
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${ESG_DATASET_PREFIX}/manifest.json`,
-      Body: JSON.stringify(esgManifest),
-      ContentType: "application/json",
-    })
-  );
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${ESG_DATASET_PREFIX}/segment-0.jsonl`,
-      Body: esgSegmentBody,
-      ContentType: "application/x-ndjson",
-    })
-  );
-}
-
-async function cleanupData() {
-  try {
-    const prefixes = [HOUSING_DATASET_PREFIX, ESG_DATASET_PREFIX];
-    for (const prefix of prefixes) {
-      const list = await s3.send(
-        new ListObjectsV2Command({ Bucket: config.s3DatalakeBucket, Prefix: prefix })
-      );
-      for (const obj of list.Contents ?? []) {
-        await s3.send(
-          new DeleteObjectCommand({ Bucket: config.s3DatalakeBucket, Key: obj.Key! })
-        );
-      }
-    }
-  } catch {
-    // ignore
-  }
-}
-
 beforeAll(async () => {
-  await ensureBucket();
-  await seedHousingData();
-  await seedEsgData();
+  await pgRepo.writeEvents(housingEvents, HOUSING_DATASET_ID);
+  await pgRepo.writeEvents(esgEvents, ESG_DATASET_ID);
 });
 
 afterAll(async () => {
-  await cleanupData();
+  const ids = [
+    ...housingEvents.map((e) => e.event_id),
+    ...esgEvents.map((e) => e.event_id),
+  ];
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: config.pgConnectionString });
+  await pool.query("DELETE FROM events WHERE event_id = ANY($1::text[])", [ids]);
+  await pool.end();
+  await pgRepo.close();
 });
 
 

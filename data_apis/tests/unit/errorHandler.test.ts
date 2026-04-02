@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import request from "supertest";
 import { errorHandler } from "../../src/http/middleware/errorHandler";
+import { logger } from "../../src/infra/logger";
 import {
   ValidationError,
   NotFoundError,
@@ -68,7 +69,7 @@ describe("errorHandler middleware", () => {
   });
 
   it("returns generic 500 for unknown Error (does not leak internals)", async () => {
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+    const loggerSpy = jest.spyOn(logger, "error").mockImplementation(() => logger);
     const app = buildApp((_req, _res, next) => {
       next(new Error("secret database password"));
     });
@@ -77,18 +78,18 @@ describe("errorHandler middleware", () => {
     expect(res.body.error.code).toBe("INTERNAL_ERROR");
     expect(res.body.error.message).toBe("Internal server error");
     expect(res.body.error.message).not.toContain("secret");
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    expect(loggerSpy).toHaveBeenCalled();
+    loggerSpy.mockRestore();
   });
 
   it("returns generic 500 for non-Error thrown values", async () => {
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+    const loggerSpy = jest.spyOn(logger, "error").mockImplementation(() => logger);
     const app = buildApp((_req, _res, next) => {
       next("string error");
     });
 
     const res = await request(app).get("/test").expect(500);
     expect(res.body.error.code).toBe("INTERNAL_ERROR");
-    consoleSpy.mockRestore();
+    loggerSpy.mockRestore();
   });
 });

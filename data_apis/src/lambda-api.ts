@@ -12,7 +12,7 @@ import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
 import { S3ConfigStore } from "./infra/aws/s3ConfigStore.js";
 import { SQSQueueService } from "./infra/aws/sqsQueueService.js";
 import { S3PresignService } from "./infra/aws/s3PresignService.js";
-import { DynamoEventRepository } from "./infra/aws/dynamoEventRepository.js";
+import { PostgresEventRepository } from "./infra/postgres/postgresEventRepository.js";
 
 const config = loadConfig();
 
@@ -21,7 +21,7 @@ const app = createApp({
   configStore: new S3ConfigStore(config),
   queue: new SQSQueueService(config),
   fileUploadService: new S3PresignService(config),
-  dataLakeReader: new DynamoEventRepository(config),
+  dataLakeReader: new PostgresEventRepository(config),
 });
 
 export const handler = serverlessExpress({ app });

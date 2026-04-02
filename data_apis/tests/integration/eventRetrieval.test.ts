@@ -1,44 +1,35 @@
 import request from "supertest";
-import {
-  S3Client,
-  PutObjectCommand,
-  CreateBucketCommand,
-  DeleteObjectCommand,
-  ListObjectsV2Command,
-} from "@aws-sdk/client-s3";
 import { loadConfig } from "../../src/config/index";
 import { createApp } from "../../src/http/app";
 import { DynamoJobRepository } from "../../src/infra/aws/dynamoJobRepository";
 import { S3ConfigStore } from "../../src/infra/aws/s3ConfigStore";
 import { SQSQueueService } from "../../src/infra/aws/sqsQueueService";
 import { S3PresignService } from "../../src/infra/aws/s3PresignService";
-import { S3DataLakeReader } from "../../src/infra/aws/s3DataLakeReader";
+import { PostgresEventRepository } from "../../src/infra/postgres/postgresEventRepository";
+import { EventRecord } from "../../src/domain/models/event";
 
 // --- setup ---
 
 const config = loadConfig();
+const pgRepo = new PostgresEventRepository(config);
 const jobRepo = new DynamoJobRepository(config);
 const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
-// useS3Select: false → uses GetObject + in-memory filter (LocalStack community doesn't support S3 Select)
-const dataLakeReader = new S3DataLakeReader(config, { useS3Select: false });
 
-const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
-
-const s3 = new S3Client({
-  region: config.region,
-  endpoint: config.s3Endpoint,
-  forcePathStyle: true,
-  requestChecksumCalculation: "WHEN_REQUIRED",
-  responseChecksumValidation: "WHEN_REQUIRED",
+const app = createApp({
+  jobRepo,
+  configStore,
+  queue,
+  fileUploadService,
+  dataLakeReader: pgRepo,
 });
 
 // ── Seed data ─────────────────────────────────────────────────
 
-const DATASET_PREFIX = "datasets/esg_test";
+const DATASET_ID = "esg_test_retrieval";
 
-const sampleEvents = [
+const sampleEvents: EventRecord[] = [
   {
     event_id: "evt-001",
     event_type: "esg_metric",
@@ -93,59 +84,21 @@ const sampleEvents = [
   },
 ];
 
-const manifest = {
-  dataset_id: "esg_test",
-  data_source: "test",
-  dataset_type: "esg_metrics",
-  time_object: { timestamp: new Date().toISOString(), timezone: "UTC" },
-  total_events: sampleEvents.length,
-  segments: [`s3://${config.s3DatalakeBucket}/${DATASET_PREFIX}/segment-0.jsonl`],
-  created_at: new Date().toISOString(),
-};
-
-const segmentBody = sampleEvents.map((e) => JSON.stringify(e)).join("\n") + "\n";
-
 // ── Helpers ──────────────────────────────────────────────────
 
-async function ensureBucket() {
-  try {
-    await s3.send(new CreateBucketCommand({ Bucket: config.s3DatalakeBucket }));
-  } catch {
-    // bucket already exists
-  }
-}
-
 async function seedData() {
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${DATASET_PREFIX}/manifest.json`,
-      Body: JSON.stringify(manifest),
-      ContentType: "application/json",
-    })
-  );
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: config.s3DatalakeBucket,
-      Key: `${DATASET_PREFIX}/segment-0.jsonl`,
-      Body: segmentBody,
-      ContentType: "application/x-ndjson",
-    })
-  );
+  await pgRepo.writeEvents(sampleEvents, DATASET_ID);
 }
 
 async function cleanupData() {
+  const ids = sampleEvents.map((e) => e.event_id);
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: config.pgConnectionString });
+
   try {
-    const list = await s3.send(
-      new ListObjectsV2Command({ Bucket: config.s3DatalakeBucket, Prefix: DATASET_PREFIX })
-    );
-    for (const obj of list.Contents ?? []) {
-      await s3.send(
-        new DeleteObjectCommand({ Bucket: config.s3DatalakeBucket, Key: obj.Key! })
-      );
-    }
-  } catch {
-    // ignore
+    await pool.query("DELETE FROM events WHERE event_id = ANY($1::text[])", [ids]);
+  } finally {
+    await pool.end();
   }
 }
 
@@ -160,12 +113,12 @@ async function restoreSeededDataset() {
 // ── Lifecycle ────────────────────────────────────────────────
 
 beforeAll(async () => {
-  await ensureBucket();
   await seedData();
 });
 
 afterAll(async () => {
   await cleanupData();
+  await pgRepo.close();
 });
 
 // ── Tests ────────────────────────────────────────────────────
@@ -201,12 +154,12 @@ describe("GET /api/v1/events/types — integration", () => {
 
   it("returns empty array when no event types exist", async () => {
     await clearSeededDataset();
-  
+
     try {
       const res = await request(app)
         .get("/api/v1/events/types")
         .expect(200);
-  
+
       expect(res.body.event_types).toEqual([]);
     } finally {
       await restoreSeededDataset();
@@ -241,25 +194,25 @@ describe("GET /api/v1/events/stats — integration", () => {
     const res = await request(app)
       .get("/api/v1/events/stats?group_by=suburb")
       .expect(200);
-  
+
     expect(res.body.total_events).toBe(3);
-  
+
     const suburbGroup = res.body.groups.find(
       (g: Record<string, unknown>) => g.key === "Kensington"
     );
-  
+
     expect(suburbGroup).toBeDefined();
     expect(suburbGroup.count).toBe(1);
   });
 
   it("returns empty result when dataset is empty", async () => {
     await clearSeededDataset();
-  
+
     try {
       const res = await request(app)
         .get("/api/v1/events/stats")
         .expect(200);
-  
+
       expect(res.body.total_events).toBe(0);
       expect(res.body.groups).toEqual([]);
     } finally {
@@ -395,7 +348,7 @@ describe("GET /api/v1/events — integration", () => {
     const res = await request(app)
       .get("/api/v1/events?dataset_type=housing&suburb=Kensington&postcode=2033")
       .expect(200);
-  
+
     expect(res.body.events).toHaveLength(1);
     expect(res.body.events[0].event_type).toBe("housing_sale");
     expect(res.body.events[0].attribute.suburb).toBe("Kensington");
