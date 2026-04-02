@@ -184,3 +184,36 @@ jobs:
         if: always()
         run: |
           docker rm -f dynamodb-local localstack 2>/dev/null || true
+
+  # ── Frontend tests (contract + e2e) ────────────────────────────
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reporting_frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Contract tests
+        run: npm run test:contract
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload frontend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-report-${{ github.sha }}
+          path: reporting_frontend/reports/
+          retention-days: 30

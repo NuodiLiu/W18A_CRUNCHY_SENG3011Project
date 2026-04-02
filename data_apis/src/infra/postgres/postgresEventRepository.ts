@@ -23,23 +23,35 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
 
   // ── EventRepository (write) ───────────────────────────────────
 
+  // bulk insert using multi-row VALUES to avoid per-row round trips.
+  // chunks into 2000-row batches to stay within pg parameter limit (65535).
   async writeEvents(events: EventRecord[], datasetId: string): Promise<void> {
     if (events.length === 0) return;
+    const COLS = 5;
+    const CHUNK = 2000;
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      for (const event of events) {
+      for (let i = 0; i < events.length; i += CHUNK) {
+        const slice = events.slice(i, i + CHUNK);
+        const params: unknown[] = [];
+        const valueTuples: string[] = [];
+        for (let j = 0; j < slice.length; j++) {
+          const base = j * COLS;
+          valueTuples.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`);
+          params.push(
+            slice[j].event_id,
+            slice[j].event_type,
+            datasetId,
+            JSON.stringify(slice[j].time_object),
+            JSON.stringify(slice[j].attribute),
+          );
+        }
         await client.query(
           `INSERT INTO events (event_id, event_type, dataset_id, time_object, attribute)
-           VALUES ($1, $2, $3, $4, $5)
+           VALUES ${valueTuples.join(", ")}
            ON CONFLICT (event_id) DO NOTHING`,
-          [
-            event.event_id,
-            event.event_type,
-            datasetId,
-            JSON.stringify(event.time_object),
-            JSON.stringify(event.attribute),
-          ],
+          params,
         );
       }
       await client.query("COMMIT");

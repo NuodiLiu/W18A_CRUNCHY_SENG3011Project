@@ -24,8 +24,44 @@ env:
   FRONTEND_BUCKET: eia-dev-frontend
 
 jobs:
+  # ── Run frontend tests before deploying ────────────────────────
+  test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reporting_frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Contract tests
+        run: npm run test:contract
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload frontend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-report-${{ github.sha }}
+          path: reporting_frontend/reports/
+          retention-days: 30
+
+  # ── Deploy to S3 + CloudFront ──────────────────────────────────
   deploy:
     name: Deploy Frontend to S3 + CloudFront
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -43,14 +79,25 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --delete \
             --cache-control "max-age=86400" \
-            --exclude "*.html"
+            --exclude "*.html" \
+            --exclude "node_modules/*" \
+            --exclude "tests/*" \
+            --exclude "package.json" \
+            --exclude "package-lock.json" \
+            --exclude "vitest.config.js" \
+            --exclude "playwright.config.js" \
+            --exclude "playwright-report/*" \
+            --exclude "reports/*" \
+            --exclude ".gitignore"
 
           # HTML files: no cache so users always get latest
           aws s3 sync reporting_frontend/ s3://${{ env.FRONTEND_BUCKET }}/ \
             --region ${{ env.AWS_REGION }} \
             --delete \
             --cache-control "no-cache, no-store, must-revalidate" \
-            --include "*.html"
+            --include "*.html" \
+            --exclude "node_modules/*" \
+            --exclude "tests/*"
 
       - name: Invalidate CloudFront cache
         run: |
