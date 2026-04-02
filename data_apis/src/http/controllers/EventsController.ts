@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { Controller, Get, Route, Tags, Path, Query, Response, SuccessResponse } from "tsoa";
+import { Controller, Get, Route, Tags, Path, Query, Response, SuccessResponse, Delete } from "tsoa";
 import { NotFoundError } from "../../domain/errors.js";
 import {
   EventListResponse,
@@ -11,6 +11,7 @@ import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 import { getEvents } from "../../application/retrieval/getEvents.js";
 import { getEventById } from "../../application/retrieval/getEventById.js";
+import { deleteEvent } from "../../application/retrieval/deleteEvent.js";
 import { getEventStats } from "../../application/retrieval/getEventStats.js";
 import { toEventListResponse, toEventRecordResponseAuto } from "../mappers/eventsMapper.js";
 
@@ -115,5 +116,22 @@ export class EventsController extends Controller {
       throw new NotFoundError("Event", eventId);
     }
     return toEventRecordResponseAuto(event);
+  }
+
+  /**
+   * Deletes an event by its unique identifier.
+   * Returns 204 No Content if the event was deleted, or 404 if not found.
+   */
+  @Delete("{eventId}")
+  @SuccessResponse(204, "Event deleted")
+  @Response<ErrorBody>(404, "Event not found")
+  public async deleteEvent(
+    @Path() eventId: string
+  ): Promise<void> {
+    const deleted = await deleteEvent(eventId, this.deps);
+    if (!deleted) {
+      throw new NotFoundError("Event", eventId);
+    }
+    this.setStatus(204);
   }
 }
