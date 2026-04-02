@@ -1,7 +1,7 @@
 import { GetObjectCommand, ListObjectsV2Command, SelectObjectContentCommand, S3Client } from "@aws-sdk/client-s3";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
-import { DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
+import { AggRow, DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 
 interface ManifestJson {
   dataset_id: string;
@@ -391,6 +391,10 @@ export class S3DataLakeReader implements DataLakeReader {
     }
     return JSON.parse(body) as T;
   }
+
+  // not supported for S3-backed reader; use PostgresEventRepository instead
+  async aggregateByDimension(): Promise<AggRow[]> { return []; }
+  async aggregateByTimePeriod(): Promise<AggRow[]> { return []; }
 
   private getKeyFromS3Uri(uri: string): string {
     const prefix = `s3://${this.bucket}/`;
