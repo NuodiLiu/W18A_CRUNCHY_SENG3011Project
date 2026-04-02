@@ -388,26 +388,39 @@ describe("GET /api/v1/events — integration", () => {
 
 describe("DELETE /api/v1/events/:eventId — integration", () => {
   it("deletes an existing event", async () => {
+    // Create a temporary event specifically for this test
+    const tempEvent: EventRecord = {
+      event_id: "evt-delete-test",
+      event_type: "esg_metric",
+      time_object: { timestamp: "2024-01-15T00:00:00Z", timezone: "UTC" },
+      attribute: {
+        company_name: "DeleteTestCorp",
+        permid: "P99999",
+        metric_name: "test_metric",
+        pillar: "Environmental",
+        metric_year: 2024,
+        industry: "Technology",
+        value: 1.0,
+      },
+    };
+
+    // Seed only this test event
+    await pgRepo.writeEvents([tempEvent], DATASET_ID);
+
     // First verify the event exists
     await request(app)
-      .get("/api/v1/events/evt-001")
+      .get("/api/v1/events/evt-delete-test")
       .expect(200);
 
     // Delete the event
     await request(app)
-      .delete("/api/v1/events/evt-001")
+      .delete("/api/v1/events/evt-delete-test")
       .expect(204);
 
     // Verify the event is gone
     await request(app)
-      .get("/api/v1/events/evt-001")
+      .get("/api/v1/events/evt-delete-test")
       .expect(404);
-
-    // Restore the event for subsequent tests
-    const eventToRestore = sampleEvents.find((e) => e.event_id === "evt-001");
-    if (eventToRestore) {
-      await pgRepo.writeEvents([eventToRestore], DATASET_ID);
-    }
   });
 
   it("returns 404 for non-existent event ID", async () => {
