@@ -402,6 +402,12 @@ describe("DELETE /api/v1/events/:eventId — integration", () => {
     await request(app)
       .get("/api/v1/events/evt-001")
       .expect(404);
+
+    // Restore the event for subsequent tests
+    const eventToRestore = sampleEvents.find((e) => e.event_id === "evt-001");
+    if (eventToRestore) {
+      await pgRepo.writeEvents([eventToRestore], DATASET_ID);
+    }
   });
 
   it("returns 404 for non-existent event ID", async () => {
