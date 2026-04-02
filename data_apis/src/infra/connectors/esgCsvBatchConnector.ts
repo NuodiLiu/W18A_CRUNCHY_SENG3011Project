@@ -4,7 +4,7 @@ import {
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { parse as csvParse } from "csv-parse";
-import { Readable } from "node:stream";
+import { Readable, Transform, TransformCallback } from "node:stream";
 import {
   Connector,
   FetchOptions,
@@ -51,8 +51,8 @@ export class EsgCsvBatchConnector implements Connector {
 
     for (const objKey of filteredKeys) {
       const { bucket, key } = this.parseS3Uri(objKey);
-      if (options?.startByte != null && options.startByte > 0) {
-        await this.streamChunk(bucket, key, objKey, delimiter, hasHeader, onBatch, options.startByte, options.endByte);
+      if (options?.endByte != null) {
+        await this.streamChunk(bucket, key, objKey, delimiter, hasHeader, onBatch, options.startByte ?? 0, options.endByte);
       } else {
         await this.streamFull(bucket, key, objKey, delimiter, hasHeader, onBatch);
       }
@@ -98,7 +98,7 @@ export class EsgCsvBatchConnector implements Connector {
     throw new UnprocessableError("source_spec must provide either s3_uris or s3_prefix");
   }
 
-  // stream an entire S3 CSV object from the beginning
+  // stream an entire S3 CSV object
   private async streamFull(
     bucket: string,
     key: string,
@@ -122,9 +122,10 @@ export class EsgCsvBatchConnector implements Connector {
     await this.consumeParser(parser, objKey, onBatch);
   }
 
-  // stream a byte-range chunk of an S3 CSV object.
-  // fetches the header row separately then reads data from startByte.
-  // reads past endByte until the current CSV row completes (row-boundary alignment).
+  // stream a byte-range chunk. fully streaming — no buffering the whole chunk.
+  // 1. fetches header (first 8KB) to get column names
+  // 2. streams from startByte, skipping the first partial row
+  // 3. stops after endByte at the next row boundary
   private async streamChunk(
     bucket: string,
     key: string,
@@ -135,7 +136,7 @@ export class EsgCsvBatchConnector implements Connector {
     startByte: number,
     endByte?: number,
   ): Promise<void> {
-    // get the header row from the start of the file
+    // get the header row
     let headerLine: string | undefined;
     if (hasHeader) {
       const headRes = await this.s3.send(
@@ -146,41 +147,17 @@ export class EsgCsvBatchConnector implements Connector {
       headerLine = buf.subarray(0, nl >= 0 ? nl : buf.length).toString("utf-8").trim();
     }
 
-    // fetch the data chunk. read a bit past endByte to capture the last partial row.
-    const overshoot = endByte ? endByte + 10_000 : undefined;
-    const range = overshoot ? `bytes=${startByte}-${overshoot}` : `bytes=${startByte}-`;
+    // stream the chunk data with overshoot to capture the last partial row
+    const rangeEnd = endByte ? endByte + 10_000 : undefined;
+    const range = rangeEnd ? `bytes=${startByte}-${rangeEnd}` : `bytes=${startByte}-`;
     const res = await this.s3.send(
       new GetObjectCommand({ Bucket: bucket, Key: key, Range: range })
     );
 
-    const rawBuf = await streamToBuffer(res.Body as Readable);
-
-    // trim: find the first newline (skip partial leading row) and last newline
-    let dataStart = 0;
-    if (startByte > 0) {
-      // the chunk may start mid-row; skip to the first complete row
-      const firstNl = rawBuf.indexOf(0x0a);
-      if (firstNl >= 0) dataStart = firstNl + 1;
-    }
-
-    let dataEnd = rawBuf.length;
-    if (endByte && overshoot) {
-      // find the last newline within the original endByte boundary + overshoot
-      // to get a complete row
-      const targetLen = endByte - startByte;
-      // find the first newline at or after the target boundary
-      const searchStart = Math.max(targetLen, 0);
-      const nlAfterTarget = rawBuf.indexOf(0x0a, searchStart);
-      if (nlAfterTarget >= 0) dataEnd = nlAfterTarget + 1;
-    }
-
-    const dataSlice = rawBuf.subarray(dataStart, dataEnd);
-    if (dataSlice.length === 0) return;
-
-    // prepend header and parse
-    const csvInput = headerLine
-      ? Buffer.concat([Buffer.from(headerLine + "\n"), dataSlice])
-      : dataSlice;
+    // transform stream: skip leading partial row (or header row for chunk 0), stop at endByte boundary
+    const skipLeading = hasHeader || startByte > 0;
+    const chunkBytesTarget = endByte ? endByte - startByte : undefined;
+    const trimmer = new ChunkTrimmer(skipLeading, chunkBytesTarget);
 
     const parser = csvParse({
       delimiter,
@@ -189,12 +166,17 @@ export class EsgCsvBatchConnector implements Connector {
       relax_column_count: true,
     });
 
-    const stream = Readable.from(csvInput);
-    stream.pipe(parser);
+    // pipe: prepend header -> trim boundaries -> csv parse
+    if (headerLine) {
+      const headerBuf = Buffer.from(headerLine + "\n");
+      // push header directly into parser, then pipe trimmed data
+      parser.write(headerBuf);
+    }
+
+    (res.Body as Readable).pipe(trimmer).pipe(parser);
     await this.consumeParser(parser, objKey, onBatch);
   }
 
-  // consume csv-parse output in batches
   private async consumeParser(
     parser: AsyncIterable<Record<string, string>>,
     objKey: string,
@@ -222,6 +204,78 @@ export class EsgCsvBatchConnector implements Connector {
     const match = uri.match(/^s3:\/\/([^/]+)\/(.+)$/);
     if (!match) throw new Error(`Invalid S3 URI: ${uri}`);
     return { bucket: match[1], key: match[2] };
+  }
+}
+
+// streaming transform that handles chunk boundary alignment:
+// - if skipLeadingPartial is true, drops bytes until the first newline
+// - after bytesTarget bytes have passed, emits up to the next newline then ends
+class ChunkTrimmer extends Transform {
+  private skippedLeading: boolean;
+  private bytesEmitted = 0;
+  private readonly skipLeading: boolean;
+  private readonly target: number | undefined;
+  private done = false;
+
+  constructor(skipLeadingPartial: boolean, bytesTarget?: number) {
+    super();
+    this.skipLeading = skipLeadingPartial;
+    this.skippedLeading = !skipLeadingPartial;
+    this.target = bytesTarget;
+  }
+
+  _transform(chunk: Buffer, _encoding: string, cb: TransformCallback) {
+    if (this.done) { cb(); return; }
+
+    let data = chunk;
+
+    // skip the leading partial row
+    if (!this.skippedLeading) {
+      const nl = data.indexOf(0x0a);
+      if (nl < 0) { cb(); return; } // entire chunk is part of the partial row
+      data = data.subarray(nl + 1);
+      this.skippedLeading = true;
+    }
+
+    // if no target, emit everything
+    if (this.target == null) {
+      this.push(data);
+      cb();
+      return;
+    }
+
+    // check if we've passed the target boundary
+    const remaining = this.target - this.bytesEmitted;
+    if (remaining <= 0) {
+      // already past target, find the next newline and stop
+      const nl = data.indexOf(0x0a);
+      if (nl >= 0) {
+        this.push(data.subarray(0, nl + 1));
+        this.done = true;
+      }
+      // else: no newline yet, keep going to find one
+      cb();
+      return;
+    }
+
+    if (data.length <= remaining) {
+      this.push(data);
+      this.bytesEmitted += data.length;
+      cb();
+      return;
+    }
+
+    // this chunk crosses the target boundary
+    // emit up to target, then find the next newline
+    const nl = data.indexOf(0x0a, remaining);
+    if (nl >= 0) {
+      this.push(data.subarray(0, nl + 1));
+      this.done = true;
+    } else {
+      this.push(data);
+      this.bytesEmitted += data.length;
+    }
+    cb();
   }
 }
 
