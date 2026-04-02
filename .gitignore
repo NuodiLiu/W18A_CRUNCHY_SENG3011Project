@@ -7,3 +7,4 @@ coverage/
 .DS_Store
 localstack-data/
 data_apis/tmp/
+data_apis/reports/
