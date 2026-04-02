@@ -52,7 +52,7 @@ const fakeHousingEvents = [
   },
 ];
 
-const fakeEsgEvents = [
+const _fakeEsgEvents = [
   {
     event_id: "c-e1",
     time_object: { timestamp: "2021-01-01T00:00:00Z", timezone: "UTC" },
@@ -94,6 +94,7 @@ function buildApp(events = fakeHousingEvents) {
     dataLakeReader: {
       queryEvents: jest.fn().mockResolvedValue({ events, total: events.length }),
       findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn().mockResolvedValue(["housing_sale"]),
       getGroupProjection: jest.fn().mockResolvedValue(events),
       readDataset: jest.fn().mockResolvedValue(undefined),

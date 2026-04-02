@@ -54,6 +54,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "period": {"dataType":"string","required":true},
             "value": {"dataType":"double","required":true},
+            "count": {"dataType":"double","required":true},
             "series": {"dataType":"string"},
         },
         "additionalProperties": true,
@@ -65,6 +66,8 @@ const models: TsoaRoute.Models = {
             "metric": {"dataType":"string","required":true},
             "aggregation": {"dataType":"string","required":true},
             "event_type": {"dataType":"string","required":true},
+            "time_period": {"dataType":"string","required":true},
+            "dimension": {"dataType":"string"},
             "data": {"dataType":"array","array":{"dataType":"refObject","ref":"TimeSeriesDataPoint"},"required":true},
         },
         "additionalProperties": true,
@@ -745,6 +748,41 @@ export function RegisterRoutes(app: Router) {
                 next,
                 validatedArgs,
                 successStatus: 200,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsEventsController_deleteEvent: Record<string, TsoaRoute.ParameterSchema> = {
+                eventId: {"in":"path","name":"eventId","required":true,"dataType":"string"},
+        };
+        app.delete('/api/v1/events/:eventId',
+            ...(fetchMiddlewares<RequestHandler>(EventsController)),
+            ...(fetchMiddlewares<RequestHandler>(EventsController.prototype.deleteEvent)),
+
+            async function EventsController_deleteEvent(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsEventsController_deleteEvent, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<EventsController>(EventsController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'deleteEvent',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 204,
               });
             } catch (err) {
                 return next(err);

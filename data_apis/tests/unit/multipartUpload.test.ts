@@ -49,6 +49,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
     dataLakeReader: {
       queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
       findEventById: jest.fn().mockResolvedValue(undefined),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn().mockResolvedValue([]),
       getGroupProjection: jest.fn().mockResolvedValue([]),
       readDataset: jest.fn(),

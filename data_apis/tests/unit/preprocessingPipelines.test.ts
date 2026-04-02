@@ -47,6 +47,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
     dataLakeReader: {
       queryEvents: jest.fn(),
       findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),

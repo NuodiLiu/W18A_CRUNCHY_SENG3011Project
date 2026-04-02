@@ -104,6 +104,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findEventById: jest.fn().mockImplementation((id: string) =>
         Promise.resolve(fakeHousingEvents.find((e: { event_id: string }) => e.event_id === id))
       ),
+      deleteEvent: jest.fn().mockResolvedValue(true),
       getDistinctEventTypes: jest.fn().mockResolvedValue([...new Set(fakeHousingEvents.map((e: { event_type: string }) => e.event_type))]),
       getGroupProjection: jest.fn().mockResolvedValue(
         fakeHousingEvents.map((e) => ({ event_type: e.event_type, attribute: e.attribute }))

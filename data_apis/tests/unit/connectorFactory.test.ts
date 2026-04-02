@@ -1,3 +1,4 @@
+
 import { createConnector } from "../../src/infra/connectors/connectorFactory";
 import { EsgCsvBatchConnector } from "../../src/infra/connectors/esgCsvBatchConnector";
 import { AppConfig } from "../../src/config/index";
