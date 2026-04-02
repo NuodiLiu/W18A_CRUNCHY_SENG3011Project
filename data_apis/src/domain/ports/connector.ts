@@ -11,6 +11,11 @@ export interface RawRecord {
   row_number: number;
 }
 
+export interface FetchOptions {
+  // number of csv rows to skip from the start (for resuming after timeout)
+  skipRows?: number;
+}
+
 export interface Connector {
   /**
    * Streams records from the source in batches, calling `onBatch` for each.
@@ -19,6 +24,7 @@ export interface Connector {
   fetchIncremental(
     sourceSpec: SourceSpec,
     prevState: ConnectorState | undefined,
-    onBatch: (batch: RawRecord[]) => Promise<void>
+    onBatch: (batch: RawRecord[]) => Promise<void>,
+    options?: FetchOptions,
   ): Promise<Partial<ConnectorState>>;
 }

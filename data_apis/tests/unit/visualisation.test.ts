@@ -137,6 +137,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findById: jest.fn(),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
+      updateCheckpoint: jest.fn(),
     },
     configStore: {
       putConfig: jest.fn(),

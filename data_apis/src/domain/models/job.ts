@@ -21,4 +21,7 @@ export interface JobRecord {
   pipeline_params?: Record<string, unknown>;
   /** Preprocessing-only: quality report (populated on DONE). */
   quality_report?: Record<string, unknown>;
+  // checkpoint for resumable ingestion after lambda timeout
+  rows_processed?: number;
+  segments_written?: number;
 }
