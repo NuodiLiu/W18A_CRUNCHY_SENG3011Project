@@ -8,3 +8,6 @@ coverage/
 localstack-data/
 data_apis/tmp/
 data_apis/reports/
+reporting_frontend/reports/
+reporting_frontend/playwright-report/
+reporting_frontend/test-results/

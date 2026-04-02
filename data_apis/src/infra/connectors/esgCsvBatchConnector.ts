@@ -14,8 +14,9 @@ import { SourceSpec } from "../../domain/models/jobConfig.js";
 import { AppConfig } from "../../config/index.js";
 import { UnprocessableError } from "../../domain/errors.js";
 
-// Number of CSV rows yielded per batch to the caller.
-const BATCH_SIZE = 5_000;
+// rows per batch yielded to the caller. larger batches reduce s3 round trips
+// and allow the bulk pg insert to amortise overhead across more rows.
+const BATCH_SIZE = 10_000;
 
 export class EsgCsvBatchConnector implements Connector {
   private readonly s3: S3Client;
