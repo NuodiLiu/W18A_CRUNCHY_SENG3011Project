@@ -346,3 +346,28 @@ describe("GET /api/v1/events — integration", () => {
     expect(res.body.events).toEqual([]);
   });
 });
+
+describe("DELETE /api/v1/events/:eventId — integration", () => {
+  it("deletes an existing event", async () => {
+    // First verify the event exists
+    await request(app)
+      .get("/api/v1/events/evt-001")
+      .expect(200);
+
+    // Delete the event
+    await request(app)
+      .delete("/api/v1/events/evt-001")
+      .expect(204);
+
+    // Verify the event is gone
+    await request(app)
+      .get("/api/v1/events/evt-001")
+      .expect(404);
+  });
+
+  it("returns 404 for non-existent event ID", async () => {
+    await request(app)
+      .delete("/api/v1/events/evt-nonexistent")
+      .expect(404);
+  });
+});
