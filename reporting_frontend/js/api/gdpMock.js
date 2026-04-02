@@ -1,0 +1,42 @@
+// australia gdp in billions usd from 1990 to 2024
+const GDP_DATA = [
+  { year: "1990", value: 311.84 },
+  { year: "1991", value: 326.42 },
+  { year: "1992", value: 325.98 },
+  { year: "1993", value: 312.57 },
+  { year: "1994", value: 323.27 },
+  { year: "1995", value: 368.73 },
+  { year: "1996", value: 401.96 },
+  { year: "1997", value: 436.32 },
+  { year: "1998", value: 400.36 },
+  { year: "1999", value: 390.35 },
+  { year: "2000", value: 416.90 },
+  { year: "2001", value: 380.36 },
+  { year: "2002", value: 396.44 },
+  { year: "2003", value: 468.52 },
+  { year: "2004", value: 615.64 },
+  { year: "2005", value: 696.81 },
+  { year: "2006", value: 749.71 },
+  { year: "2007", value: 856.60 },
+  { year: "2008", value: 1058.45 },
+  { year: "2009", value: 931.76 },
+  { year: "2010", value: 1152.57 },
+  { year: "2011", value: 1402.94 },
+  { year: "2012", value: 1552.73 },
+  { year: "2013", value: 1583.74 },
+  { year: "2014", value: 1474.68 },
+  { year: "2015", value: 1356.81 },
+  { year: "2016", value: 1211.59 },
+  { year: "2017", value: 1330.89 },
+  { year: "2018", value: 1433.14 },
+  { year: "2019", value: 1398.35 },
+  { year: "2020", value: 1333.34 },
+  { year: "2021", value: 1560.62 },
+  { year: "2022", value: 1695.63 },
+  { year: "2023", value: 1734.45 },
+  { year: "2024", value: 1757.02 },
+];
+
+export function fetchGdpData() {
+  return GDP_DATA;
+}
