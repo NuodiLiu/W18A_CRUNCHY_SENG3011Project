@@ -96,7 +96,7 @@ export async function getBreakdown(
 
   // Sort by value descending and limit
   entries.sort((a, b) => b.value - a.value);
-  const limited = entries.slice(0, limit);
+  const limited = limit < 0 ? [] : entries.slice(0, limit);
 
   return {
     dimension,

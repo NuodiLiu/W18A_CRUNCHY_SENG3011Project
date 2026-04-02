@@ -716,6 +716,213 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
   });
 });
 
+describe("GET /api/v1/visualisation/timeseries — empty dataset", () => {
+  const EMPTY_DATASET_ID = "empty_vis_test";
+
+  beforeAll(async () => {
+    // Seed an empty dataset (no events)
+    await pgRepo.writeEvents([], EMPTY_DATASET_ID);
+  });
+
+  it("returns 200 with empty data array when no events exist for event_type", async () => {
+    const res = await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({ event_type: "nonexistent_event_type" })
+      .expect(200);
+
+    expect(res.body.data).toEqual([]);
+    expect(res.body.event_type).toBe("nonexistent_event_type");
+  });
+});
+
+describe("LocalStack boundary conditions", () => {
+  const LARGE_DATASET_ID = "large_vis_test";
+  const SPECIAL_CHARS_DATASET_ID = "special_chars_vis_test";
+
+  // Generate 100+ events for large dataset test
+  const largeDataset: EventRecord[] = Array.from({ length: 120 }, (_, i) => ({
+    event_id: `large-${i}`,
+    event_type: "housing_sale",
+    time_object: {
+      timestamp: `2024-${String(Math.floor(i / 30) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}T00:00:00Z`,
+      timezone: "UTC",
+    },
+    attribute: {
+      property_id: `PROP-LARGE-${i}`,
+      suburb: i % 3 === 0 ? "Sydney" : i % 3 === 1 ? "Parramatta" : "Chatswood",
+      postcode: 2000 + (i % 10),
+      purchase_price: 1000000 + i * 10000,
+      area: 80 + (i % 50),
+      zoning: i % 2 === 0 ? "R1" : "R2",
+      contract_date: `2024-${String(Math.floor(i / 30) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}`,
+    },
+  }));
+
+  // Events with special characters in attribute values
+  const specialCharsEvents: EventRecord[] = [
+    {
+      event_id: "special-1",
+      event_type: "housing_sale",
+      time_object: { timestamp: "2024-07-01T00:00:00Z", timezone: "UTC" },
+      attribute: {
+        property_id: "PROP-SPECIAL-1",
+        suburb: "O'Connor",
+        postcode: 2602,
+        purchase_price: 850000,
+        area: 95,
+        zoning: "R1",
+        contract_date: "2024-07-01",
+      },
+    },
+    {
+      event_id: "special-2",
+      event_type: "housing_sale",
+      time_object: { timestamp: "2024-07-02T00:00:00Z", timezone: "UTC" },
+      attribute: {
+        property_id: "PROP-SPECIAL-2",
+        suburb: "Smith & Jones Bay",
+        postcode: 2011,
+        purchase_price: 2500000,
+        area: 200,
+        zoning: "R1",
+        contract_date: "2024-07-02",
+      },
+    },
+    {
+      event_id: "special-3",
+      event_type: "housing_sale",
+      time_object: { timestamp: "2024-07-03T00:00:00Z", timezone: "UTC" },
+      attribute: {
+        property_id: "PROP-SPECIAL-3",
+        suburb: "Surry Hills (East)",
+        postcode: 2010,
+        purchase_price: 1800000,
+        area: 120,
+        zoning: "R2",
+        contract_date: "2024-07-03",
+      },
+    },
+  ];
+
+  beforeAll(async () => {
+    await pgRepo.writeEvents(largeDataset, LARGE_DATASET_ID);
+    await pgRepo.writeEvents(specialCharsEvents, SPECIAL_CHARS_DATASET_ID);
+  });
+
+  afterAll(async () => {
+    const ids = [
+      ...largeDataset.map((e) => e.event_id),
+      ...specialCharsEvents.map((e) => e.event_id),
+    ];
+    const { Pool } = await import("pg");
+    const pool = new Pool({ connectionString: config.pgConnectionString });
+    await pool.query("DELETE FROM events WHERE event_id = ANY($1::text[])", [ids]);
+    await pool.end();
+  });
+
+  it("handles large dataset (100+ events) without truncating results", async () => {
+    const breakdownRes = await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({ event_type: "housing_sale", dimension: "suburb", limit: 100 })
+      .expect(200);
+
+    // Calculate expected counts
+    const sydneyCount = largeDataset.filter((e) => e.attribute.suburb === "Sydney").length;
+    const parramattaCount = largeDataset.filter((e) => e.attribute.suburb === "Parramatta").length;
+    const chatswoodCount = largeDataset.filter((e) => e.attribute.suburb === "Chatswood").length;
+
+    // Verify all suburbs are present and counts are correct
+    // Note: counts will include events from other tests, so we check >= expected
+    const sydneyEntry = breakdownRes.body.entries.find(
+      (e: { category: string }) => e.category === "Sydney"
+    );
+    const parramattaEntry = breakdownRes.body.entries.find(
+      (e: { category: string }) => e.category === "Parramatta"
+    );
+    const chatswoodEntry = breakdownRes.body.entries.find(
+      (e: { category: string }) => e.category === "Chatswood"
+    );
+
+    expect(sydneyEntry).toBeDefined();
+    expect(sydneyEntry.count).toBeGreaterThanOrEqual(sydneyCount);
+    expect(parramattaEntry).toBeDefined();
+    expect(parramattaEntry.count).toBeGreaterThanOrEqual(parramattaCount);
+    expect(chatswoodEntry).toBeDefined();
+    expect(chatswoodEntry.count).toBeGreaterThanOrEqual(chatswoodCount);
+
+    // Timeseries should also handle large datasets
+    const timeseriesRes = await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({ event_type: "housing_sale", time_period: "month" })
+      .expect(200);
+
+    // Should have multiple months of data
+    expect(timeseriesRes.body.data.length).toBeGreaterThan(0);
+
+    // Verify total count across all periods matches our dataset size
+    const totalCount = timeseriesRes.body.data.reduce(
+      (sum: number, d: { value: number }) => sum + d.value,
+      0
+    );
+    // Total should include large dataset + other test events
+    expect(totalCount).toBeGreaterThanOrEqual(120);
+  });
+
+  it("handles special characters in attribute values without mangling", async () => {
+    const res = await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({ event_type: "housing_sale", dimension: "suburb", limit: 50 })
+      .expect(200);
+
+    // Check that suburbs with special characters are present and correctly stored
+    const oconnorEntry = res.body.entries.find(
+      (e: { category: string }) => e.category === "O'Connor"
+    );
+    const smithJonesEntry = res.body.entries.find(
+      (e: { category: string }) => e.category === "Smith & Jones Bay"
+    );
+    const surryHillsEntry = res.body.entries.find(
+      (e: { category: string }) => e.category === "Surry Hills (East)"
+    );
+
+    expect(oconnorEntry).toBeDefined();
+    expect(oconnorEntry.category).toBe("O'Connor");
+
+    expect(smithJonesEntry).toBeDefined();
+    expect(smithJonesEntry.category).toBe("Smith & Jones Bay");
+
+    expect(surryHillsEntry).toBeDefined();
+    expect(surryHillsEntry.category).toBe("Surry Hills (East)");
+  });
+
+  it("aggregates data correctly with special characters in dimension grouping", async () => {
+    const res = await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({
+        event_type: "housing_sale",
+        dimension: "suburb",
+        time_period: "month",
+      })
+      .expect(200);
+
+    // Filter to July 2024 where our special character events are
+    const july2024Entries = res.body.data.filter(
+      (d: { period: string }) => d.period === "2024-07"
+    );
+
+    // Should have entries for our special character suburbs
+    const oconnorEntry = july2024Entries.find(
+      (d: { series?: string }) => d.series === "O'Connor"
+    );
+    const smithJonesEntry = july2024Entries.find(
+      (d: { series?: string }) => d.series === "Smith & Jones Bay"
+    );
+
+    expect(oconnorEntry).toBeDefined();
+    expect(smithJonesEntry).toBeDefined();
+  });
+});
+
 describe("Visualisation endpoints — combined scenarios", () => {
   it("can generate a dashboard with breakdown and timeseries together", async () => {
     // Get current breakdown
