@@ -17,5 +17,5 @@ module.exports = {
     "@typescript-eslint/no-explicit-any": "warn",
     "no-console": "warn",
   },
-  ignorePatterns: ["dist/", "node_modules/", "coverage/", "jest.config.ts"],
+  ignorePatterns: ["dist/", "dist-lambda/", "node_modules/", "coverage/", "jest.config.ts"],
 };

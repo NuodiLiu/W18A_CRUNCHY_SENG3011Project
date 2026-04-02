@@ -97,12 +97,12 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     return res.rows[0] ? rowToRecord(res.rows[0]) : undefined;
   }
 
-  async deleteEvent(eventId: string): Promise<boolean> {
+  async deleteEvent(_eventId: string): Promise<boolean> {
     // const res = await this.pool.query(
     //   "DELETE FROM events WHERE event_id = $1",
-    //   [eventId],
+    //   [_eventId],
     // );
-    // return (res.rowCount ?? 0) > 0;、
+    // return (res.rowCount ?? 0) > 0;
     return true;
   }
 

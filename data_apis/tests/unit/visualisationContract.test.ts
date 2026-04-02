@@ -52,7 +52,7 @@ const fakeHousingEvents = [
   },
 ];
 
-const fakeEsgEvents = [
+const _fakeEsgEvents = [
   {
     event_id: "c-e1",
     time_object: { timestamp: "2021-01-01T00:00:00Z", timezone: "UTC" },
