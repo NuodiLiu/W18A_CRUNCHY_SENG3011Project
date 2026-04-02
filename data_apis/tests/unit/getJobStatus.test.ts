@@ -18,6 +18,7 @@ function makeDeps(job: JobRecord | undefined): GetJobStatusDeps {
       findById: jest.fn().mockResolvedValue(job),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
+      updateCheckpoint: jest.fn(),
     },
   };
 }

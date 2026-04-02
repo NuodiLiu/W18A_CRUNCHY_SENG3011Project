@@ -30,6 +30,7 @@ export interface EventQueryResult {
 export interface DataLakeReader {
   queryEvents(query: EventQuery): Promise<EventQueryResult>;
   findEventById(eventId: string): Promise<EventRecord | undefined>;
+  deleteEvent(eventId: string): Promise<boolean>;
   getDistinctEventTypes(): Promise<string[]>;
   /** Project only the fields needed for aggregation (avoids full record transfer).
    *  Pass eventType to push the filter down to the data source and avoid a full scan. */

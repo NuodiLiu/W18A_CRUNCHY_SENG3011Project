@@ -21,6 +21,7 @@ function makeEventByIdDeps(event: typeof fakeEvent | undefined): GetEventByIdDep
     dataLakeReader: {
       queryEvents: jest.fn(),
       findEventById: jest.fn().mockResolvedValue(event),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),
@@ -33,6 +34,7 @@ function makeGetEventsDeps(events: typeof fakeEvent[], total: number): GetEvents
     dataLakeReader: {
       queryEvents: jest.fn().mockResolvedValue({ events, total }),
       findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),
@@ -45,6 +47,7 @@ function makeStatsDeps(rows: Record<string, unknown>[]): GetEventStatsDeps {
     dataLakeReader: {
       queryEvents: jest.fn(),
       findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn().mockResolvedValue(rows),
       readDataset: jest.fn(),
@@ -79,6 +82,7 @@ describe("getEventById", () => {
       dataLakeReader: {
         queryEvents: jest.fn(),
         findEventById: jest.fn().mockRejectedValue(new Error("reader failed")),
+      deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn(),
         getGroupProjection: jest.fn(),
         readDataset: jest.fn(),
@@ -130,6 +134,7 @@ describe("getEvents", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockRejectedValue(new Error("reader failed")),
         findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn(),
         getGroupProjection: jest.fn(),
         readDataset: jest.fn(),
@@ -269,6 +274,7 @@ describe("getEventStats", () => {
       dataLakeReader: {
         queryEvents: jest.fn(),
         findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn(),
         getGroupProjection: jest.fn().mockRejectedValue(new Error("reader failed")),
         readDataset: jest.fn(),

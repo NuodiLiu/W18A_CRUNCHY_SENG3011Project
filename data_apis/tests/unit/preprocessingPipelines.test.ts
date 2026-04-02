@@ -32,6 +32,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findById: jest.fn().mockResolvedValue(fakePreprocessJob),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
+      updateCheckpoint: jest.fn(),
     },
     configStore: { putConfig: jest.fn(), getConfig: jest.fn() },
     queue: {
@@ -47,6 +48,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
     dataLakeReader: {
       queryEvents: jest.fn(),
       findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),

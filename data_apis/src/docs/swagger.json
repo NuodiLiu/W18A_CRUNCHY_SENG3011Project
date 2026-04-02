@@ -79,7 +79,7 @@
 				]
 			},
 			"TimeSeriesDataPoint": {
-				"description": "HTTP response types for visualisation endpoints.\nThese are consumed by frontend charting libraries or other services.",
+				"description": "HTTP response types for visualisation endpoints.\nThese are consumed by frontend charting libraries or other services.\nDomain types (dimensions, metrics, aggregation) live in domain/models/aggregation.ts.",
 				"properties": {
 					"period": {
 						"type": "string",
@@ -90,6 +90,11 @@
 						"format": "double",
 						"description": "Aggregated value for this period"
 					},
+					"count": {
+						"type": "number",
+						"format": "double",
+						"description": "Number of events in this period"
+					},
 					"series": {
 						"type": "string",
 						"description": "Series identifier when using group_by (e.g., suburb name, pillar)"
@@ -97,7 +102,8 @@
 				},
 				"required": [
 					"period",
-					"value"
+					"value",
+					"count"
 				],
 				"type": "object",
 				"additionalProperties": true
@@ -116,6 +122,14 @@
 						"type": "string",
 						"description": "Event type filter applied"
 					},
+					"time_period": {
+						"type": "string",
+						"description": "Time granularity used (year, month, day)"
+					},
+					"dimension": {
+						"type": "string",
+						"description": "Dimension used for grouping (if any)"
+					},
 					"data": {
 						"items": {
 							"$ref": "#/components/schemas/TimeSeriesDataPoint"
@@ -128,6 +142,7 @@
 					"metric",
 					"aggregation",
 					"event_type",
+					"time_period",
 					"data"
 				],
 				"type": "object",
@@ -1174,7 +1189,7 @@
 						}
 					}
 				},
-				"description": "Query normalized events from the data lake.\nSupports filtering by company, metric name, ESG pillar, and year range.\nResults are paginated via limit/offset.",
+				"description": "Query normalized events from the data lake.\nSupports filtering by dataset_type (esg | housing),\nESG fields (company, permid, metric name, pillar, year range),\nand Housing fields (postcode, suburb, street_name, nature_of_property).\nResults are paginated via limit/offset.",
 				"tags": [
 					"Events"
 				],
@@ -1381,6 +1396,39 @@
 					}
 				},
 				"description": "Retrieves a single EventRecord by its unique identifier.\nReturns the time_object, event_type, and full attribute payload.",
+				"tags": [
+					"Events"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "eventId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"delete": {
+				"operationId": "DeleteEvent",
+				"responses": {
+					"204": {
+						"description": "Event deleted"
+					},
+					"404": {
+						"description": "Event not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorBody"
+								}
+							}
+						}
+					}
+				},
+				"description": "Deletes an event by its unique identifier.\nReturns 204 No Content if the event was deleted, or 404 if not found.",
 				"tags": [
 					"Events"
 				],

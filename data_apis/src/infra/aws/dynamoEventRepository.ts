@@ -4,6 +4,7 @@ import {
   ScanCommand,
   GetItemCommand,
   BatchWriteItemCommand,
+  DeleteItemCommand,
   AttributeValue,
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
@@ -79,6 +80,17 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
     );
     if (!res.Item) return undefined;
     return unmarshall(res.Item) as EventRecord;
+  }
+
+  async deleteEvent(eventId: string): Promise<boolean> {
+    const res = await this.client.send(
+      new DeleteItemCommand({
+        TableName: this.table,
+        Key: marshall({ event_id: eventId }),
+        ReturnValues: "ALL_OLD",
+      })
+    );
+    return !!res.Attributes;
   }
 
   async getDistinctEventTypes(): Promise<string[]> {

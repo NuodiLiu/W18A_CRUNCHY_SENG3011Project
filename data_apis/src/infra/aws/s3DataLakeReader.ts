@@ -97,6 +97,10 @@ export class S3DataLakeReader implements DataLakeReader {
     return undefined;
   }
 
+  async deleteEvent(_eventId: string): Promise<boolean> {
+    return false;
+  }
+
   async getDistinctEventTypes(): Promise<string[]> {
     const segmentKeys = await this.getAllSegmentKeys();
     const types = new Set<string>();

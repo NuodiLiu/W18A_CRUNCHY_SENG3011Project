@@ -63,6 +63,7 @@ function makeDeps(overrides: Partial<RunJobDeps> = {}): RunJobDeps {
       findById: jest.fn().mockResolvedValue(fakeJobRecord),
       claimJob: jest.fn().mockResolvedValue(true),
       updateStatus: jest.fn(),
+      updateCheckpoint: jest.fn(),
     },
     configStore: {
       putConfig: jest.fn(),
@@ -78,7 +79,7 @@ function makeDeps(overrides: Partial<RunJobDeps> = {}): RunJobDeps {
     },
     connectorFactory: jest.fn().mockReturnValue({
       fetchIncremental: jest.fn().mockImplementation(
-        async (_spec: unknown, _state: unknown, onBatch: (b: RawRecord[]) => Promise<void>) => {
+        async (_spec: unknown, _state: unknown, onBatch: (b: RawRecord[]) => Promise<void>, _opts?: unknown) => {
           await onBatch(fakeRawRecords);
           return { updated_at: "2026-01-01T00:00:00Z" };
         },

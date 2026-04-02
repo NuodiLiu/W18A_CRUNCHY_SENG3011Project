@@ -114,4 +114,19 @@ export class DynamoJobRepository implements JobRepository {
       })
     );
   }
+
+  async updateCheckpoint(jobId: string, rowsProcessed: number, segmentsWritten: number): Promise<void> {
+    await this.doc.send(
+      new UpdateCommand({
+        TableName: this.table,
+        Key: { job_id: jobId },
+        UpdateExpression: "SET rows_processed = :rp, segments_written = :sw, updated_at = :now",
+        ExpressionAttributeValues: {
+          ":rp": rowsProcessed,
+          ":sw": segmentsWritten,
+          ":now": new Date().toISOString(),
+        },
+      })
+    );
+  }
 }

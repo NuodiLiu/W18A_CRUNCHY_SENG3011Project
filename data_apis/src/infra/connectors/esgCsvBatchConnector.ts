@@ -7,6 +7,7 @@ import { parse as csvParse } from "csv-parse";
 import { Readable } from "node:stream";
 import {
   Connector,
+  FetchOptions,
   RawRecord,
 } from "../../domain/ports/connector.js";
 import { ConnectorState } from "../../domain/models/connectorState.js";
@@ -36,7 +37,8 @@ export class EsgCsvBatchConnector implements Connector {
   async fetchIncremental(
     sourceSpec: SourceSpec,
     prevState: ConnectorState | undefined,
-    onBatch: (batch: RawRecord[]) => Promise<void>
+    onBatch: (batch: RawRecord[]) => Promise<void>,
+    options?: FetchOptions,
   ): Promise<Partial<ConnectorState>> {
     const objectKeys = await this.resolveObjectKeys(sourceSpec);
 
@@ -49,11 +51,12 @@ export class EsgCsvBatchConnector implements Connector {
 
     const delimiter = sourceSpec.delimiter ?? ",";
     const hasHeader = sourceSpec.has_header ?? true;
+    const skipRows = options?.skipRows ?? 0;
     let lastKey: string | undefined;
 
     for (const objKey of filteredKeys) {
       const { bucket, key } = this.parseS3Uri(objKey);
-      await this.streamBatches(bucket, key, objKey, delimiter, hasHeader, onBatch);
+      await this.streamBatches(bucket, key, objKey, delimiter, hasHeader, onBatch, skipRows);
       lastKey = objKey;
     }
 
@@ -98,13 +101,16 @@ export class EsgCsvBatchConnector implements Connector {
   }
 
   // streams a single S3 CSV object, calling onBatch every BATCH_SIZE rows.
+  // when skipRows > 0, the first N data rows are parsed but not yielded,
+  // allowing the job to resume from a checkpoint after a lambda timeout.
   private async streamBatches(
     bucket: string,
     key: string,
     objKey: string,
     delimiter: string,
     hasHeader: boolean,
-    onBatch: (batch: RawRecord[]) => Promise<void>
+    onBatch: (batch: RawRecord[]) => Promise<void>,
+    skipRows: number = 0,
   ): Promise<void> {
     const res = await this.s3.send(
       new GetObjectCommand({ Bucket: bucket, Key: key })
@@ -128,6 +134,8 @@ export class EsgCsvBatchConnector implements Connector {
 
     for await (const record of parser as AsyncIterable<Record<string, string>>) {
       rowNumber++;
+      if (rowNumber <= skipRows) continue;
+
       batch.push({ raw_row: record, source_file: objKey, row_number: rowNumber });
 
       if (batch.length >= BATCH_SIZE) {
