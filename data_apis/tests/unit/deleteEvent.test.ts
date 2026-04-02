@@ -9,6 +9,8 @@ function makeDataLakeReader(deleteResult: boolean): DataLakeReader {
     getDistinctEventTypes: jest.fn(),
     getGroupProjection: jest.fn(),
     readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
   };
 }
 
@@ -39,6 +41,8 @@ describe("deleteEvent", () => {
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
     };
 
     await expect(

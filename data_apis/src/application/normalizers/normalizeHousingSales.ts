@@ -36,7 +36,7 @@ export const normalizeHousingSales = function normalizeHousingSales(
         timestamp,
         timezone: config.timezone,
       },
-      event_type: "property_sale",
+      event_type: "housing_sale",
       attribute: {
         property_id:        row.property_id ?? "",
         dealing_number:     parseNum(row.dealing_number),

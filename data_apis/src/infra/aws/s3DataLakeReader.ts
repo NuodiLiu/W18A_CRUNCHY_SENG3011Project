@@ -1,7 +1,7 @@
 import { GetObjectCommand, ListObjectsV2Command, SelectObjectContentCommand, S3Client } from "@aws-sdk/client-s3";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
-import { DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
+import { AggRow, DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 
 interface ManifestJson {
   dataset_id: string;
@@ -196,7 +196,7 @@ export class S3DataLakeReader implements DataLakeReader {
     if (query.dataset_type === "esg") {
       conditions.push(`s.event_type = 'esg_metric'`);
     } else if (query.dataset_type === "housing") {
-      conditions.push(`(s.event_type = 'property_sale' OR s.event_type = 'housing_sale')`);
+      conditions.push(`s.event_type = 'housing_sale'`);
     }
 
     // ESG fields
@@ -304,7 +304,7 @@ export class S3DataLakeReader implements DataLakeReader {
   private applyQueryFilter(events: EventRecord[], query: EventQuery): EventRecord[] {
     return events.filter((e) => {
       if (query.dataset_type === "esg" && e.event_type !== "esg_metric") return false;
-      if (query.dataset_type === "housing" && e.event_type !== "property_sale" && e.event_type !== "housing_sale") return false;
+      if (query.dataset_type === "housing" && e.event_type !== "housing_sale") return false;
 
       const attr = (e.attribute ?? {}) as Record<string, unknown>;
       
@@ -391,6 +391,10 @@ export class S3DataLakeReader implements DataLakeReader {
     }
     return JSON.parse(body) as T;
   }
+
+  // not supported for S3-backed reader; use PostgresEventRepository instead
+  async aggregateByDimension(): Promise<AggRow[]> { return []; }
+  async aggregateByTimePeriod(): Promise<AggRow[]> { return []; }
 
   private getKeyFromS3Uri(uri: string): string {
     const prefix = `s3://${this.bucket}/`;

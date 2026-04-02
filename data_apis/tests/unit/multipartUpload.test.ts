@@ -31,7 +31,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findById: jest.fn().mockResolvedValue(fakeJobRecord),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
-      updateCheckpoint: jest.fn(),
+      incrementChunksDone: jest.fn().mockResolvedValue(1),
     },
     configStore: {
       putConfig: jest.fn().mockResolvedValue("s3://config/c-1/j-1.json"),
@@ -54,6 +54,8 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       getDistinctEventTypes: jest.fn().mockResolvedValue([]),
       getGroupProjection: jest.fn().mockResolvedValue([]),
       readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
     },
     ...overrides,
   };

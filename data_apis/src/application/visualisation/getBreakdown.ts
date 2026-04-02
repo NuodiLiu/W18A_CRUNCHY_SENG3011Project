@@ -4,10 +4,7 @@ import {
   validateDimension,
   validateMetric,
   validateAggregation,
-  dimensionProjectionField,
-  getDimensionValue,
-  getMetricValue,
-  calculateAggregation,
+  DERIVED_DIMENSION_SOURCES,
 } from "../../domain/models/aggregation.js";
 
 export interface GetBreakdownDeps {
@@ -34,10 +31,6 @@ export interface BreakdownResult {
   }>;
 }
 
-/**
- * Aggregates event data by a dimension (e.g., suburb, pillar) for bar/pie charts.
- * Uses getGroupProjection to only fetch the fields needed for aggregation.
- */
 export async function getBreakdown(
   query: BreakdownQuery,
   deps: GetBreakdownDeps
@@ -50,59 +43,26 @@ export async function getBreakdown(
     limit = 10,
   } = query;
 
-  // Validate inputs against allowlist before building projection fields
   validateDimension(dimension);
   validateMetric(metric);
   validateAggregation(aggregation);
 
-  // Only request the fields we actually need
-  const fields = [dimensionProjectionField(dimension)];
-  if (metric !== "count") {
-    fields.push(`attribute.${metric}`);
-  }
+  const dimField = DERIVED_DIMENSION_SOURCES[dimension] ?? dimension;
+  const metricField = metric !== "count" ? metric : null;
 
-  const rows = await deps.dataLakeReader.getGroupProjection(fields, event_type);
-
-  // Group by dimension and aggregate
-  const groups = new Map<string, { values: number[]; count: number }>();
-
-  for (const row of rows) {
-    const attr = (row.attribute ?? {}) as Record<string, unknown>;
-    const categoryValue = getDimensionValue(attr, dimension);
-    const category = String(categoryValue ?? "unknown");
-
-    if (!groups.has(category)) {
-      groups.set(category, { values: [], count: 0 });
-    }
-
-    const group = groups.get(category)!;
-    group.count++;
-
-    // Only collect metric values if we need them for aggregation
-    if (metric !== "count") {
-      const metricValue = getMetricValue(attr, metric);
-      if (metricValue !== null && !isNaN(metricValue)) {
-        group.values.push(metricValue);
-      }
-    }
-  }
-
-  // Calculate aggregated values
-  const entries = Array.from(groups.entries()).map(([category, group]) => ({
-    category,
-    value: calculateAggregation(group.values, group.count, aggregation, metric),
-    count: group.count,
-  }));
-
-  // Sort by value descending and limit
-  entries.sort((a, b) => b.value - a.value);
-  const limited = limit < 0 ? [] : entries.slice(0, limit);
+  const rows = await deps.dataLakeReader.aggregateByDimension(
+    event_type, dimField, metricField, aggregation, limit,
+  );
 
   return {
     dimension,
     metric,
     aggregation,
     event_type,
-    entries: limited,
+    entries: rows.map((r) => ({
+      category: r.group_key,
+      value: metric === "count" ? r.count : r.value,
+      count: r.count,
+    })),
   };
 }

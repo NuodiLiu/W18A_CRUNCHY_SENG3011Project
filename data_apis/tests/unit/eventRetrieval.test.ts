@@ -25,6 +25,8 @@ function makeEventByIdDeps(event: typeof fakeEvent | undefined): GetEventByIdDep
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
     },
   };
 }
@@ -38,6 +40,8 @@ function makeGetEventsDeps(events: typeof fakeEvent[], total: number): GetEvents
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn(),
       readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
     },
   };
 }
@@ -51,6 +55,8 @@ function makeStatsDeps(rows: Record<string, unknown>[]): GetEventStatsDeps {
       getDistinctEventTypes: jest.fn(),
       getGroupProjection: jest.fn().mockResolvedValue(rows),
       readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
     },
   };
 }
@@ -86,6 +92,8 @@ describe("getEventById", () => {
         getDistinctEventTypes: jest.fn(),
         getGroupProjection: jest.fn(),
         readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
       },
     };
 
@@ -138,6 +146,8 @@ describe("getEvents", () => {
         getDistinctEventTypes: jest.fn(),
         getGroupProjection: jest.fn(),
         readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
       },
     };
 
@@ -278,6 +288,8 @@ describe("getEventStats", () => {
         getDistinctEventTypes: jest.fn(),
         getGroupProjection: jest.fn().mockRejectedValue(new Error("reader failed")),
         readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
       },
     };
 

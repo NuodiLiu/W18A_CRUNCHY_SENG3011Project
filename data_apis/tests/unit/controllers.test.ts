@@ -84,7 +84,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findById: jest.fn().mockResolvedValue(fakeJobRecord),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
-      updateCheckpoint: jest.fn(),
+      incrementChunksDone: jest.fn().mockResolvedValue(1),
     },
     configStore: {
       putConfig: jest.fn().mockResolvedValue("s3://config/c-100/j-100.json"),
@@ -111,6 +111,8 @@ function buildApp(overrides: Record<string, unknown> = {}) {
         fakeHousingEvents.map((e) => ({ event_type: e.event_type, attribute: e.attribute }))
       ),
       readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
     },
     ...overrides,
   };
@@ -356,6 +358,8 @@ describe("GET /api/v1/events/types", () => {
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
         readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
       },
     });
     const res = await request(app).get("/api/v1/events/types").expect(200);
@@ -481,6 +485,8 @@ describe("GET /api/v1/events/stats", () => {
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
         readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
       },
     });
   
@@ -618,6 +624,8 @@ describe("GET /api/v1/events", () => {
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
         readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
       },
     });
     const res = await request(app).get("/api/v1/events").expect(200);
