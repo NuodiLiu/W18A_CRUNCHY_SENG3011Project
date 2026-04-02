@@ -3,8 +3,11 @@ import type { Config } from "jest";
 const shared = {
   preset: "ts-jest",
   testEnvironment: "node",
+  testEnvironmentOptions: {
+    env: { LOG_LEVEL: "silent" },
+  },
   transform: {
-    "^.+\\.tsx?$": ["ts-jest", { diagnostics: { ignoreCodes: [151002] } }],
+    "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.test.json", diagnostics: { ignoreCodes: [151002] } }],
   },
   moduleNameMapper: {
     "^@config/(.*)$": "<rootDir>/src/config/$1",
@@ -24,10 +27,6 @@ const shared = {
 
 const config: Config = {
   testTimeout: 30_000,
-  // Silence Pino structured logs and EMF output during all test runs
-  testEnvironmentOptions: {
-    env: { LOG_LEVEL: "silent" },
-  },
   reporters: [
     "default",
     [
@@ -57,13 +56,13 @@ const config: Config = {
       ...shared,
       displayName: "unit",
       roots: ["<rootDir>/tests/unit"],
-      // No setupFiles — unit tests must run with a clean environment
+      setupFiles: ["<rootDir>/tests/setup-silent-logs.ts"],
     },
     {
       ...shared,
       displayName: "integration",
       roots: ["<rootDir>/tests/integration"],
-      setupFiles: ["dotenv/config"], // loads .env for LocalStack endpoints
+      setupFiles: ["<rootDir>/tests/setup-silent-logs.ts", "dotenv/config"],
     },
   ],
 };

@@ -61,6 +61,7 @@ export function emitMetric(
     ...dimensions,
     [metricName]: value,
   };
+  if (LOG_LEVEL === "silent") return;
   // Write directly to stdout — bypasses Pino transports to avoid double-encoding.
   process.stdout.write(JSON.stringify(emf) + "\n");
 }
