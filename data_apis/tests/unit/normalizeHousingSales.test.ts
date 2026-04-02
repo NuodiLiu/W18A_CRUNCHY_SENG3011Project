@@ -72,9 +72,9 @@ describe("normalizeHousingSales", () => {
       expect(attr.district_code).toBe(223);
     });
 
-    it("sets event_type to property_sale", () => {
+    it("sets event_type to housing_sale", () => {
       const events = normalizeHousingSales([makeRawRecord()], baseConfig, RUN_TS);
-      expect(events[0].event_type).toBe("property_sale");
+      expect(events[0].event_type).toBe("housing_sale");
     });
 
     it("uses config timezone in time_object", () => {

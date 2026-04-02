@@ -12,15 +12,12 @@ export interface RawRecord {
 }
 
 export interface FetchOptions {
-  // number of csv rows to skip from the start (for resuming after timeout)
-  skipRows?: number;
+  // byte range for chunked parallel processing
+  startByte?: number;
+  endByte?: number;
 }
 
 export interface Connector {
-  /**
-   * Streams records from the source in batches, calling `onBatch` for each.
-   * Returns the new connector state after all records are processed.
-   */
   fetchIncremental(
     sourceSpec: SourceSpec,
     prevState: ConnectorState | undefined,

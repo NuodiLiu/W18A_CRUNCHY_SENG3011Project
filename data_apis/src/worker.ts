@@ -47,13 +47,13 @@ async function pollLoop(): Promise<void> {
     if (messages.length === 0) continue;
 
     for (const msg of messages) {
-      const parsed = JSON.parse(msg.body) as { job_id: string; job_type?: string };
+      const parsed = JSON.parse(msg.body) as { job_id: string; job_type?: string; chunk_index?: number; start_byte?: number; end_byte?: number };
       const { job_id, job_type } = parsed;
       try {
         if (job_type === "preprocess") {
           await runPreprocessJob(job_id, preprocessDeps);
         } else {
-          await runJob(job_id, importDeps);
+          await runJob(parsed, importDeps);
         }
         await queue.deleteMessage(msg.receiptHandle);
       } catch (err) {

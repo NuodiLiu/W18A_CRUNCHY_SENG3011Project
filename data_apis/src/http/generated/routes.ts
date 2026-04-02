@@ -54,6 +54,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "period": {"dataType":"string","required":true},
             "value": {"dataType":"double","required":true},
+            "count": {"dataType":"double","required":true},
             "series": {"dataType":"string"},
         },
         "additionalProperties": true,
@@ -65,6 +66,8 @@ const models: TsoaRoute.Models = {
             "metric": {"dataType":"string","required":true},
             "aggregation": {"dataType":"string","required":true},
             "event_type": {"dataType":"string","required":true},
+            "time_period": {"dataType":"string","required":true},
+            "dimension": {"dataType":"string"},
             "data": {"dataType":"array","array":{"dataType":"refObject","ref":"TimeSeriesDataPoint"},"required":true},
         },
         "additionalProperties": true,

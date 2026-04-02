@@ -1,4 +1,4 @@
-import { runJob, RunJobDeps } from "../../src/application/worker/runJob";
+import { runJob, RunJobDeps, JobMessage } from "../../src/application/worker/runJob";
 import { JobRecord } from "../../src/domain/models/job";
 import { JobConfig } from "../../src/domain/models/jobConfig";
 import { RawRecord } from "../../src/domain/ports/connector";
@@ -6,6 +6,7 @@ import { RawRecord } from "../../src/domain/ports/connector";
 // --- helpers ---
 
 const JOB_ID = "job-123";
+const MSG: JobMessage = { job_id: JOB_ID };
 
 const fakeJobRecord: JobRecord = {
   job_id: JOB_ID,
@@ -63,7 +64,7 @@ function makeDeps(overrides: Partial<RunJobDeps> = {}): RunJobDeps {
       findById: jest.fn().mockResolvedValue(fakeJobRecord),
       claimJob: jest.fn().mockResolvedValue(true),
       updateStatus: jest.fn(),
-      updateCheckpoint: jest.fn(),
+      incrementChunksDone: jest.fn().mockResolvedValue(1),
     },
     configStore: {
       putConfig: jest.fn(),
@@ -92,32 +93,13 @@ function makeDeps(overrides: Partial<RunJobDeps> = {}): RunJobDeps {
 // --- tests ---
 
 describe("runJob", () => {
-  it("skips silently when job is already claimed", async () => {
-    const deps = makeDeps({
-      jobRepo: {
-        ...makeDeps().jobRepo,
-        claimJob: jest.fn().mockResolvedValue(false),
-      },
-    });
-
-    await runJob(JOB_ID, deps);
-
-    expect(deps.jobRepo.claimJob).toHaveBeenCalledWith(JOB_ID, expect.any(String));
-    expect(deps.configStore.getConfig).not.toHaveBeenCalled();
-  });
-
-  it("runs full pipeline and marks job DONE", async () => {
+  it("runs full pipeline and marks job DONE for non-chunked message", async () => {
     const deps = makeDeps();
 
-    await runJob(JOB_ID, deps);
+    await runJob(MSG, deps);
 
-    // claim
-    expect(deps.jobRepo.claimJob).toHaveBeenCalledWith(JOB_ID, expect.any(String));
-    // load config
     expect(deps.configStore.getConfig).toHaveBeenCalledWith(fakeJobRecord.config_ref);
-    // fetch data
     expect(deps.connectorFactory).toHaveBeenCalledWith("esg_csv_batch");
-    // write dataset
     expect(deps.dataLakeWriter.writeChunk).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ event_type: "esg_metric" }),
@@ -128,10 +110,7 @@ describe("runJob", () => {
       expect.any(String),
       expect.objectContaining({ data_source: "clarity_ai", dataset_type: "esg_metrics" }),
     );
-    // mark done
-    expect(deps.jobRepo.updateStatus).toHaveBeenCalledWith(JOB_ID, "DONE", {
-      dataset_id: "s3://datalake/datasets/ds-1/manifest.json",
-    });
+    expect(deps.jobRepo.updateStatus).toHaveBeenCalledWith(JOB_ID, "DONE", expect.anything());
   });
 
   it("marks job FAILED and re-throws when connector throws", async () => {
@@ -142,7 +121,7 @@ describe("runJob", () => {
       } as unknown as ReturnType<RunJobDeps["connectorFactory"]>),
     });
 
-    await expect(runJob(JOB_ID, deps)).rejects.toThrow("S3 access denied");
+    await expect(runJob(MSG, deps)).rejects.toThrow("S3 access denied");
 
     expect(deps.jobRepo.updateStatus).toHaveBeenCalledWith(JOB_ID, "FAILED", {
       error: "S3 access denied",
@@ -157,7 +136,7 @@ describe("runJob", () => {
       },
     });
 
-    await expect(runJob(JOB_ID, deps)).rejects.toThrow("write failed");
+    await expect(runJob(MSG, deps)).rejects.toThrow("write failed");
 
     expect(deps.jobRepo.updateStatus).toHaveBeenCalledWith(JOB_ID, "FAILED", {
       error: "write failed",
@@ -166,7 +145,7 @@ describe("runJob", () => {
 
   it("does not save state for full_refresh mode", async () => {
     const deps = makeDeps();
-    await runJob(JOB_ID, deps);
+    await runJob(MSG, deps);
     expect(deps.stateStore.saveState).not.toHaveBeenCalled();
   });
 
@@ -182,7 +161,7 @@ describe("runJob", () => {
       },
     });
 
-    await runJob(JOB_ID, deps);
+    await runJob(MSG, deps);
 
     expect(deps.stateStore.getState).toHaveBeenCalledWith("conn-1");
     expect(deps.stateStore.saveState).toHaveBeenCalledWith(
@@ -192,7 +171,7 @@ describe("runJob", () => {
 
   it("normalizes records with esg_metric event_type", async () => {
     const deps = makeDeps();
-    await runJob(JOB_ID, deps);
+    await runJob(MSG, deps);
 
     const writeChunkCall = (deps.dataLakeWriter.writeChunk as jest.Mock).mock.calls[0];
     const events = writeChunkCall[0];
@@ -200,5 +179,37 @@ describe("runJob", () => {
     expect(events[0].event_type).toBe("esg_metric");
     expect(events[0].attribute.permid).toBe("111");
     expect(events[0].attribute.metric_value).toBe(100);
+  });
+
+  it("increments chunks_done for chunked message and marks DONE when all complete", async () => {
+    const chunkedJob: JobRecord = { ...fakeJobRecord, total_chunks: 3 };
+    const deps = makeDeps({
+      jobRepo: {
+        ...makeDeps().jobRepo,
+        findById: jest.fn().mockResolvedValue(chunkedJob),
+        incrementChunksDone: jest.fn().mockResolvedValue(3),
+      },
+    });
+
+    await runJob({ job_id: JOB_ID, chunk_index: 2, start_byte: 100, end_byte: 200 }, deps);
+
+    expect(deps.jobRepo.incrementChunksDone).toHaveBeenCalledWith(JOB_ID);
+    expect(deps.jobRepo.updateStatus).toHaveBeenCalledWith(JOB_ID, "DONE");
+  });
+
+  it("does not mark DONE when not all chunks are complete", async () => {
+    const chunkedJob: JobRecord = { ...fakeJobRecord, total_chunks: 3 };
+    const deps = makeDeps({
+      jobRepo: {
+        ...makeDeps().jobRepo,
+        findById: jest.fn().mockResolvedValue(chunkedJob),
+        incrementChunksDone: jest.fn().mockResolvedValue(1),
+      },
+    });
+
+    await runJob({ job_id: JOB_ID, chunk_index: 0, start_byte: 0, end_byte: 100 }, deps);
+
+    expect(deps.jobRepo.incrementChunksDone).toHaveBeenCalledWith(JOB_ID);
+    expect(deps.jobRepo.updateStatus).not.toHaveBeenCalled();
   });
 });

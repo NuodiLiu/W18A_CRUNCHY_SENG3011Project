@@ -76,7 +76,7 @@ function buildApp(events = fakeHousingEvents) {
       findById: jest.fn(),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
-      updateCheckpoint: jest.fn(),
+      incrementChunksDone: jest.fn().mockResolvedValue(1),
     },
     configStore: {
       putConfig: jest.fn(),

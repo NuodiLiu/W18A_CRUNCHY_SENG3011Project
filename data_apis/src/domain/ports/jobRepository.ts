@@ -13,6 +13,6 @@ export interface JobRepository {
     extra?: Partial<Pick<JobRecord, "dataset_id" | "error" | "quality_report">>
   ): Promise<void>;
 
-  // save progress checkpoint so the job can resume after a timeout
-  updateCheckpoint(jobId: string, rowsProcessed: number, segmentsWritten: number): Promise<void>;
+  // atomically increment chunks_done; returns new value
+  incrementChunksDone(jobId: string): Promise<number>;
 }
