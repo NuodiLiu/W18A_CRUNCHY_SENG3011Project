@@ -11,6 +11,7 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     this.pool = new Pool({
       connectionString: config.pgConnectionString,
       max: 5,
+      ssl: config.pgSsl ? { rejectUnauthorized: false } : false,
     });
   }
 

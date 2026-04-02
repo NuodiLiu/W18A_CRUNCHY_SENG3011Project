@@ -34,6 +34,11 @@ Once running, access the Swagger UI at:
 http://localhost:3000/api-docs
 ```
 
+Retrieval API integration doc for other teams:
+```
+docs/retrieval-api-integration.md
+```
+
 ## Available Endpoints
 
 ### Health Check

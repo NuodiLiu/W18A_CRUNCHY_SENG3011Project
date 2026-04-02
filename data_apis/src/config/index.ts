@@ -18,6 +18,7 @@ export interface AppConfig {
 
   // PostgreSQL (events store)
   pgConnectionString: string;
+  pgSsl: boolean;
 }
 
 export function loadConfig(): AppConfig {
@@ -38,7 +39,9 @@ export function loadConfig(): AppConfig {
     ddbStateTable: env("DDB_STATE_TABLE", `${prefix}-${suffix}-connector-state`),
     ddbIdempotencyTable: env("DDB_IDEMPOTENCY_TABLE", `${prefix}-${suffix}-idempotency`),
     s3ConfigBucket: env("S3_CONFIG_BUCKET", `${prefix}-${suffix}-config`),
-    s3DatalakeBucket: env("S3_DATALAKE_BUCKET", `${prefix}-${suffix}-datalake`),    pgConnectionString: env("PG_CONNECTION_STRING", `postgres://postgres:postgres@localhost:5432/${prefix}_${suffix}`),  };
+    s3DatalakeBucket: env("S3_DATALAKE_BUCKET", `${prefix}-${suffix}-datalake`),    pgConnectionString: env("PG_CONNECTION_STRING", `postgres://postgres:postgres@localhost:5432/${prefix}_${suffix}`),
+    pgSsl: env("PG_SSL", "false") === "true",
+  };
 }
 
 function env(key: string, fallback?: string): string {
