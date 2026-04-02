@@ -1,0 +1,17 @@
+{
+  "name": "reporting-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:contract": "vitest run --config vitest.config.js tests/contract/",
+    "test:e2e": "playwright test",
+    "test": "npm run test:contract && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "jsdom": "^26.1.0",
+    "serve": "^14.2.6",
+    "vitest": "^3.1.1"
+  }
+}

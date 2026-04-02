@@ -48,7 +48,10 @@ export class DynamoJobRepository implements JobRepository {
     return res.Item as JobRecord;
   }
 
+  // claims a job if it is PENDING, or if it is RUNNING but the lease has expired
+  // (covers the case where a previous Lambda timed out mid-run).
   async claimJob(jobId: string, leaseUntil: string): Promise<boolean> {
+    const now = new Date().toISOString();
     try {
       await this.doc.send(
         new UpdateCommand({
@@ -56,13 +59,14 @@ export class DynamoJobRepository implements JobRepository {
           Key: { job_id: jobId },
           UpdateExpression:
             "SET #status = :running, lease_until = :lease, updated_at = :now",
-          ConditionExpression: "#status = :pending",
+          ConditionExpression:
+            "#status = :pending OR (#status = :running AND lease_until < :now)",
           ExpressionAttributeNames: { "#status": "status" },
           ExpressionAttributeValues: {
             ":running": "RUNNING" satisfies JobStatus,
             ":pending": "PENDING" satisfies JobStatus,
             ":lease": leaseUntil,
-            ":now": new Date().toISOString(),
+            ":now": now,
           },
         })
       );
