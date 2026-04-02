@@ -8,10 +8,12 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
   private readonly pool: Pool;
 
   constructor(config: AppConfig) {
+    const useSsl =
+      config.pgSsl || config.pgConnectionString.includes("sslmode=");
     this.pool = new Pool({
       connectionString: config.pgConnectionString,
       max: 5,
-      ssl: config.pgSsl ? { rejectUnauthorized: false } : false,
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
     });
   }
 
