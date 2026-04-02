@@ -97,10 +97,6 @@ export class S3DataLakeReader implements DataLakeReader {
     return undefined;
   }
 
-  async deleteEvent(eventId: string): Promise<boolean> {
-    throw new Error("Delete operation not supported for S3 data lake reader");
-  }
-
   async getDistinctEventTypes(): Promise<string[]> {
     const segmentKeys = await this.getAllSegmentKeys();
     const types = new Set<string>();
