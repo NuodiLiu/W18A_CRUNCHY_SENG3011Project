@@ -6,7 +6,7 @@
     "outputDirectory": "src/docs",
     "specVersion": 3,
     "info": {
-      "title": "ESG Data Service API",
+      "title": "Event Data API",
       "version": "0.1.0",
       "description": "Collection, Retrieval & Preprocessing APIs — single container."
     },
