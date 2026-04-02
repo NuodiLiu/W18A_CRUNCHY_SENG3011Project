@@ -325,6 +325,10 @@ describe("POST /api/v1/collection/uploads/presign", () => {
   });
 });
 
+/////////////////////////////////////////////////////////////////////////////
+// EVENT RETRIEVAL //
+/////////////////////////////////////////////////////////////////////////////
+
 describe("GET /api/v1/events/types", () => {
   it("returns 200 with event_types array", async () => {
     const { app } = buildApp();
