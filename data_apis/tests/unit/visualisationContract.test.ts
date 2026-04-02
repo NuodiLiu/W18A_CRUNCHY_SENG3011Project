@@ -99,6 +99,12 @@ function buildApp(events = fakeHousingEvents) {
       getDistinctEventTypes: jest.fn().mockResolvedValue(["housing_sale"]),
       getGroupProjection: jest.fn().mockResolvedValue(events),
       readDataset: jest.fn().mockResolvedValue(undefined),
+      aggregateByDimension: jest.fn().mockResolvedValue(
+        events.length > 0 ? [{ group_key: "Sydney", value: 1500000, count: 2 }] : [],
+      ),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue(
+        events.length > 0 ? [{ group_key: "2023", series_key: "Sydney", value: 1500000, count: 2 }] : [],
+      ),
     },
   };
   const app = createApp(deps as Parameters<typeof createApp>[0]);

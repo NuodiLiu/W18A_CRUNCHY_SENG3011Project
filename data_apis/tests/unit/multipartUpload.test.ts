@@ -54,6 +54,8 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       getDistinctEventTypes: jest.fn().mockResolvedValue([]),
       getGroupProjection: jest.fn().mockResolvedValue([]),
       readDataset: jest.fn(),
+      aggregateByDimension: jest.fn().mockResolvedValue([]),
+      aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
     },
     ...overrides,
   };

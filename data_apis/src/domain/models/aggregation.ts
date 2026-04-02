@@ -86,7 +86,7 @@ export function validateAggregation(aggregation: string): void {
  * Some dimensions are derived from a different source field in the event
  * attribute object (e.g. `contract_year` is derived from `contract_date`).
  */
-const DERIVED_DIMENSION_SOURCES: Record<string, string> = {
+export const DERIVED_DIMENSION_SOURCES: Record<string, string> = {
   contract_year: "contract_date",
 };
 

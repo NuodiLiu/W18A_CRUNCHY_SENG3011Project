@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
-import { DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
+import { AggRow, DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 import { EventRepository } from "../../domain/ports/eventRepository.js";
 
 export class PostgresEventRepository implements DataLakeReader, EventRepository {
@@ -165,6 +165,73 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     });
   }
 
+  // ── SQL aggregation for visualisation ─────────────────────────
+
+  async aggregateByDimension(
+    eventType: string,
+    dimensionField: string,
+    metricField: string | null,
+    aggregation: string,
+    limit: number,
+  ): Promise<AggRow[]> {
+    const dimExpr = safeJsonbField(dimensionField);
+    const aggExpr = metricField
+      ? buildAggExpr(aggregation, `(${safeJsonbField(metricField)})::numeric`)
+      : "COUNT(*)";
+
+    const res = await this.pool.query<{ group_key: string; value: string; count: string }>(
+      `SELECT ${dimExpr} AS group_key, ${aggExpr} AS value, COUNT(*)::text AS count
+       FROM events WHERE event_type = $1
+       GROUP BY group_key
+       ORDER BY value DESC
+       LIMIT $2`,
+      [eventType, limit],
+    );
+
+    return res.rows.map((r) => ({
+      group_key: r.group_key ?? "unknown",
+      value: Number(r.value) || 0,
+      count: Number(r.count) || 0,
+    }));
+  }
+
+  async aggregateByTimePeriod(
+    eventType: string,
+    timePeriod: "year" | "month" | "day",
+    metricField: string | null,
+    aggregation: string,
+    dimensionField?: string,
+  ): Promise<AggRow[]> {
+    const tsExpr = `(time_object->>'timestamp')::timestamp`;
+    const periodExpr =
+      timePeriod === "year" ? `EXTRACT(YEAR FROM ${tsExpr})::int::text`
+      : timePeriod === "month" ? `to_char(${tsExpr}, 'YYYY-MM')`
+      : `to_char(${tsExpr}, 'YYYY-MM-DD')`;
+
+    const aggExpr = metricField
+      ? buildAggExpr(aggregation, `(${safeJsonbField(metricField)})::numeric`)
+      : "COUNT(*)";
+
+    const dimExpr = dimensionField ? safeJsonbField(dimensionField) : null;
+    const selectDim = dimExpr ? `, ${dimExpr} AS series_key` : "";
+    const groupDim = dimExpr ? ", series_key" : "";
+
+    const res = await this.pool.query<{ group_key: string; series_key?: string; value: string; count: string }>(
+      `SELECT ${periodExpr} AS group_key${selectDim}, ${aggExpr} AS value, COUNT(*)::text AS count
+       FROM events WHERE event_type = $1
+       GROUP BY group_key${groupDim}
+       ORDER BY group_key${groupDim}`,
+      [eventType],
+    );
+
+    return res.rows.map((r) => ({
+      group_key: r.group_key,
+      series_key: r.series_key ?? undefined,
+      value: Number(r.value) || 0,
+      count: Number(r.count) || 0,
+    }));
+  }
+
   // ── Private helpers ───────────────────────────────────────────
 
   private buildWhere(query: EventQuery): {
@@ -242,6 +309,25 @@ function rowToRecord(row: EventRow): EventRecord {
     time_object: row.time_object,
     attribute: row.attribute,
   };
+}
+
+// convert an attribute field name to a safe jsonb expression
+function safeJsonbField(field: string): string {
+  if (!/^[a-z_][a-z0-9_]*$/.test(field)) {
+    throw new Error(`Invalid field name: "${field}"`);
+  }
+  return `attribute->>'${field}'`;
+}
+
+// build a SQL aggregation expression
+function buildAggExpr(aggregation: string, valueExpr: string): string {
+  switch (aggregation) {
+    case "avg": return `AVG(${valueExpr})`;
+    case "sum": return `SUM(${valueExpr})`;
+    case "min": return `MIN(${valueExpr})`;
+    case "max": return `MAX(${valueExpr})`;
+    default:    return `COUNT(*)`;
+  }
 }
 
 /** Safely convert a domain field path to a SQL expression. */
