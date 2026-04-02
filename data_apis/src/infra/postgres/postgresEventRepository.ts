@@ -82,6 +82,14 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     return res.rows[0] ? rowToRecord(res.rows[0]) : undefined;
   }
 
+  async deleteEvent(eventId: string): Promise<boolean> {
+    const res = await this.pool.query(
+      "DELETE FROM events WHERE event_id = $1",
+      [eventId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
   async getDistinctEventTypes(): Promise<string[]> {
     const res = await this.pool.query<{ event_type: string }>(
       "SELECT DISTINCT event_type FROM events ORDER BY event_type",
