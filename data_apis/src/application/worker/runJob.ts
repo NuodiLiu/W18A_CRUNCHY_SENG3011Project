@@ -20,7 +20,9 @@ export interface RunJobDeps {
   eventRepository?: EventRepository;
 }
 
-const LEASE_DURATION_MS = 10 * 60 * 1000; // 10 min — covers up to ~2 min of 1 GB CSV processing
+// must exceed lambda timeout (900s) so the lease expires only after the
+// function is killed, allowing sqs redelivery to re-claim the job.
+const LEASE_DURATION_MS = 16 * 60 * 1000; // 16 min
 
 // orchestrates a single import job end-to-end
 export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
