@@ -32,6 +32,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findById: jest.fn().mockResolvedValue(fakePreprocessJob),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
+      updateCheckpoint: jest.fn(),
     },
     configStore: { putConfig: jest.fn(), getConfig: jest.fn() },
     queue: {

@@ -45,14 +45,22 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
       ? await deps.stateStore.getState(config.connection_id)
       : undefined;
 
+    // resume from checkpoint if this job was previously interrupted
+    const skipRows = job.rows_processed ?? 0;
+    const skipSegments = job.segments_written ?? 0;
+    if (skipRows > 0) {
+      logger.info({ jobId, skipRows, skipSegments }, "resuming_from_checkpoint");
+    }
+
     const connector = deps.connectorFactory(config.connector_type);
     const datasetId = uuidv4();
     const runTimestamp = new Date().toISOString();
     const normalize = getNormalizer(config.mapping_profile);
-    let totalEvents = 0;
+    let totalEvents = skipRows;
+    let segmentsWritten = skipSegments;
 
-    // Stream records in batches: fetch → normalize → write one segment at a time.
-    // Peak memory ≈ one batch of rows, not the full dataset.
+    // stream records in batches: fetch -> normalize -> write one segment at a time.
+    // peak memory = one batch of rows, not the full dataset.
     const newState = await connector.fetchIncremental(
       config.source_spec,
       prevState,
@@ -63,11 +71,15 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
           await deps.eventRepository.writeEvents(events, datasetId);
         }
         totalEvents += events.length;
+        segmentsWritten++;
         emitMetric("EventsIngested", events.length, "Count", {
           service: "datalake-ingest-worker",
           datasetType: config.dataset_type,
         });
+        // save checkpoint so the job can resume if lambda times out
+        await deps.jobRepo.updateCheckpoint(jobId, totalEvents, segmentsWritten);
       },
+      { skipRows },
     );
 
     const datasetUri = await deps.dataLakeWriter.finalise(datasetId, {

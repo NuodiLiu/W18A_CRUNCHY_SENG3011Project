@@ -12,4 +12,7 @@ export interface JobRepository {
     status: JobStatus,
     extra?: Partial<Pick<JobRecord, "dataset_id" | "error" | "quality_report">>
   ): Promise<void>;
+
+  // save progress checkpoint so the job can resume after a timeout
+  updateCheckpoint(jobId: string, rowsProcessed: number, segmentsWritten: number): Promise<void>;
 }

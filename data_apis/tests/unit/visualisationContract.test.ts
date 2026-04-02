@@ -76,6 +76,7 @@ function buildApp(events = fakeHousingEvents) {
       findById: jest.fn(),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
+      updateCheckpoint: jest.fn(),
     },
     configStore: {
       putConfig: jest.fn(),
