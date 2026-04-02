@@ -155,6 +155,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
     dataLakeReader: {
       queryEvents: jest.fn().mockResolvedValue({ events: fakeHousingEvents, total: fakeHousingEvents.length }),
       findEventById: jest.fn(),
+      deleteEvent: jest.fn(),
       getDistinctEventTypes: jest.fn().mockResolvedValue(["housing_sale"]),
       getGroupProjection: jest.fn().mockResolvedValue(fakeHousingEvents),
       readDataset: jest.fn().mockResolvedValue(undefined),
@@ -303,6 +304,7 @@ describe("GET /api/v1/visualisation/breakdown", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
       },
@@ -331,6 +333,7 @@ describe("GET /api/v1/visualisation/breakdown", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
       },
@@ -361,6 +364,7 @@ describe("GET /api/v1/visualisation/breakdown", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: fakeEsgEvents, total: fakeEsgEvents.length }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue(["esg_metric"]),
         getGroupProjection: jest.fn().mockResolvedValue(fakeEsgEvents),
       },
@@ -551,6 +555,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
       },
@@ -569,6 +574,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockResolvedValue([]),
       },
@@ -596,6 +602,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: fakeEsgEvents, total: fakeEsgEvents.length }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue(["esg_metric"]),
         getGroupProjection: jest.fn().mockResolvedValue(fakeEsgEvents),
       },
@@ -620,6 +627,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: fakeEsgEvents, total: fakeEsgEvents.length }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue(["esg_metric"]),
         getGroupProjection: jest.fn().mockResolvedValue(fakeEsgEvents),
       },
@@ -686,6 +694,7 @@ describe("Visualisation endpoints — error handling", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockRejectedValue(new Error("S3 error")),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockRejectedValue(new Error("S3 error")),
       },
@@ -701,6 +710,7 @@ describe("Visualisation endpoints — error handling", () => {
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
         findEventById: jest.fn(),
+        deleteEvent: jest.fn(),
         getDistinctEventTypes: jest.fn().mockResolvedValue([]),
         getGroupProjection: jest.fn().mockRejectedValue(new Error("S3 error")),
       },
