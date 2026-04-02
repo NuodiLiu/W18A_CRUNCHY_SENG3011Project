@@ -16,51 +16,53 @@ export interface RunJobDeps {
   stateStore: StateStore;
   dataLakeWriter: DataLakeWriter;
   connectorFactory: (connectorType: string) => Connector;
-  /** When provided, events are also written to the queryable event store (dual-write). */
   eventRepository?: EventRepository;
 }
 
-// must exceed lambda timeout (900s) so the lease expires only after the
-// function is killed, allowing sqs redelivery to re-claim the job.
-const LEASE_DURATION_MS = 16 * 60 * 1000; // 16 min
+// message shape from SQS — chunk fields are present for fan-out jobs
+export interface JobMessage {
+  job_id: string;
+  chunk_index?: number;
+  start_byte?: number;
+  end_byte?: number;
+}
 
-// orchestrates a single import job end-to-end
-export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
-  const leaseUntil = new Date(Date.now() + LEASE_DURATION_MS).toISOString();
-  const claimed = await deps.jobRepo.claimJob(jobId, leaseUntil);
-  if (!claimed) {
-    logger.info({ jobId }, "job_already_claimed");
-    return;
-  }
-
+export async function runJob(msg: JobMessage, deps: RunJobDeps): Promise<void> {
+  const { job_id: jobId, chunk_index, start_byte, end_byte } = msg;
+  const isChunk = chunk_index != null;
   const jobStart = Date.now();
-  logger.info({ jobId }, "job_started");
+
+  logger.info({ jobId, chunk_index, start_byte, end_byte }, "chunk_started");
 
   try {
     const job = await deps.jobRepo.findById(jobId);
     if (!job) throw new Error(`job record disappeared: ${jobId}`);
+    if (job.status === "DONE") {
+      logger.info({ jobId }, "job_already_done");
+      return;
+    }
+
+    // move to RUNNING on first touch (ignore if already RUNNING from another chunk)
+    if (job.status === "PENDING") {
+      try {
+        const leaseUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        await deps.jobRepo.claimJob(jobId, leaseUntil);
+      } catch {
+        // another chunk already claimed it, that's fine
+      }
+    }
 
     const config: JobConfig = await deps.configStore.getConfig(job.config_ref);
     const prevState = config.ingestion_mode === "incremental"
       ? await deps.stateStore.getState(config.connection_id)
       : undefined;
 
-    // resume from checkpoint if this job was previously interrupted
-    const skipRows = job.rows_processed ?? 0;
-    const skipSegments = job.segments_written ?? 0;
-    if (skipRows > 0) {
-      logger.info({ jobId, skipRows, skipSegments }, "resuming_from_checkpoint");
-    }
-
     const connector = deps.connectorFactory(config.connector_type);
     const datasetId = uuidv4();
     const runTimestamp = new Date().toISOString();
     const normalize = getNormalizer(config.mapping_profile);
-    let totalEvents = skipRows;
-    let segmentsWritten = skipSegments;
+    let totalEvents = 0;
 
-    // stream records in batches: fetch -> normalize -> write one segment at a time.
-    // peak memory = one batch of rows, not the full dataset.
     const newState = await connector.fetchIncremental(
       config.source_spec,
       prevState,
@@ -71,25 +73,22 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
           await deps.eventRepository.writeEvents(events, datasetId);
         }
         totalEvents += events.length;
-        segmentsWritten++;
         emitMetric("EventsIngested", events.length, "Count", {
           service: "datalake-ingest-worker",
           datasetType: config.dataset_type,
         });
-        // save checkpoint so the job can resume if lambda times out
-        await deps.jobRepo.updateCheckpoint(jobId, totalEvents, segmentsWritten);
       },
-      { skipRows },
+      { startByte: start_byte, endByte: end_byte },
     );
 
-    const datasetUri = await deps.dataLakeWriter.finalise(datasetId, {
+    await deps.dataLakeWriter.finalise(datasetId, {
       data_source: config.data_source,
       dataset_type: config.dataset_type,
       time_object: { timestamp: runTimestamp, timezone: config.timezone },
       total_events: totalEvents,
     });
 
-    // persist new connector state
+    // persist connector state for incremental mode
     if (config.ingestion_mode === "incremental") {
       await deps.stateStore.saveState({
         connection_id: config.connection_id,
@@ -98,17 +97,27 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
       } as ConnectorState);
     }
 
-    await deps.jobRepo.updateStatus(jobId, "DONE", { dataset_id: datasetUri });
-
-    const durationMs = Date.now() - jobStart;
-    logger.info({ jobId, datasetType: config.dataset_type, totalEvents, durationMs, datasetUri }, "job_done");
-    emitMetric("ImportJobDone", 1, "Count", { service: "datalake-ingest-worker", datasetType: config.dataset_type });
-    emitMetric("JobDurationMs", durationMs, "Milliseconds", { service: "datalake-ingest-worker" });
+    // if chunked, atomically increment and check if all chunks are done
+    if (isChunk && job.total_chunks) {
+      const done = await deps.jobRepo.incrementChunksDone(jobId);
+      logger.info({ jobId, chunk_index, done, total: job.total_chunks, totalEvents }, "chunk_done");
+      if (done >= job.total_chunks) {
+        await deps.jobRepo.updateStatus(jobId, "DONE");
+        logger.info({ jobId, totalChunks: job.total_chunks }, "all_chunks_done");
+        emitMetric("ImportJobDone", 1, "Count", { service: "datalake-ingest-worker", datasetType: config.dataset_type });
+      }
+    } else {
+      // non-chunked (small file): mark done directly
+      await deps.jobRepo.updateStatus(jobId, "DONE", { dataset_id: `dataset:${datasetId}` });
+      const durationMs = Date.now() - jobStart;
+      logger.info({ jobId, totalEvents, durationMs }, "job_done");
+      emitMetric("ImportJobDone", 1, "Count", { service: "datalake-ingest-worker", datasetType: config.dataset_type });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await deps.jobRepo.updateStatus(jobId, "FAILED", { error: message });
-    logger.error({ jobId, err }, "job_failed");
+    logger.error({ jobId, chunk_index, err }, "chunk_failed");
     emitMetric("ImportJobFailed", 1, "Count", { service: "datalake-ingest-worker" });
-    throw err; // let caller decide whether to delete sqs message
+    throw err;
   }
 }

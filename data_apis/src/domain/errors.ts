@@ -59,3 +59,11 @@ export class NotImplementedError extends AppError {
     super(`Not implemented: ${endpoint}`, 501, "NOT_IMPLEMENTED");
   }
 }
+
+// non-http error for worker lease contention
+export class JobAlreadyClaimedError extends Error {
+  constructor(jobId: string) {
+    super(`job ${jobId} is already claimed`);
+    this.name = "JobAlreadyClaimedError";
+  }
+}

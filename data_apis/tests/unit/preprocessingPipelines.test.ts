@@ -32,7 +32,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findById: jest.fn().mockResolvedValue(fakePreprocessJob),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
-      updateCheckpoint: jest.fn(),
+      incrementChunksDone: jest.fn().mockResolvedValue(1),
     },
     configStore: { putConfig: jest.fn(), getConfig: jest.fn() },
     queue: {
@@ -266,7 +266,7 @@ describe("runHousingCleanPipeline", () => {
   const makeEvent = (overrides: Record<string, unknown> = {}): EventRecord => ({
     event_id: "e1",
     time_object: { timestamp: "2024-01-01T00:00:00Z", timezone: "UTC" },
-    event_type: "property_sale",
+    event_type: "housing_sale",
     attribute: {
       property_id: "P1",
       dealing_number: 1001,

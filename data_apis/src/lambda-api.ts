@@ -6,6 +6,7 @@
  * across warm invocations (Lambda execution environment reuse).
  */
 import serverlessExpress from "@vendia/serverless-express";
+import { S3Client } from "@aws-sdk/client-s3";
 import { loadConfig } from "./config/index.js";
 import { createApp } from "./http/app.js";
 import { DynamoJobRepository } from "./infra/aws/dynamoJobRepository.js";
@@ -22,6 +23,7 @@ const app = createApp({
   queue: new SQSQueueService(config),
   fileUploadService: new S3PresignService(config),
   dataLakeReader: new PostgresEventRepository(config),
+  s3: new S3Client({ region: config.region }),
 });
 
 export const handler = serverlessExpress({ app });

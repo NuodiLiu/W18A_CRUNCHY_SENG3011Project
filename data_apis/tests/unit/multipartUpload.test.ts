@@ -31,7 +31,7 @@ function buildApp(overrides: Record<string, unknown> = {}) {
       findById: jest.fn().mockResolvedValue(fakeJobRecord),
       claimJob: jest.fn(),
       updateStatus: jest.fn(),
-      updateCheckpoint: jest.fn(),
+      incrementChunksDone: jest.fn().mockResolvedValue(1),
     },
     configStore: {
       putConfig: jest.fn().mockResolvedValue("s3://config/c-1/j-1.json"),
