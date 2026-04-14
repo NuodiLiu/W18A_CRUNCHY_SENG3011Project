@@ -16,7 +16,7 @@ const swaggerDocument = JSON.parse(
 
 export type { AppDeps };
 
-export function createApp(deps: AppDeps): Express {
+export function createApp(deps: AppDeps, options?: { disableCache?: boolean }): Express {
   const app = express();
 
   // ── Body parsing ──────────────────────────────────
@@ -26,7 +26,9 @@ export function createApp(deps: AppDeps): Express {
   app.use(requestLogger);
 
   // ── In-memory cache for visualisation endpoints ───
-  app.use("/api/v1/visualisation", responseCache());
+  if (!options?.disableCache) {
+    app.use("/api/v1/visualisation", responseCache());
+  }
 
   // ── Wire tsoa IoC container ───────────────────────
   initDeps(deps);

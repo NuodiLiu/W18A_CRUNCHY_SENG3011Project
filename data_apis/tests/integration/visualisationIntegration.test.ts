@@ -15,7 +15,7 @@ const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
 
-const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader: pgRepo });
+const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader: pgRepo }, { disableCache: true });
 
 const HOUSING_DATASET_ID = "housing_vis_test";
 const ESG_DATASET_ID = "esg_vis_test";
@@ -196,6 +196,7 @@ const esgEvents: EventRecord[] = [
 beforeAll(async () => {
   await pgRepo.writeEvents(housingEvents, HOUSING_DATASET_ID);
   await pgRepo.writeEvents(esgEvents, ESG_DATASET_ID);
+  await pgRepo.refreshReadModel();
 });
 
 afterAll(async () => {
@@ -807,6 +808,7 @@ describe("LocalStack boundary conditions", () => {
   beforeAll(async () => {
     await pgRepo.writeEvents(largeDataset, LARGE_DATASET_ID);
     await pgRepo.writeEvents(specialCharsEvents, SPECIAL_CHARS_DATASET_ID);
+    await pgRepo.refreshReadModel();
   });
 
   afterAll(async () => {
