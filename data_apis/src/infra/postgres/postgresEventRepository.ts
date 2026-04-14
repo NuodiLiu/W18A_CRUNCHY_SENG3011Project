@@ -3,6 +3,7 @@ import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
 import { AggRow, DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 import { EventRepository } from "../../domain/ports/eventRepository.js";
+import { HousingAnalyticsRepository } from "../../domain/ports/housingAnalyticsRepository.js";
 
 export class PostgresEventRepository implements DataLakeReader, EventRepository {
   private readonly pool: Pool;
@@ -229,6 +230,42 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       series_key: r.series_key ?? undefined,
       value: Number(r.value) || 0,
       count: Number(r.count) || 0,
+    }));
+  }
+
+  // finding avg housing prices
+  async getAverageHousingPrices(
+    suburb?: string,
+    yearsBack: number = 2
+  ): Promise<AggRow[]> {
+
+    const params: unknown[] = [];
+    let idx = 1;
+
+    let suburbFilter = "";
+    if (suburb) {
+      suburbFilter = `AND LOWER(attribute->>'suburb') = LOWER($${idx++})`;
+      params.push(suburb);
+    }
+
+    const res = await this.pool.query(
+      `SELECT 
+        attribute->>'suburb' AS group_key,
+        AVG((attribute->>'purchase_price')::numeric) AS value,
+        COUNT(*)::text AS count
+      FROM events
+      WHERE event_type = 'housing_sale'
+      ${suburbFilter}
+      AND (attribute->>'contract_date')::date >= NOW() - INTERVAL '${yearsBack} years'
+      GROUP BY group_key
+      ORDER BY value DESC`,
+      params
+    );
+
+    return res.rows.map((r) => ({
+      group_key: r.group_key,
+      value: Number(r.value),
+      count: Number(r.count),
     }));
   }
 
