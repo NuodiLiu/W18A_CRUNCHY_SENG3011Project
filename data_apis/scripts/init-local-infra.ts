@@ -72,7 +72,6 @@ async function initPostgres() {
     // ── Expression indexes for visualisation aggregation queries ──
     // These cover the expensive JSONB extraction + numeric cast that caused 30s+ timeouts.
     await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_purchase_price ON events (((attribute->>'purchase_price')::numeric)) WHERE event_type = 'housing_sale'`);
-    await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_timestamp      ON events (((time_object->>'timestamp')::timestamp))`);
     await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_suburb_price   ON events ((attribute->>'suburb'), ((attribute->>'purchase_price')::numeric)) WHERE event_type = 'housing_sale'`);
 
     // ── Materialized views for pre-computed aggregations ──────────
