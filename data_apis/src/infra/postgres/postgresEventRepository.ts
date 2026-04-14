@@ -12,8 +12,10 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       config.pgSsl || config.pgConnectionString.includes("sslmode=");
     this.pool = new Pool({
       connectionString: config.pgConnectionString,
-      max: 5,
+      max: 10,
       ssl: useSsl ? { rejectUnauthorized: false } : false,
+      statement_timeout: 25_000,
+      idle_in_transaction_session_timeout: 10_000,
     });
   }
 
@@ -60,6 +62,17 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       throw err;
     } finally {
       client.release();
+    }
+  }
+
+  async refreshReadModel(): Promise<void> {
+    const views = [
+      "mv_housing_suburb_stats",
+      "mv_housing_yearly_stats",
+      "mv_housing_yearly_suburb",
+    ];
+    for (const view of views) {
+      await this.pool.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${view}`);
     }
   }
 
@@ -174,6 +187,12 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     aggregation: string,
     limit: number,
   ): Promise<AggRow[]> {
+    // Try materialized view first for housing_sale + suburb queries.
+    const mvCol = mvMetricColumn(metricField, aggregation);
+    if (eventType === "housing_sale" && dimensionField === "suburb" && mvCol) {
+      return this.breakdownFromMV("mv_housing_suburb_stats", "suburb", mvCol, limit);
+    }
+
     const dimExpr = safeJsonbField(dimensionField);
     const aggExpr = metricField
       ? buildAggExpr(aggregation, `(${safeJsonbField(metricField)})::numeric`)
@@ -202,6 +221,17 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     aggregation: string,
     dimensionField?: string,
   ): Promise<AggRow[]> {
+    // Try materialized views for housing_sale + year queries.
+    if (eventType === "housing_sale" && timePeriod === "year") {
+      const mvCol = mvMetricColumn(metricField, aggregation);
+      if (mvCol && !dimensionField) {
+        return this.timeseriesFromMV("mv_housing_yearly_stats", "year", mvCol);
+      }
+      if (mvCol && dimensionField === "suburb") {
+        return this.timeseriesFromMV("mv_housing_yearly_suburb", "year", mvCol, "suburb");
+      }
+    }
+
     const tsExpr = `(time_object->>'timestamp')::timestamp`;
     const periodExpr =
       timePeriod === "year" ? `EXTRACT(YEAR FROM ${tsExpr})::int::text`
@@ -224,6 +254,50 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       [eventType],
     );
 
+    return res.rows.map((r) => ({
+      group_key: r.group_key,
+      series_key: r.series_key ?? undefined,
+      value: Number(r.value) || 0,
+      count: Number(r.count) || 0,
+    }));
+  }
+
+  // ── Materialized view helpers ────────────────────────────────
+
+  private async breakdownFromMV(
+    view: string,
+    dimCol: string,
+    valueCol: string,
+    limit: number,
+  ): Promise<AggRow[]> {
+    const res = await this.pool.query<{ group_key: string; value: string; count: string }>(
+      `SELECT ${dimCol} AS group_key, ${valueCol}::text AS value, cnt::text AS count
+       FROM ${view}
+       ORDER BY ${valueCol} DESC
+       LIMIT $1`,
+      [limit],
+    );
+    return res.rows.map((r) => ({
+      group_key: r.group_key ?? "unknown",
+      value: Number(r.value) || 0,
+      count: Number(r.count) || 0,
+    }));
+  }
+
+  private async timeseriesFromMV(
+    view: string,
+    periodCol: string,
+    valueCol: string,
+    seriesCol?: string,
+  ): Promise<AggRow[]> {
+    const selectSeries = seriesCol ? `, ${seriesCol} AS series_key` : "";
+    const orderSeries = seriesCol ? `, ${seriesCol}` : "";
+
+    const res = await this.pool.query<{ group_key: string; series_key?: string; value: string; count: string }>(
+      `SELECT ${periodCol}::text AS group_key${selectSeries}, ${valueCol}::text AS value, cnt::text AS count
+       FROM ${view}
+       ORDER BY ${periodCol}${orderSeries}`,
+    );
     return res.rows.map((r) => ({
       group_key: r.group_key,
       series_key: r.series_key ?? undefined,
@@ -317,6 +391,27 @@ function safeJsonbField(field: string): string {
     throw new Error(`Invalid field name: "${field}"`);
   }
   return `attribute->>'${field}'`;
+}
+
+/**
+ * Map a (metricField, aggregation) pair to the corresponding
+ * pre-computed column in a materialized view, or null if the MV
+ * cannot serve this combination.
+ */
+function mvMetricColumn(metricField: string | null, aggregation: string): string | null {
+  if (!metricField) return "cnt";  // count-only query
+
+  const metricKey = metricField === "purchase_price" ? "price" : metricField === "area" ? "area" : null;
+  if (!metricKey) return null;
+
+  switch (aggregation) {
+    case "avg":   return `avg_${metricKey}`;
+    case "sum":   return `sum_${metricKey}`;
+    case "min":   return `min_${metricKey}`;
+    case "max":   return `max_${metricKey}`;
+    case "count": return "cnt";
+    default:      return null;
+  }
 }
 
 // build a SQL aggregation expression

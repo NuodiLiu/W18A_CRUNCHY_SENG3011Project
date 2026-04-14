@@ -68,7 +68,74 @@ async function initPostgres() {
     await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_metric_year  ON events (((attribute->>'metric_year')::int))`);
     await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_pillar       ON events ((attribute->>'pillar'))`);
     await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_company_name ON events ((attribute->>'company_name'))`);
-    console.log(`  ✔ PostgreSQL events table and indexes ready`);
+
+    // ── Expression indexes for visualisation aggregation queries ──
+    // These cover the expensive JSONB extraction + numeric cast that caused 30s+ timeouts.
+    await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_purchase_price ON events (((attribute->>'purchase_price')::numeric)) WHERE event_type = 'housing_sale'`);
+    await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_timestamp      ON events (((time_object->>'timestamp')::timestamp))`);
+    await pg.query(`CREATE INDEX IF NOT EXISTS idx_events_suburb_price   ON events ((attribute->>'suburb'), ((attribute->>'purchase_price')::numeric)) WHERE event_type = 'housing_sale'`);
+
+    // ── Materialized views for pre-computed aggregations ──────────
+    // Created once; refreshed after each batch import via REFRESH MATERIALIZED VIEW CONCURRENTLY.
+    await pg.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mv_housing_suburb_stats AS
+      SELECT
+        attribute->>'suburb' AS suburb,
+        COUNT(*)::bigint AS cnt,
+        SUM((attribute->>'purchase_price')::numeric) AS sum_price,
+        AVG((attribute->>'purchase_price')::numeric) AS avg_price,
+        MIN((attribute->>'purchase_price')::numeric) AS min_price,
+        MAX((attribute->>'purchase_price')::numeric) AS max_price,
+        SUM((attribute->>'area')::numeric) AS sum_area,
+        AVG((attribute->>'area')::numeric) AS avg_area,
+        MIN((attribute->>'area')::numeric) AS min_area,
+        MAX((attribute->>'area')::numeric) AS max_area
+      FROM events
+      WHERE event_type = 'housing_sale'
+      GROUP BY attribute->>'suburb'
+    `);
+    await pg.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_housing_suburb_stats_pk ON mv_housing_suburb_stats (suburb)`);
+
+    await pg.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mv_housing_yearly_stats AS
+      SELECT
+        EXTRACT(YEAR FROM (time_object->>'timestamp')::timestamp)::int AS year,
+        COUNT(*)::bigint AS cnt,
+        SUM((attribute->>'purchase_price')::numeric) AS sum_price,
+        AVG((attribute->>'purchase_price')::numeric) AS avg_price,
+        MIN((attribute->>'purchase_price')::numeric) AS min_price,
+        MAX((attribute->>'purchase_price')::numeric) AS max_price,
+        SUM((attribute->>'area')::numeric) AS sum_area,
+        AVG((attribute->>'area')::numeric) AS avg_area,
+        MIN((attribute->>'area')::numeric) AS min_area,
+        MAX((attribute->>'area')::numeric) AS max_area
+      FROM events
+      WHERE event_type = 'housing_sale'
+      GROUP BY year
+    `);
+    await pg.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_housing_yearly_stats_pk ON mv_housing_yearly_stats (year)`);
+
+    await pg.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mv_housing_yearly_suburb AS
+      SELECT
+        EXTRACT(YEAR FROM (time_object->>'timestamp')::timestamp)::int AS year,
+        attribute->>'suburb' AS suburb,
+        COUNT(*)::bigint AS cnt,
+        SUM((attribute->>'purchase_price')::numeric) AS sum_price,
+        AVG((attribute->>'purchase_price')::numeric) AS avg_price,
+        MIN((attribute->>'purchase_price')::numeric) AS min_price,
+        MAX((attribute->>'purchase_price')::numeric) AS max_price,
+        SUM((attribute->>'area')::numeric) AS sum_area,
+        AVG((attribute->>'area')::numeric) AS avg_area,
+        MIN((attribute->>'area')::numeric) AS min_area,
+        MAX((attribute->>'area')::numeric) AS max_area
+      FROM events
+      WHERE event_type = 'housing_sale'
+      GROUP BY year, attribute->>'suburb'
+    `);
+    await pg.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_housing_yearly_suburb_pk ON mv_housing_yearly_suburb (year, suburb)`);
+
+    console.log(`  ✔ PostgreSQL events table, indexes, and materialized views ready`);
   } finally {
     await pg.end();
   }
