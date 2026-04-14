@@ -246,9 +246,16 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     const selectDim = dimExpr ? `, ${dimExpr} AS series_key` : "";
     const groupDim = dimExpr ? ", series_key" : "";
 
+    // When grouped by a high-cardinality dimension, limit to top 20 series
+    // by count to avoid exceeding Lambda's 6MB response payload limit.
+    const TOP_SERIES = 20;
+    const dimFilter = dimExpr
+      ? `AND ${dimExpr} IN (SELECT ${dimExpr} FROM events WHERE event_type = $1 GROUP BY ${dimExpr} ORDER BY COUNT(*) DESC LIMIT ${TOP_SERIES})`
+      : "";
+
     const res = await this.pool.query<{ group_key: string; series_key?: string; value: string; count: string }>(
       `SELECT ${periodExpr} AS group_key${selectDim}, ${aggExpr} AS value, COUNT(*)::text AS count
-       FROM events WHERE event_type = $1
+       FROM events WHERE event_type = $1 ${dimFilter}
        GROUP BY group_key${groupDim}
        ORDER BY group_key${groupDim}`,
       [eventType],
@@ -293,9 +300,16 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     const selectSeries = seriesCol ? `, ${seriesCol} AS series_key` : "";
     const orderSeries = seriesCol ? `, ${seriesCol}` : "";
 
+    // When grouped by a high-cardinality dimension (e.g. suburb), limit to
+    // top 20 series by total count to avoid exceeding Lambda payload limits.
+    const TOP_SERIES = 20;
+    const whereClause = seriesCol
+      ? `WHERE ${seriesCol} IN (SELECT ${seriesCol} FROM ${view} GROUP BY ${seriesCol} ORDER BY SUM(cnt) DESC LIMIT ${TOP_SERIES})`
+      : "";
+
     const res = await this.pool.query<{ group_key: string; series_key?: string; value: string; count: string }>(
       `SELECT ${periodCol}::text AS group_key${selectSeries}, ${valueCol}::text AS value, cnt::text AS count
-       FROM ${view}
+       FROM ${view} ${whereClause}
        ORDER BY ${periodCol}${orderSeries}`,
     );
     return res.rows.map((r) => ({
