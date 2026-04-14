@@ -62,4 +62,5 @@ export interface DataLakeReader {
     aggregation: string,
     dimensionField?: string,
   ): Promise<AggRow[]>;
+  
 }
