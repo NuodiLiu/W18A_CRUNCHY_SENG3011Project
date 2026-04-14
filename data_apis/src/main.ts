@@ -15,9 +15,10 @@ const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
 const dataLakeReader = new PostgresEventRepository(config);
+const housingAnalytics = dataLakeReader;
 
 // build Express app with dependencies injected
-const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
+const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader, housingAnalytics: dataLakeReader });
 
 app.listen(config.port, () => {
   logger.info({ port: config.port }, "api_server_started");
