@@ -71,6 +71,8 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       "mv_housing_suburb_stats",
       "mv_housing_yearly_stats",
       "mv_housing_yearly_suburb",
+      "mv_achiever_course_stats",
+      "mv_achiever_year_stats",
     ];
     for (const view of views) {
       await this.pool.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${view}`);
@@ -194,6 +196,16 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       return this.breakdownFromMV("mv_housing_suburb_stats", "suburb", mvCol, limit);
     }
 
+    // distinguished_achiever MVs (count-only queries).
+    if (eventType === "distinguished_achiever" && (!metricField || aggregation === "count")) {
+      if (dimensionField === "course") {
+        return this.breakdownFromMV("mv_achiever_course_stats", "course", "cnt", limit);
+      }
+      if (dimensionField === "year") {
+        return this.breakdownFromMV("mv_achiever_year_stats", "year", "cnt", limit);
+      }
+    }
+
     const dimExpr = safeJsonbField(dimensionField);
     const aggExpr = metricField
       ? buildAggExpr(aggregation, `(${safeJsonbField(metricField)})::numeric`)
@@ -222,6 +234,11 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     aggregation: string,
     dimensionField?: string,
   ): Promise<AggRow[]> {
+    // distinguished_achiever timeseries by year via MV.
+    if (eventType === "distinguished_achiever" && timePeriod === "year" && !dimensionField) {
+      return this.timeseriesFromMV("mv_achiever_year_stats", "year", "cnt");
+    }
+
     // Try materialized views for housing_sale + year queries.
     if (eventType === "housing_sale" && timePeriod === "year") {
       const mvCol = mvMetricColumn(metricField, aggregation);
@@ -234,8 +251,10 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     }
 
     const tsExpr = `(time_object->>'timestamp')::timestamp`;
+    // Year: use left(..., 4) — immutable expression (vs EXTRACT which isn't),
+    // allowing partial expression indexes on this column to be used.
     const periodExpr =
-      timePeriod === "year" ? `EXTRACT(YEAR FROM ${tsExpr})::int::text`
+      timePeriod === "year" ? `left(time_object->>'timestamp', 4)`
       : timePeriod === "month" ? `to_char(${tsExpr}, 'YYYY-MM')`
       : `to_char(${tsExpr}, 'YYYY-MM-DD')`;
 
