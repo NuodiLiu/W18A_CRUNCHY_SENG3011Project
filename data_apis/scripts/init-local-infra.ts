@@ -134,6 +134,22 @@ async function initPostgres() {
     `);
     await pg.query(`CREATE UNIQUE INDEX IF NOT EXISTS mv_housing_yearly_suburb_pk ON mv_housing_yearly_suburb (year, suburb)`);
 
+    await pg.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mv_achiever_course_stats AS
+      SELECT attribute->>'course' AS course, COUNT(*)::int AS cnt
+      FROM events WHERE event_type = 'distinguished_achiever'
+      GROUP BY attribute->>'course'
+    `);
+    await pg.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_achiever_course ON mv_achiever_course_stats (course)`);
+
+    await pg.query(`
+      CREATE MATERIALIZED VIEW IF NOT EXISTS mv_achiever_year_stats AS
+      SELECT left(time_object->>'timestamp', 4) AS year, COUNT(*)::int AS cnt
+      FROM events WHERE event_type = 'distinguished_achiever'
+      GROUP BY left(time_object->>'timestamp', 4)
+    `);
+    await pg.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_achiever_year ON mv_achiever_year_stats (year)`);
+
     console.log(`  ✔ PostgreSQL events table, indexes, and materialized views ready`);
   } finally {
     await pg.end();
