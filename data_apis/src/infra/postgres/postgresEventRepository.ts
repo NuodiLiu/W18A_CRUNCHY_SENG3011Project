@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
+import { DATASET_TYPE_MAP } from "../../domain/models/aggregation.js";
 import { AggRow, DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 import { EventRepository } from "../../domain/ports/eventRepository.js";
 
@@ -332,7 +333,7 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
 
     if (query.dataset_type) {
       conditions.push(`event_type = $${idx++}`);
-      params.push(query.dataset_type === "esg" ? "esg_metric" : "housing_sale");
+      params.push(DATASET_TYPE_MAP[query.dataset_type] ?? query.dataset_type);
     }
     if (query.company_name) {
       conditions.push(`attribute->>'company_name' ILIKE $${idx++}`);

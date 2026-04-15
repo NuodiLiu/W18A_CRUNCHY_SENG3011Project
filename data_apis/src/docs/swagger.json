@@ -46,7 +46,7 @@
 						"type": "string",
 						"description": "Aggregation function used"
 					},
-					"event_type": {
+					"dataset_type": {
 						"type": "string",
 						"description": "Event type filter applied"
 					},
@@ -62,11 +62,22 @@
 					"dimension",
 					"metric",
 					"aggregation",
-					"event_type",
+					"dataset_type",
 					"entries"
 				],
 				"type": "object",
 				"additionalProperties": true
+			},
+			"DatasetType": {
+				"type": "string",
+				"enum": [
+					"esg",
+					"housing",
+					"shopping_centre",
+					"school_enrolment",
+					"transport_facility",
+					"distinguished_achiever"
+				]
 			},
 			"AggregationType": {
 				"type": "string",
@@ -118,7 +129,7 @@
 						"type": "string",
 						"description": "Aggregation function used (avg, sum, count, min, max)"
 					},
-					"event_type": {
+					"dataset_type": {
 						"type": "string",
 						"description": "Event type filter applied"
 					},
@@ -141,7 +152,7 @@
 				"required": [
 					"metric",
 					"aggregation",
-					"event_type",
+					"dataset_type",
 					"time_period",
 					"data"
 				],
@@ -927,10 +938,10 @@
 				"parameters": [
 					{
 						"in": "query",
-						"name": "event_type",
+						"name": "dataset_type",
 						"required": false,
 						"schema": {
-							"type": "string"
+							"$ref": "#/components/schemas/DatasetType"
 						}
 					},
 					{
@@ -991,12 +1002,11 @@
 				"security": [],
 				"parameters": [
 					{
-						"description": "Event type to filter: \"housing_sale\" or \"esg_metric\"",
 						"in": "query",
-						"name": "event_type",
+						"name": "dataset_type",
 						"required": false,
 						"schema": {
-							"type": "string"
+							"$ref": "#/components/schemas/DatasetType"
 						}
 					},
 					{
@@ -1200,11 +1210,7 @@
 						"name": "dataset_type",
 						"required": false,
 						"schema": {
-							"type": "string",
-							"enum": [
-								"esg",
-								"housing"
-							]
+							"$ref": "#/components/schemas/DatasetType"
 						}
 					},
 					{

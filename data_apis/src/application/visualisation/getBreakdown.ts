@@ -1,6 +1,8 @@
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
 import {
   AggregationType,
+  DatasetType,
+  DATASET_TYPE_MAP,
   validateDimension,
   validateMetric,
   validateAggregation,
@@ -12,7 +14,7 @@ export interface GetBreakdownDeps {
 }
 
 export interface BreakdownQuery {
-  event_type?: string;
+  dataset_type?: DatasetType;
   dimension?: string;
   metric?: string;
   aggregation?: AggregationType;
@@ -23,7 +25,7 @@ export interface BreakdownResult {
   dimension: string;
   metric: string;
   aggregation: string;
-  event_type: string;
+  dataset_type: string;
   entries: Array<{
     category: string;
     value: number;
@@ -36,7 +38,7 @@ export async function getBreakdown(
   deps: GetBreakdownDeps
 ): Promise<BreakdownResult> {
   const {
-    event_type = "housing_sale",
+    dataset_type = "housing",
     dimension = "suburb",
     metric = "count",
     aggregation = "sum",
@@ -47,18 +49,19 @@ export async function getBreakdown(
   validateMetric(metric);
   validateAggregation(aggregation);
 
+  const eventType = DATASET_TYPE_MAP[dataset_type];
   const dimField = DERIVED_DIMENSION_SOURCES[dimension] ?? dimension;
   const metricField = metric !== "count" ? metric : null;
 
   const rows = await deps.dataLakeReader.aggregateByDimension(
-    event_type, dimField, metricField, aggregation, limit,
+    eventType, dimField, metricField, aggregation, limit,
   );
 
   return {
     dimension,
     metric,
     aggregation,
-    event_type,
+    dataset_type,
     entries: rows.map((r) => ({
       category: r.group_key,
       value: metric === "count" ? r.count : r.value,

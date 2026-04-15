@@ -1,8 +1,9 @@
 import { EventRecord } from "../models/event.js";
+import { DatasetType } from "../models/aggregation.js";
 
 export interface EventQuery {
-  dataset_type?: "esg" | "housing";
-  
+  dataset_type?: DatasetType;
+
   //esg
   company_name?: string;
   permid?: string;
