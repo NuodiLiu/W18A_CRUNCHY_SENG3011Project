@@ -38,10 +38,15 @@ const models: TsoaRoute.Models = {
             "dimension": {"dataType":"string","required":true},
             "metric": {"dataType":"string","required":true},
             "aggregation": {"dataType":"string","required":true},
-            "event_type": {"dataType":"string","required":true},
+            "dataset_type": {"dataType":"string","required":true},
             "entries": {"dataType":"array","array":{"dataType":"refObject","ref":"BreakdownEntry"},"required":true},
         },
         "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "DatasetType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]},{"dataType":"enum","enums":["shopping_centre"]},{"dataType":"enum","enums":["school_enrolment"]},{"dataType":"enum","enums":["transport_facility"]},{"dataType":"enum","enums":["distinguished_achiever"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AggregationType": {
@@ -65,7 +70,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "metric": {"dataType":"string","required":true},
             "aggregation": {"dataType":"string","required":true},
-            "event_type": {"dataType":"string","required":true},
+            "dataset_type": {"dataType":"string","required":true},
             "time_period": {"dataType":"string","required":true},
             "dimension": {"dataType":"string"},
             "data": {"dataType":"array","array":{"dataType":"refObject","ref":"TimeSeriesDataPoint"},"required":true},
@@ -388,7 +393,7 @@ export function RegisterRoutes(app: Router) {
 
     
         const argsVisualisationController_getBreakdown: Record<string, TsoaRoute.ParameterSchema> = {
-                event_type: {"in":"query","name":"event_type","dataType":"string"},
+                dataset_type: {"in":"query","name":"dataset_type","ref":"DatasetType"},
                 dimension: {"in":"query","name":"dimension","dataType":"string"},
                 metric: {"in":"query","name":"metric","dataType":"string"},
                 aggregation: {"in":"query","name":"aggregation","ref":"AggregationType"},
@@ -427,7 +432,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsVisualisationController_getTimeSeries: Record<string, TsoaRoute.ParameterSchema> = {
-                event_type: {"in":"query","name":"event_type","dataType":"string"},
+                dataset_type: {"in":"query","name":"dataset_type","ref":"DatasetType"},
                 time_period: {"in":"query","name":"time_period","dataType":"union","subSchemas":[{"dataType":"enum","enums":["year"]},{"dataType":"enum","enums":["month"]},{"dataType":"enum","enums":["day"]}]},
                 dimension: {"in":"query","name":"dimension","dataType":"string"},
                 metric: {"in":"query","name":"metric","dataType":"string"},
@@ -604,7 +609,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsEventsController_getEvents: Record<string, TsoaRoute.ParameterSchema> = {
-                dataset_type: {"in":"query","name":"dataset_type","dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]}]},
+                dataset_type: {"in":"query","name":"dataset_type","ref":"DatasetType"},
                 company_name: {"in":"query","name":"company_name","dataType":"string"},
                 permid: {"in":"query","name":"permid","dataType":"string"},
                 metric_name: {"in":"query","name":"metric_name","dataType":"string"},

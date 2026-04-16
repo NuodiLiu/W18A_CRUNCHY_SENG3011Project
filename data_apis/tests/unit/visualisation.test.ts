@@ -106,7 +106,7 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     expect(res.body.dimension).toBeDefined();
     expect(res.body.metric).toBeDefined();
     expect(res.body.aggregation).toBeDefined();
-    expect(res.body.event_type).toBeDefined();
+    expect(res.body.dataset_type).toBeDefined();
     expect(res.body.entries).toBeInstanceOf(Array);
   });
 
@@ -131,7 +131,7 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     const { app, deps } = buildApp();
     await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ event_type: "housing_sale", dimension: "suburb", metric: "purchase_price", aggregation: "avg", limit: 5 })
+      .query({ dataset_type: "housing", dimension: "suburb", metric: "purchase_price", aggregation: "avg", limit: 5 })
       .expect(200);
 
     expect(deps.dataLakeReader.aggregateByDimension).toHaveBeenCalledWith(
@@ -162,14 +162,14 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     expect(res.body.entries).toEqual([]);
   });
 
-  it("filters by event_type", async () => {
+  it("filters by dataset_type", async () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ event_type: "housing_sale", dimension: "suburb" })
+      .query({ dataset_type: "housing", dimension: "suburb" })
       .expect(200);
 
-    expect(res.body.event_type).toBe("housing_sale");
+    expect(res.body.dataset_type).toBe("housing");
   });
 });
 
@@ -184,7 +184,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
 
     expect(res.body.metric).toBeDefined();
     expect(res.body.aggregation).toBeDefined();
-    expect(res.body.event_type).toBeDefined();
+    expect(res.body.dataset_type).toBeDefined();
     expect(res.body.data).toBeInstanceOf(Array);
   });
 
@@ -238,7 +238,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
     const { app, deps } = buildApp();
     await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ event_type: "housing_sale", metric: "purchase_price", aggregation: "avg", time_period: "month" })
+      .query({ dataset_type: "housing", metric: "purchase_price", aggregation: "avg", time_period: "month" })
       .expect(200);
 
     expect(deps.dataLakeReader.aggregateByTimePeriod).toHaveBeenCalledWith(
@@ -297,14 +297,14 @@ describe("GET /api/v1/visualisation/timeseries", () => {
     expect(res.body.data).toEqual([]);
   });
 
-  it("filters by event_type", async () => {
+  it("filters by dataset_type", async () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ event_type: "housing_sale" })
+      .query({ dataset_type: "housing" })
       .expect(200);
 
-    expect(res.body.event_type).toBe("housing_sale");
+    expect(res.body.dataset_type).toBe("housing");
   });
 });
 

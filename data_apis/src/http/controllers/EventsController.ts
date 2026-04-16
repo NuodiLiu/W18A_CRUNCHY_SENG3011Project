@@ -9,6 +9,7 @@ import {
 } from "../types/events.types.js";
 import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
+import { DatasetType } from "../../domain/models/aggregation.js";
 import { getEvents } from "../../application/retrieval/getEvents.js";
 import { getEventById } from "../../application/retrieval/getEventById.js";
 import { deleteEvent } from "../../application/retrieval/deleteEvent.js";
@@ -36,8 +37,8 @@ export class EventsController extends Controller {
   @Get("/")
   @SuccessResponse(200, "List of events")
   public async getEvents(
-    @Query("dataset_type") dataset_type?: "esg" | "housing",
-    
+    @Query("dataset_type") dataset_type?: DatasetType,
+
     @Query("company_name") company_name?: string,
     @Query("permid") permid?: string,
     @Query("metric_name") metric_name?: string,

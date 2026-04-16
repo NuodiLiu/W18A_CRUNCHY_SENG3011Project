@@ -15,7 +15,7 @@ export function toBreakdownResponse(result: BreakdownResult): BreakdownResponse 
     dimension: result.dimension,
     metric: result.metric,
     aggregation: result.aggregation,
-    event_type: result.event_type,
+    dataset_type: result.dataset_type,
     entries: result.entries.map(toBreakdownEntry),
   };
 }
@@ -39,7 +39,7 @@ export function toTimeSeriesResponse(result: TimeSeriesResult): TimeSeriesRespon
   return {
     metric: result.metric,
     aggregation: result.aggregation,
-    event_type: result.event_type,
+    dataset_type: result.dataset_type,
     time_period: result.time_period,
     dimension: result.dimension,
     data: result.entries.map(toTimeSeriesDataPoint),

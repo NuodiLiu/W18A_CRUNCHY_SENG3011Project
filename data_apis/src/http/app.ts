@@ -4,6 +4,7 @@ import { RegisterRoutes } from "./generated/routes.js";
 import { initDeps, AppDeps } from "./ioc.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { responseCache } from "./middleware/responseCache.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -15,7 +16,7 @@ const swaggerDocument = JSON.parse(
 
 export type { AppDeps };
 
-export function createApp(deps: AppDeps): Express {
+export function createApp(deps: AppDeps, options?: { disableCache?: boolean }): Express {
   const app = express();
 
   // ── Body parsing ──────────────────────────────────
@@ -23,6 +24,11 @@ export function createApp(deps: AppDeps): Express {
 
   // ── Structured request logging + EMF metrics ─────
   app.use(requestLogger);
+
+  // ── In-memory cache for visualisation endpoints ───
+  if (!options?.disableCache) {
+    app.use("/api/v1/visualisation", responseCache());
+  }
 
   // ── Wire tsoa IoC container ───────────────────────
   initDeps(deps);
