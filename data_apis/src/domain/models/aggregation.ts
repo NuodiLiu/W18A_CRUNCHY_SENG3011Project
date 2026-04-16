@@ -8,6 +8,29 @@
 
 import { ValidationError } from "../errors.js";
 
+// ─── Dataset type → DB event_type mapping ────────────────────────────────────
+
+export type DatasetType =
+  | "esg"
+  | "housing"
+  | "shopping_centre"
+  | "school_enrolment"
+  | "transport_facility"
+  | "distinguished_achiever";
+
+export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
+  esg:                    "esg_metric",
+  housing:                "housing_sale",
+  shopping_centre:        "shopping_centre",
+  school_enrolment:       "school_enrolment",
+  transport_facility:     "transport_facility",
+  distinguished_achiever: "distinguished_achiever",
+};
+
+export function resolveEventType(datasetType: DatasetType): string {
+  return DATASET_TYPE_MAP[datasetType];
+}
+
 // ─── Aggregation Type ──────────────────────────────────────────────────────────
 
 export type AggregationType = "avg" | "sum" | "count" | "min" | "max";
@@ -47,6 +70,15 @@ export const ESG_DIMENSIONS = [
 /** ESG metric event metrics that can be aggregated. */
 export const ESG_METRICS = ["metric_value"] as const;
 
+export const SHOPPING_CENTRE_DIMENSIONS = ["suburb", "suburb_group"] as const;
+export const SHOPPING_CENTRE_METRICS = ["stores"] as const;
+
+export const SCHOOL_ENROLMENT_DIMENSIONS = ["school_code", "school_name", "census_year"] as const;
+export const SCHOOL_ENROLMENT_METRICS = ["year_12_enrolment"] as const;
+
+export const TRANSPORT_FACILITY_DIMENSIONS = ["suburb", "transport_mode"] as const;
+
+export const DISTINGUISHED_ACHIEVER_DIMENSIONS = ["school", "course", "year"] as const;
 /** Population event dimensions that can be used for grouping. */
 export const POPULATION_DIMENSIONS = ["country", "quarter"] as const;
 
@@ -62,6 +94,10 @@ export const GDP_METRICS = ["gdp_value"] as const;
 const VALID_DIMENSIONS = new Set<string>([
   ...HOUSING_DIMENSIONS,
   ...ESG_DIMENSIONS,
+  ...SHOPPING_CENTRE_DIMENSIONS,
+  ...SCHOOL_ENROLMENT_DIMENSIONS,
+  ...TRANSPORT_FACILITY_DIMENSIONS,
+  ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
   ...POPULATION_DIMENSIONS,
   ...GDP_DIMENSIONS,
 ]);
@@ -69,6 +105,8 @@ const VALID_DIMENSIONS = new Set<string>([
 const VALID_METRICS = new Set<string>([
   ...HOUSING_METRICS,
   ...ESG_METRICS,
+  ...SHOPPING_CENTRE_METRICS,
+  ...SCHOOL_ENROLMENT_METRICS,
   ...POPULATION_METRICS,
   ...GDP_METRICS,
 ]);

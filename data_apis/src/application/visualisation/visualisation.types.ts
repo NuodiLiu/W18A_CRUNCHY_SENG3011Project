@@ -23,7 +23,7 @@ export interface TimeSeriesDataPoint {
     /** Aggregation function used (avg, sum, count, min, max) */
     aggregation: string;
     /** Event type filter applied */
-    event_type: string;
+    dataset_type: string;
     /** Time granularity used (year, month, day) */
     time_period: string;
     /** Dimension used for grouping (if any) */
@@ -51,7 +51,7 @@ export interface TimeSeriesDataPoint {
     /** Aggregation function used */
     aggregation: string;
     /** Event type filter applied */
-    event_type: string;
+    dataset_type: string;
     /** Breakdown entries, sorted by value descending */
     entries: BreakdownEntry[];
   }
