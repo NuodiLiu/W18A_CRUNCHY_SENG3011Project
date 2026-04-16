@@ -47,12 +47,31 @@ export const ESG_DIMENSIONS = [
 /** ESG metric event metrics that can be aggregated. */
 export const ESG_METRICS = ["metric_value"] as const;
 
+/** Population event dimensions that can be used for grouping. */
+export const POPULATION_DIMENSIONS = ["country", "quarter"] as const;
+
+/** Population event metrics that can be aggregated. */
+export const POPULATION_METRICS = ["population"] as const;
+
+/** GDP event dimensions that can be used for grouping. */
+export const GDP_DIMENSIONS = ["country"] as const;
+
+/** GDP event metrics that can be aggregated. */
+export const GDP_METRICS = ["gdp_value"] as const;
+
 const VALID_DIMENSIONS = new Set<string>([
   ...HOUSING_DIMENSIONS,
   ...ESG_DIMENSIONS,
+  ...POPULATION_DIMENSIONS,
+  ...GDP_DIMENSIONS,
 ]);
 
-const VALID_METRICS = new Set<string>([...HOUSING_METRICS, ...ESG_METRICS]);
+const VALID_METRICS = new Set<string>([
+  ...HOUSING_METRICS,
+  ...ESG_METRICS,
+  ...POPULATION_METRICS,
+  ...GDP_METRICS,
+]);
 
 // ─── Validation (Value-Object guards) ──────────────────────────────────────────
 
