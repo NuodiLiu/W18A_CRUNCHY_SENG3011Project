@@ -7,6 +7,7 @@ import {
   validateMetric,
   validateAggregation,
   DERIVED_DIMENSION_SOURCES,
+  ATTRIBUTE_COUNT_DATASETS,
 } from "../../domain/models/aggregation.js";
 
 export interface TimeSeriesQuery {
@@ -55,7 +56,10 @@ export async function getTimeSeries(
 
   const eventType = DATASET_TYPE_MAP[dataset_type];
   const dimField = dimension ? (DERIVED_DIMENSION_SOURCES[dimension] ?? dimension) : undefined;
-  const metricField = metric !== "count" ? metric : null;
+  const metricField =
+    metric !== "count" ? metric
+    : ATTRIBUTE_COUNT_DATASETS.has(dataset_type) ? "count"
+    : null;
 
   const rows = await deps.dataLakeReader.aggregateByTimePeriod(
     eventType, time_period, metricField, aggregation, dimField,
@@ -70,7 +74,7 @@ export async function getTimeSeries(
     entries: rows.map((r) => ({
       period: r.group_key,
       series: r.series_key,
-      value: metric === "count" ? r.count : r.value,
+      value: metric === "count" && !ATTRIBUTE_COUNT_DATASETS.has(dataset_type) ? r.count : r.value,
       count: r.count,
     })),
   };

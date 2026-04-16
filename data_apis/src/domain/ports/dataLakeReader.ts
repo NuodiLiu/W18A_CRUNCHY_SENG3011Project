@@ -18,6 +18,9 @@ export interface EventQuery {
   street_name?: string;
   nature_of_property?: string;
 
+  // crime
+  offence_category?: string;
+
   //pagination
   limit?: number;
   offset?: number;

@@ -1,0 +1,19 @@
+{
+  "profile_name": "crime_v1",
+  "version": "1.0.0",
+  "description": "NSW Police recorded crime statistics by postcode, suburb, offence category, and month.",
+  "source_format": "wide CSV melted to one event per (postcode, suburb, offence_category, month)",
+  "event_type": "nsw_crime",
+  "dataset_id": "crime_import",
+  "time_object": {
+    "timestamp": "YYYY-MM-01T00:00:00Z  (first day of the reported month)",
+    "timezone": "Australia/Sydney"
+  },
+  "field_map": {
+    "postcode":         "CSV column 'Postcode'          → integer",
+    "suburb":           "CSV column 'Suburb'            → string",
+    "offence_category": "CSV column 'Offence category'  → string",
+    "count":            "Wide monthly column (e.g. 'Jan 1995') → integer (incidents that month)"
+  },
+  "notes": "Source file: ~/Desktop/raw_housing_data/cleaned_crime_data.csv. Each wide row is exploded into ~372 events (Jan 1995 – Dec 2025). Null / empty monthly cells are skipped."
+}

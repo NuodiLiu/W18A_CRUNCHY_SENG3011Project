@@ -250,6 +250,19 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       }
     }
 
+    // Fast paths for nsw_crime year timeseries.
+    if (eventType === "nsw_crime" && timePeriod === "year" && metricField === "count" && aggregation === "sum") {
+      if (!dimensionField) {
+        return this.timeseriesFromMV("mv_crime_yearly_totals", "year", "total_count");
+      }
+      if (dimensionField === "offence_category") {
+        return this.timeseriesFromMV("mv_crime_yearly_category", "year", "total_count", "offence_category");
+      }
+      if (dimensionField === "suburb") {
+        return this.timeseriesFromMV("mv_crime_yearly_suburb", "year", "total_count", "suburb");
+      }
+    }
+
     const tsExpr = `(time_object->>'timestamp')::timestamp`;
     // Year: use left(..., 4) — immutable expression (vs EXTRACT which isn't),
     // allowing partial expression indexes on this column to be used.
@@ -393,6 +406,10 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     if (query.nature_of_property) {
       conditions.push(`attribute->>'nature_of_property' = $${idx++}`);
       params.push(query.nature_of_property);
+    }
+    if (query.offence_category) {
+      conditions.push(`attribute->>'offence_category' ILIKE $${idx++}`);
+      params.push(`%${query.offence_category}%`);
     }
 
     const whereClause =
