@@ -19,7 +19,9 @@ export type DatasetType =
   | "distinguished_achiever"
   | "crime"
   | "abs_census"
-  | "nsw_population";
+  | "nsw_population"
+  | "aus_population"
+  | "aus_gdp";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -31,6 +33,8 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   crime:                  "nsw_crime",
   abs_census:             "abs_census_2021",
   nsw_population:         "nsw_population",
+  aus_population:         "aus_population",
+  aus_gdp:                "aus_gdp",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -95,6 +99,14 @@ export const ABS_CENSUS_DIMENSIONS = ["suburb", "sal_code"] as const;
 /** NSW suburb-level population demographic breakdown (2016 & 2011 Census). */
 export const NSW_POPULATION_DIMENSIONS = ["suburb", "lga", "category", "sub_category", "suburb_code"] as const;
 export const NSW_POPULATION_METRICS = ["males", "females", "persons"] as const;
+
+/** Australian national population (quarterly). */
+export const AUS_POPULATION_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_POPULATION_METRICS = ["population"] as const;
+
+/** Australian national GDP (quarterly). */
+export const AUS_GDP_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_GDP_METRICS = ["real_gdp_aud_millions", "nominal_gdp_aud_millions"] as const;
 export const ABS_CENSUS_METRICS = [
   "total_population",
   "median_age",
@@ -131,6 +143,8 @@ const VALID_DIMENSIONS = new Set<string>([
   ...CRIME_DIMENSIONS,
   ...ABS_CENSUS_DIMENSIONS,
   ...NSW_POPULATION_DIMENSIONS,
+  ...AUS_POPULATION_DIMENSIONS,
+  ...AUS_GDP_DIMENSIONS,
 ]);
 
 const VALID_METRICS = new Set<string>([
@@ -141,6 +155,8 @@ const VALID_METRICS = new Set<string>([
   ...CRIME_METRICS,
   ...ABS_CENSUS_METRICS,
   ...NSW_POPULATION_METRICS,
+  ...AUS_POPULATION_METRICS,
+  ...AUS_GDP_METRICS,
 ]);
 
 // ─── Validation (Value-Object guards) ──────────────────────────────────────────
