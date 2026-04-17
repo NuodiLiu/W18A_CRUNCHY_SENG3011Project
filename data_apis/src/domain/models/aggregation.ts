@@ -126,6 +126,18 @@ export const ABS_COMMUNITY_PROFILE_METRICS = [
  * (i.e. attribute->>'count') rather than the "count rows" pseudo-metric.
  */
 export const ATTRIBUTE_COUNT_DATASETS = new Set<DatasetType>(["crime"]);
+export const DISTINGUISHED_ACHIEVER_DIMENSIONS = ["school", "course", "year"] as const;
+/** Population event dimensions that can be used for grouping. */
+export const POPULATION_DIMENSIONS = ["country", "quarter"] as const;
+
+/** Population event metrics that can be aggregated. */
+export const POPULATION_METRICS = ["population"] as const;
+
+/** GDP event dimensions that can be used for grouping. */
+export const GDP_DIMENSIONS = ["country"] as const;
+
+/** GDP event metrics that can be aggregated. */
+export const GDP_METRICS = ["gdp_value"] as const;
 
 const VALID_DIMENSIONS = new Set<string>([
   ...HOUSING_DIMENSIONS,
@@ -138,6 +150,9 @@ const VALID_DIMENSIONS = new Set<string>([
   ...ABS_COMMUNITY_PROFILE_DIMENSIONS,
   ...NSW_POPULATION_DIMENSIONS,
   ...NSW_WEATHER_DIMENSIONS,
+  ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
+  ...POPULATION_DIMENSIONS,
+  ...GDP_DIMENSIONS,
 ]);
 
 const VALID_METRICS = new Set<string>([
@@ -149,6 +164,8 @@ const VALID_METRICS = new Set<string>([
   ...ABS_COMMUNITY_PROFILE_METRICS,
   ...NSW_POPULATION_METRICS,
   ...NSW_WEATHER_METRICS,
+  ...POPULATION_METRICS,
+  ...GDP_METRICS,
 ]);
 
 // ─── Validation (Value-Object guards) ──────────────────────────────────────────
