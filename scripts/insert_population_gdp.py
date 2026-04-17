@@ -1,193 +1,156 @@
 """
-Insert population (quarterly) and GDP (yearly) data into the events table.
+Insert Australian quarterly population and quarterly GDP data into the events table.
+
+Sources:
+  - ~/Desktop/raw_housing_data/australia_quarterly_population_2000_to_2025Q3.csv
+  - ~/Desktop/raw_housing_data/australia_quarterly_gdp_2000_to_2025q4.xlsx
+
+Population events  (event_type = aus_population):
+  time_object.timestamp = quarter_end_date (ISO)
+  attribute: { country, quarter, year, population }
+
+GDP events  (event_type = aus_gdp):
+  time_object.timestamp = quarter_start_date (ISO)
+  attribute: { country, quarter, year, real_gdp_aud_millions, nominal_gdp_aud_millions }
 
 Usage:
-    pip install psycopg2-binary
-    python scripts/insert_population_gdp.py
+    pip3 install psycopg2-binary pandas openpyxl boto3
+    python3 scripts/insert_population_gdp.py
 """
 
 import json
+import os
+import subprocess
+import sys
 import uuid
+
+import pandas as pd
 import psycopg2
+import psycopg2.extras
 
-PG_CONNECTION = "postgres://postgres:postgres@localhost:5432/eia_dev"
-DATASET_ID = "manual_import"
+# ── Config ────────────────────────────────────────────────────────────────────
 
-# ── Australian quarterly population 2000-Q1 to 2025-Q3 ──────────────────────
-POPULATION_DATA = [
-    ("2000-Q1", "2000-03-31", 18986711),
-    ("2000-Q2", "2000-06-30", 19028802),
-    ("2000-Q3", "2000-09-30", 19086040),
-    ("2000-Q4", "2000-12-31", 19141036),
-    ("2001-Q1", "2001-03-31", 19225181),
-    ("2001-Q2", "2001-06-30", 19274701),
-    ("2001-Q3", "2001-09-30", 19329107),
-    ("2001-Q4", "2001-12-31", 19386461),
-    ("2002-Q1", "2002-03-31", 19453350),
-    ("2002-Q2", "2002-06-30", 19495210),
-    ("2002-Q3", "2002-09-30", 19548871),
-    ("2002-Q4", "2002-12-31", 19605441),
-    ("2003-Q1", "2003-03-31", 19676628),
-    ("2003-Q2", "2003-06-30", 19720737),
-    ("2003-Q3", "2003-09-30", 19773429),
-    ("2003-Q4", "2003-12-31", 19827155),
-    ("2004-Q1", "2004-03-31", 19894105),
-    ("2004-Q2", "2004-06-30", 19932722),
-    ("2004-Q3", "2004-09-30", 19989677),
-    ("2004-Q4", "2004-12-31", 20046003),
-    ("2005-Q1", "2005-03-31", 20126553),
-    ("2005-Q2", "2005-06-30", 20176844),
-    ("2005-Q3", "2005-09-30", 20244727),
-    ("2005-Q4", "2005-12-31", 20311543),
-    ("2006-Q1", "2006-03-31", 20398132),
-    ("2006-Q2", "2006-06-30", 20450966),
-    ("2006-Q3", "2006-09-30", 20542282),
-    ("2006-Q4", "2006-12-31", 20627547),
-    ("2007-Q1", "2007-03-31", 20742817),
-    ("2007-Q2", "2007-06-30", 20827622),
-    ("2007-Q3", "2007-09-30", 20924160),
-    ("2007-Q4", "2007-12-31", 21016121),
-    ("2008-Q1", "2008-03-31", 21148928),
-    ("2008-Q2", "2008-06-30", 21249199),
-    ("2008-Q3", "2008-09-30", 21366049),
-    ("2008-Q4", "2008-12-31", 21475625),
-    ("2009-Q1", "2009-03-31", 21601676),
-    ("2009-Q2", "2009-06-30", 21691653),
-    ("2009-Q3", "2009-09-30", 21788088),
-    ("2009-Q4", "2009-12-31", 21865623),
-    ("2010-Q1", "2010-03-31", 21964097),
-    ("2010-Q2", "2010-06-30", 22031750),
-    ("2010-Q3", "2010-09-30", 22104402),
-    ("2010-Q4", "2010-12-31", 22172469),
-    ("2011-Q1", "2011-03-31", 22268758),
-    ("2011-Q2", "2011-06-30", 22340024),
-    ("2011-Q3", "2011-09-30", 22432771),
-    ("2011-Q4", "2011-12-31", 22522197),
-    ("2012-Q1", "2012-03-31", 22640943),
-    ("2012-Q2", "2012-06-30", 22733465),
-    ("2012-Q3", "2012-09-30", 22833922),
-    ("2012-Q4", "2012-12-31", 22928023),
-    ("2013-Q1", "2013-03-31", 23043004),
-    ("2013-Q2", "2013-06-30", 23128129),
-    ("2013-Q3", "2013-09-30", 23220231),
-    ("2013-Q4", "2013-12-31", 23297777),
-    ("2014-Q1", "2014-03-31", 23406193),
-    ("2014-Q2", "2014-06-30", 23475686),
-    ("2014-Q3", "2014-09-30", 23562901),
-    ("2014-Q4", "2014-12-31", 23640331),
-    ("2015-Q1", "2015-03-31", 23745629),
-    ("2015-Q2", "2015-06-30", 23815995),
-    ("2015-Q3", "2015-09-30", 23904271),
-    ("2015-Q4", "2015-12-31", 23984581),
-    ("2016-Q1", "2016-03-31", 24103425),
-    ("2016-Q2", "2016-06-30", 24190907),
-    ("2016-Q3", "2016-09-30", 24297530),
-    ("2016-Q4", "2016-12-31", 24385064),
-    ("2017-Q1", "2017-03-31", 24511409),
-    ("2017-Q2", "2017-06-30", 24592588),
-    ("2017-Q3", "2017-09-30", 24690071),
-    ("2017-Q4", "2017-12-31", 24759018),
-    ("2018-Q1", "2018-03-31", 24881751),
-    ("2018-Q2", "2018-06-30", 24963258),
-    ("2018-Q3", "2018-09-30", 25067399),
-    ("2018-Q4", "2018-12-31", 25146140),
-    ("2019-Q1", "2019-03-31", 25264932),
-    ("2019-Q2", "2019-06-30", 25334826),
-    ("2019-Q3", "2019-09-30", 25438073),
-    ("2019-Q4", "2019-12-31", 25520468),
-    ("2020-Q1", "2020-03-31", 25627924),
-    ("2020-Q2", "2020-06-30", 25649248),
-    ("2020-Q3", "2020-09-30", 25633341),
-    ("2020-Q4", "2020-12-31", 25630698),
-    ("2021-Q1", "2021-03-31", 25653005),
-    ("2021-Q2", "2021-06-30", 25685412),
-    ("2021-Q3", "2021-09-30", 25704774),
-    ("2021-Q4", "2021-12-31", 25773795),
-    ("2022-Q1", "2022-03-31", 25912977),
-    ("2022-Q2", "2022-06-30", 26018721),
-    ("2022-Q3", "2022-09-30", 26169314),
-    ("2022-Q4", "2022-12-31", 26320285),
-    ("2023-Q1", "2023-03-31", 26514302),
-    ("2023-Q2", "2023-06-30", 26659922),
-    ("2023-Q3", "2023-09-30", 26831131),
-    ("2023-Q4", "2023-12-31", 26956660),
-    ("2024-Q1", "2024-03-31", 27113517),
-    ("2024-Q2", "2024-06-30", 27194286),
-    ("2024-Q3", "2024-09-30", 27301149),
-    ("2024-Q4", "2024-12-31", 27388133),
-    ("2025-Q1", "2025-03-31", 27531443),
-    ("2025-Q2", "2025-06-30", 27613654),
-    ("2025-Q3", "2025-09-30", 27724744),
-]
+POPULATION_CSV = os.path.expanduser(
+    "~/Desktop/raw_housing_data/australia_quarterly_population_2000_to_2025Q3.csv"
+)
+GDP_XLSX = os.path.expanduser(
+    "~/Desktop/raw_housing_data/australia_quarterly_gdp_2000_to_2025q4.xlsx"
+)
+LAMBDA_FUNCTION = "eia-dev-api"
+AWS_REGION = "ap-southeast-2"
+DATASET_ID = "aus_macro_import"
+BATCH_SIZE = 200
 
-# ── Australian yearly GDP in billions USD 1990-2024 ──────────────────────────
-GDP_DATA = [
-    ("1990", 311.84), ("1991", 326.42), ("1992", 325.98), ("1993", 312.57),
-    ("1994", 323.27), ("1995", 368.73), ("1996", 401.96), ("1997", 436.32),
-    ("1998", 400.36), ("1999", 390.35), ("2000", 416.90), ("2001", 380.36),
-    ("2002", 396.44), ("2003", 468.52), ("2004", 615.64), ("2005", 696.81),
-    ("2006", 749.71), ("2007", 856.60), ("2008", 1058.45), ("2009", 931.76),
-    ("2010", 1152.57), ("2011", 1402.94), ("2012", 1552.73), ("2013", 1583.74),
-    ("2014", 1474.68), ("2015", 1356.81), ("2016", 1211.59), ("2017", 1330.89),
-    ("2018", 1433.14), ("2019", 1398.35), ("2020", 1333.34), ("2021", 1560.62),
-    ("2022", 1695.63), ("2023", 1734.45), ("2024", 1757.02),
-]
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def get_pg_connection_string() -> str:
+    """Fetch PG_CONNECTION_STRING from Lambda env vars."""
+    try:
+        result = subprocess.run(
+            [
+                "aws", "lambda", "get-function-configuration",
+                "--function-name", LAMBDA_FUNCTION,
+                "--region", AWS_REGION,
+                "--query", "Environment.Variables.PG_CONNECTION_STRING",
+                "--output", "text",
+            ],
+            capture_output=True, text=True, check=True,
+        )
+        conn_str = result.stdout.strip()
+        if not conn_str or conn_str == "None":
+            raise ValueError("PG_CONNECTION_STRING not found in Lambda env")
+        print("[config] PG connection retrieved from Lambda env")
+        return conn_str
+    except Exception as exc:
+        print(f"[error] Could not get PG connection from Lambda: {exc}")
+        sys.exit(1)
 
 
-def build_population_rows():
+# ── Build rows ────────────────────────────────────────────────────────────────
+
+def build_population_rows() -> list:
+    df = pd.read_csv(POPULATION_CSV)
     rows = []
-    for quarter, date_str, population in POPULATION_DATA:
+    for _, row in df.iterrows():
+        quarter = str(row["quarter"]).strip()
+        year = quarter[:4]
+        date_str = str(row["quarter_end_date"]).strip()
+        population = int(row["population_persons"])
         rows.append((
             str(uuid.uuid4()),
-            "population",
+            "aus_population",
             DATASET_ID,
             json.dumps({"timestamp": f"{date_str}T00:00:00Z", "timezone": "UTC"}),
             json.dumps({
                 "country": "Australia",
                 "quarter": quarter,
-                "year": quarter[:4],
+                "year": year,
                 "population": population,
             }),
         ))
     return rows
 
 
-def build_gdp_rows():
+def build_gdp_rows() -> list:
+    df = pd.read_excel(GDP_XLSX)
     rows = []
-    for year, gdp_value in GDP_DATA:
+    for _, row in df.iterrows():
+        quarter = str(row["quarter"]).strip()
+        year = quarter[:4]
+        date_str = str(row["quarter_start_date"])[:10]
+        real_gdp = int(row["real_gdp_chain_volume_sa_aud_millions"])
+        nominal_gdp = int(row["nominal_gdp_current_price_sa_aud_millions"])
         rows.append((
             str(uuid.uuid4()),
-            "gdp",
+            "aus_gdp",
             DATASET_ID,
-            json.dumps({"timestamp": f"{year}-01-01T00:00:00Z", "timezone": "UTC"}),
+            json.dumps({"timestamp": f"{date_str}T00:00:00Z", "timezone": "UTC"}),
             json.dumps({
                 "country": "Australia",
+                "quarter": quarter,
                 "year": year,
-                "gdp_value": gdp_value,
-                "gdp_unit": "billion_usd",
+                "real_gdp_aud_millions": real_gdp,
+                "nominal_gdp_aud_millions": nominal_gdp,
             }),
         ))
     return rows
 
 
+# ── Main ──────────────────────────────────────────────────────────────────────
+
 def main():
-    conn = psycopg2.connect(PG_CONNECTION)
+    conn_str = get_pg_connection_string()
+    conn = psycopg2.connect(conn_str)
     cur = conn.cursor()
 
-    # Clear old manual data (idempotent re-runs)
-    cur.execute("DELETE FROM events WHERE event_type IN ('population', 'gdp') AND dataset_id = %s", (DATASET_ID,))
-    print(f"Cleared old rows: {cur.rowcount}")
+    # Idempotent: clear previous data for this dataset
+    cur.execute(
+        "DELETE FROM events WHERE event_type IN ('aus_population', 'aus_gdp') AND dataset_id = %s",
+        (DATASET_ID,),
+    )
+    print(f"[idempotency] Cleared {cur.rowcount} existing rows")
 
-    all_rows = build_population_rows() + build_gdp_rows()
+    pop_rows = build_population_rows()
+    gdp_rows = build_gdp_rows()
+    all_rows = pop_rows + gdp_rows
 
     insert_sql = """
         INSERT INTO events (event_id, event_type, dataset_id, time_object, attribute)
         VALUES (%s, %s, %s, %s::jsonb, %s::jsonb)
     """
-    cur.executemany(insert_sql, all_rows)
-
+    psycopg2.extras.execute_batch(cur, insert_sql, all_rows, page_size=BATCH_SIZE)
     conn.commit()
-    print(f"Inserted {len(all_rows)} rows ({len(POPULATION_DATA)} population + {len(GDP_DATA)} gdp)")
+
+    print(f"[done] Inserted {len(all_rows)} rows "
+          f"({len(pop_rows)} aus_population + {len(gdp_rows)} aus_gdp)")
+
+    # Indexes for fast querying
+    print("[index] Creating indexes...")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_events_aus_population_type ON events (event_type) WHERE event_type = 'aus_population'")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_events_aus_gdp_type ON events (event_type) WHERE event_type = 'aus_gdp'")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_events_aus_macro_quarter ON events ((attribute->>'quarter')) WHERE event_type IN ('aus_population', 'aus_gdp')")
+    conn.commit()
+    print("[index] Done")
 
     cur.close()
     conn.close()
@@ -195,3 +158,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

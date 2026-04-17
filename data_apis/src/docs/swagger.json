@@ -78,7 +78,9 @@
 					"transport_facility",
 					"distinguished_achiever",
 					"crime",
-					"abs_census"
+					"abs_census",
+					"aus_population",
+					"aus_gdp"
 				]
 			},
 			"AggregationType": {
