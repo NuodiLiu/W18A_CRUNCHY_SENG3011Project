@@ -80,7 +80,9 @@
 					"crime",
 					"abs_community_profile",
 					"nsw_population",
-					"nsw_weather"
+					"nsw_weather",
+					"aus_population",
+					"aus_gdp"
 				]
 			},
 			"AggregationType": {

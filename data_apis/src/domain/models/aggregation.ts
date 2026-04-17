@@ -20,7 +20,9 @@ export type DatasetType =
   | "crime"
   | "abs_community_profile"
   | "nsw_population"
-  | "nsw_weather";
+  | "nsw_weather"
+  | "aus_population"
+  | "aus_gdp";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -33,6 +35,8 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   abs_community_profile:  "abs_census_2021",
   nsw_population:         "nsw_population",
   nsw_weather:            "nsw_weather",
+  aus_population:         "aus_population",
+  aus_gdp:                "aus_gdp",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -101,6 +105,15 @@ export const NSW_POPULATION_METRICS = ["males", "females", "persons"] as const;
 /** NSW monthly weather trends by suburb. */
 export const NSW_WEATHER_DIMENSIONS = ["suburb", "lga", "month"] as const;
 export const NSW_WEATHER_METRICS = ["avg_temp", "avg_rainfall"] as const;
+
+/** Australian national population (quarterly). */
+export const AUS_POPULATION_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_POPULATION_METRICS = ["population"] as const;
+
+/** Australian national GDP (quarterly). */
+export const AUS_GDP_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_GDP_METRICS = ["real_gdp_aud_millions", "nominal_gdp_aud_millions"] as const;
+
 export const ABS_COMMUNITY_PROFILE_METRICS = [
   "total_population",
   "median_age",
@@ -151,6 +164,8 @@ const VALID_DIMENSIONS = new Set<string>([
   ...NSW_POPULATION_DIMENSIONS,
   ...NSW_WEATHER_DIMENSIONS,
   ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
+  ...AUS_POPULATION_DIMENSIONS,
+  ...AUS_GDP_DIMENSIONS,
   ...POPULATION_DIMENSIONS,
   ...GDP_DIMENSIONS,
 ]);
@@ -164,6 +179,8 @@ const VALID_METRICS = new Set<string>([
   ...ABS_COMMUNITY_PROFILE_METRICS,
   ...NSW_POPULATION_METRICS,
   ...NSW_WEATHER_METRICS,
+  ...AUS_POPULATION_METRICS,
+  ...AUS_GDP_METRICS,
   ...POPULATION_METRICS,
   ...GDP_METRICS,
 ]);
