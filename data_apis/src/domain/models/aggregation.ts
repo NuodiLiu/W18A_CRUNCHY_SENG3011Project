@@ -18,7 +18,9 @@ export type DatasetType =
   | "transport_facility"
   | "distinguished_achiever"
   | "crime"
-  | "abs_census";
+  | "abs_census"
+  | "aus_population"
+  | "aus_gdp";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -29,6 +31,8 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   distinguished_achiever: "distinguished_achiever",
   crime:                  "nsw_crime",
   abs_census:             "abs_census_2021",
+  aus_population:         "aus_population",
+  aus_gdp:                "aus_gdp",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -89,6 +93,14 @@ export const CRIME_METRICS = ["count"] as const;
 
 /** 2021 ABS Census Community Profile dimensions and metrics. */
 export const ABS_CENSUS_DIMENSIONS = ["suburb", "sal_code"] as const;
+
+/** Australian quarterly population time series dimensions and metrics. */
+export const AUS_POPULATION_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_POPULATION_METRICS = ["population"] as const;
+
+/** Australian quarterly GDP time series dimensions and metrics. */
+export const AUS_GDP_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_GDP_METRICS = ["real_gdp_aud_millions", "nominal_gdp_aud_millions"] as const;
 export const ABS_CENSUS_METRICS = [
   "total_population",
   "median_age",
@@ -124,6 +136,8 @@ const VALID_DIMENSIONS = new Set<string>([
   ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
   ...CRIME_DIMENSIONS,
   ...ABS_CENSUS_DIMENSIONS,
+  ...AUS_POPULATION_DIMENSIONS,
+  ...AUS_GDP_DIMENSIONS,
 ]);
 
 const VALID_METRICS = new Set<string>([
@@ -133,6 +147,8 @@ const VALID_METRICS = new Set<string>([
   ...SCHOOL_ENROLMENT_METRICS,
   ...CRIME_METRICS,
   ...ABS_CENSUS_METRICS,
+  ...AUS_POPULATION_METRICS,
+  ...AUS_GDP_METRICS,
 ]);
 
 // ─── Validation (Value-Object guards) ──────────────────────────────────────────
