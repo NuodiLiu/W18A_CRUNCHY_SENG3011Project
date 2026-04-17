@@ -76,10 +76,11 @@
 					"shopping_centre",
 					"school_enrolment",
 					"transport_facility",
-					"distinguished_achiever",
+					"hsc_top_achiever",
 					"crime",
-					"abs_census",
+					"abs_community_profile",
 					"nsw_population",
+					"nsw_weather",
 					"aus_population",
 					"aus_gdp"
 				]
