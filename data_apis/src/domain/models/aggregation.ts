@@ -16,7 +16,8 @@ export type DatasetType =
   | "shopping_centre"
   | "school_enrolment"
   | "transport_facility"
-  | "distinguished_achiever";
+  | "distinguished_achiever"
+  | "crime";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -25,6 +26,7 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   school_enrolment:       "school_enrolment",
   transport_facility:     "transport_facility",
   distinguished_achiever: "distinguished_achiever",
+  crime:                  "nsw_crime",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -91,6 +93,15 @@ export const GDP_DIMENSIONS = ["country"] as const;
 /** GDP event metrics that can be aggregated. */
 export const GDP_METRICS = ["gdp_value"] as const;
 
+export const CRIME_DIMENSIONS = ["suburb", "postcode", "offence_category"] as const;
+export const CRIME_METRICS = ["count"] as const;
+
+/**
+ * Dataset types where the string "count" refers to a numeric attribute field
+ * (i.e. attribute->>'count') rather than the "count rows" pseudo-metric.
+ */
+export const ATTRIBUTE_COUNT_DATASETS = new Set<DatasetType>(["crime"]);
+
 const VALID_DIMENSIONS = new Set<string>([
   ...HOUSING_DIMENSIONS,
   ...ESG_DIMENSIONS,
@@ -98,6 +109,7 @@ const VALID_DIMENSIONS = new Set<string>([
   ...SCHOOL_ENROLMENT_DIMENSIONS,
   ...TRANSPORT_FACILITY_DIMENSIONS,
   ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
+  ...CRIME_DIMENSIONS,
   ...POPULATION_DIMENSIONS,
   ...GDP_DIMENSIONS,
 ]);
@@ -107,6 +119,7 @@ const VALID_METRICS = new Set<string>([
   ...ESG_METRICS,
   ...SHOPPING_CENTRE_METRICS,
   ...SCHOOL_ENROLMENT_METRICS,
+  ...CRIME_METRICS,
   ...POPULATION_METRICS,
   ...GDP_METRICS,
 ]);

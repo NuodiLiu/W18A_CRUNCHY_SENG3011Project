@@ -6,6 +6,8 @@ coverage/
 .env
 *.log
 .DS_Store
+__pycache__/
+*.pyc
 localstack-data/
 data_apis/tmp/
 data_apis/reports/

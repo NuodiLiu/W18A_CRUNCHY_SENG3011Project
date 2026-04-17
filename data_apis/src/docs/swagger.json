@@ -76,7 +76,8 @@
 					"shopping_centre",
 					"school_enrolment",
 					"transport_facility",
-					"distinguished_achiever"
+					"distinguished_achiever",
+					"crime"
 				]
 			},
 			"AggregationType": {
@@ -1292,6 +1293,15 @@
 					{
 						"in": "query",
 						"name": "nature_of_property",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "NSW crime filter: e.g. \"Assault\" | \"Drug offences\" | \"Robbery and Theft\"",
+						"in": "query",
+						"name": "offence_category",
 						"required": false,
 						"schema": {
 							"type": "string"

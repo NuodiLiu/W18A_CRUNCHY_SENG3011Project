@@ -7,6 +7,7 @@ import {
   validateMetric,
   validateAggregation,
   DERIVED_DIMENSION_SOURCES,
+  ATTRIBUTE_COUNT_DATASETS,
 } from "../../domain/models/aggregation.js";
 
 export interface GetBreakdownDeps {
@@ -51,7 +52,12 @@ export async function getBreakdown(
 
   const eventType = DATASET_TYPE_MAP[dataset_type];
   const dimField = DERIVED_DIMENSION_SOURCES[dimension] ?? dimension;
-  const metricField = metric !== "count" ? metric : null;
+  // For datasets where "count" is an actual numeric attribute field (e.g. crime),
+  // pass it as the metricField so aggregation uses attribute->>'count' rather than COUNT(*).
+  const metricField =
+    metric !== "count" ? metric
+    : ATTRIBUTE_COUNT_DATASETS.has(dataset_type) ? "count"
+    : null;
 
   const rows = await deps.dataLakeReader.aggregateByDimension(
     eventType, dimField, metricField, aggregation, limit,
@@ -64,7 +70,7 @@ export async function getBreakdown(
     dataset_type,
     entries: rows.map((r) => ({
       category: r.group_key,
-      value: metric === "count" ? r.count : r.value,
+      value: metric === "count" && !ATTRIBUTE_COUNT_DATASETS.has(dataset_type) ? r.count : r.value,
       count: r.count,
     })),
   };
