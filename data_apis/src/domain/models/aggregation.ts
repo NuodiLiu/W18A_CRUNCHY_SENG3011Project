@@ -17,7 +17,8 @@ export type DatasetType =
   | "school_enrolment"
   | "transport_facility"
   | "distinguished_achiever"
-  | "crime";
+  | "crime"
+  | "abs_census";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -27,6 +28,7 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   transport_facility:     "transport_facility",
   distinguished_achiever: "distinguished_achiever",
   crime:                  "nsw_crime",
+  abs_census:             "abs_census_2021",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -85,6 +87,28 @@ export const DISTINGUISHED_ACHIEVER_DIMENSIONS = ["school", "course", "year"] as
 export const CRIME_DIMENSIONS = ["suburb", "postcode", "offence_category"] as const;
 export const CRIME_METRICS = ["count"] as const;
 
+/** 2021 ABS Census Community Profile dimensions and metrics. */
+export const ABS_CENSUS_DIMENSIONS = ["suburb", "sal_code"] as const;
+export const ABS_CENSUS_METRICS = [
+  "total_population",
+  "median_age",
+  "median_mortgage_monthly",
+  "median_rent_weekly",
+  "median_personal_income_weekly",
+  "median_household_income_weekly",
+  "median_family_income_weekly",
+  "owned_outright",
+  "owned_mortgage",
+  "rented_total",
+  "separate_houses",
+  "flats_apartments",
+  "labour_force_pct",
+  "unemployment_pct",
+  "employed_fulltime",
+  "employed_parttime",
+  "unemployed",
+] as const;
+
 /**
  * Dataset types where the string "count" refers to a numeric attribute field
  * (i.e. attribute->>'count') rather than the "count rows" pseudo-metric.
@@ -99,6 +123,7 @@ const VALID_DIMENSIONS = new Set<string>([
   ...TRANSPORT_FACILITY_DIMENSIONS,
   ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
   ...CRIME_DIMENSIONS,
+  ...ABS_CENSUS_DIMENSIONS,
 ]);
 
 const VALID_METRICS = new Set<string>([
@@ -107,6 +132,7 @@ const VALID_METRICS = new Set<string>([
   ...SHOPPING_CENTRE_METRICS,
   ...SCHOOL_ENROLMENT_METRICS,
   ...CRIME_METRICS,
+  ...ABS_CENSUS_METRICS,
 ]);
 
 // ─── Validation (Value-Object guards) ──────────────────────────────────────────

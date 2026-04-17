@@ -77,7 +77,8 @@
 					"school_enrolment",
 					"transport_facility",
 					"distinguished_achiever",
-					"crime"
+					"crime",
+					"abs_census"
 				]
 			},
 			"AggregationType": {
