@@ -79,8 +79,7 @@
 					"distinguished_achiever",
 					"crime",
 					"abs_census",
-					"aus_population",
-					"aus_gdp"
+					"nsw_population"
 				]
 			},
 			"AggregationType": {

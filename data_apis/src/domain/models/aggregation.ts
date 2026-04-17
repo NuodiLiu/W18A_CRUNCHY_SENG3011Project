@@ -19,8 +19,7 @@ export type DatasetType =
   | "distinguished_achiever"
   | "crime"
   | "abs_census"
-  | "aus_population"
-  | "aus_gdp";
+  | "nsw_population";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -31,8 +30,7 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   distinguished_achiever: "distinguished_achiever",
   crime:                  "nsw_crime",
   abs_census:             "abs_census_2021",
-  aus_population:         "aus_population",
-  aus_gdp:                "aus_gdp",
+  nsw_population:         "nsw_population",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -94,13 +92,9 @@ export const CRIME_METRICS = ["count"] as const;
 /** 2021 ABS Census Community Profile dimensions and metrics. */
 export const ABS_CENSUS_DIMENSIONS = ["suburb", "sal_code"] as const;
 
-/** Australian quarterly population time series dimensions and metrics. */
-export const AUS_POPULATION_DIMENSIONS = ["country", "quarter", "year"] as const;
-export const AUS_POPULATION_METRICS = ["population"] as const;
-
-/** Australian quarterly GDP time series dimensions and metrics. */
-export const AUS_GDP_DIMENSIONS = ["country", "quarter", "year"] as const;
-export const AUS_GDP_METRICS = ["real_gdp_aud_millions", "nominal_gdp_aud_millions"] as const;
+/** NSW suburb-level population demographic breakdown (2016 & 2011 Census). */
+export const NSW_POPULATION_DIMENSIONS = ["suburb", "lga", "category", "sub_category", "suburb_code"] as const;
+export const NSW_POPULATION_METRICS = ["males", "females", "persons"] as const;
 export const ABS_CENSUS_METRICS = [
   "total_population",
   "median_age",
@@ -136,8 +130,7 @@ const VALID_DIMENSIONS = new Set<string>([
   ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
   ...CRIME_DIMENSIONS,
   ...ABS_CENSUS_DIMENSIONS,
-  ...AUS_POPULATION_DIMENSIONS,
-  ...AUS_GDP_DIMENSIONS,
+  ...NSW_POPULATION_DIMENSIONS,
 ]);
 
 const VALID_METRICS = new Set<string>([
@@ -147,8 +140,7 @@ const VALID_METRICS = new Set<string>([
   ...SCHOOL_ENROLMENT_METRICS,
   ...CRIME_METRICS,
   ...ABS_CENSUS_METRICS,
-  ...AUS_POPULATION_METRICS,
-  ...AUS_GDP_METRICS,
+  ...NSW_POPULATION_METRICS,
 ]);
 
 // ─── Validation (Value-Object guards) ──────────────────────────────────────────
