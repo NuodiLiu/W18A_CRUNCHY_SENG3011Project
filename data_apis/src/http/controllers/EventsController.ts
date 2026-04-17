@@ -51,7 +51,10 @@ export class EventsController extends Controller {
     @Query("suburb") suburb?: string,
     @Query("street_name") street_name?: string,
     @Query("nature_of_property") nature_of_property?: string,
-    
+
+    /** NSW crime filter: e.g. "Assault" | "Drug offences" | "Robbery and Theft" */
+    @Query("offence_category") offence_category?: string,
+
     @Query("limit") _limit: number = 50,
     @Query("offset") _offset: number = 0
   ): Promise<EventListResponse> {
@@ -68,6 +71,7 @@ export class EventsController extends Controller {
       suburb,
       street_name,
       nature_of_property,
+      offence_category,
       limit: _limit,
       offset: _offset,
     },

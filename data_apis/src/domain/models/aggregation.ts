@@ -16,7 +16,13 @@ export type DatasetType =
   | "shopping_centre"
   | "school_enrolment"
   | "transport_facility"
-  | "distinguished_achiever";
+  | "hsc_top_achiever"
+  | "crime"
+  | "abs_community_profile"
+  | "nsw_population"
+  | "nsw_weather"
+  | "aus_population"
+  | "aus_gdp";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -24,7 +30,13 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   shopping_centre:        "shopping_centre",
   school_enrolment:       "school_enrolment",
   transport_facility:     "transport_facility",
-  distinguished_achiever: "distinguished_achiever",
+  hsc_top_achiever:       "distinguished_achiever",
+  crime:                  "nsw_crime",
+  abs_community_profile:  "abs_census_2021",
+  nsw_population:         "nsw_population",
+  nsw_weather:            "nsw_weather",
+  aus_population:         "aus_population",
+  aus_gdp:                "aus_gdp",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -78,6 +90,55 @@ export const SCHOOL_ENROLMENT_METRICS = ["year_12_enrolment"] as const;
 
 export const TRANSPORT_FACILITY_DIMENSIONS = ["suburb", "transport_mode"] as const;
 
+export const HSC_TOP_ACHIEVER_DIMENSIONS = ["school", "course", "year"] as const;
+
+export const CRIME_DIMENSIONS = ["suburb", "postcode", "offence_category"] as const;
+export const CRIME_METRICS = ["count"] as const;
+
+/** 2021 ABS Census Community Profile dimensions and metrics. */
+export const ABS_COMMUNITY_PROFILE_DIMENSIONS = ["suburb", "sal_code"] as const;
+
+/** NSW suburb-level population demographic breakdown (2016 & 2011 Census). */
+export const NSW_POPULATION_DIMENSIONS = ["suburb", "lga", "category", "sub_category", "suburb_code"] as const;
+export const NSW_POPULATION_METRICS = ["males", "females", "persons"] as const;
+
+/** NSW monthly weather trends by suburb. */
+export const NSW_WEATHER_DIMENSIONS = ["suburb", "lga", "month"] as const;
+export const NSW_WEATHER_METRICS = ["avg_temp", "avg_rainfall"] as const;
+
+/** Australian national population (quarterly). */
+export const AUS_POPULATION_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_POPULATION_METRICS = ["population"] as const;
+
+/** Australian national GDP (quarterly). */
+export const AUS_GDP_DIMENSIONS = ["country", "quarter", "year"] as const;
+export const AUS_GDP_METRICS = ["real_gdp_aud_millions", "nominal_gdp_aud_millions"] as const;
+
+export const ABS_COMMUNITY_PROFILE_METRICS = [
+  "total_population",
+  "median_age",
+  "median_mortgage_monthly",
+  "median_rent_weekly",
+  "median_personal_income_weekly",
+  "median_household_income_weekly",
+  "median_family_income_weekly",
+  "owned_outright",
+  "owned_mortgage",
+  "rented_total",
+  "separate_houses",
+  "flats_apartments",
+  "labour_force_pct",
+  "unemployment_pct",
+  "employed_fulltime",
+  "employed_parttime",
+  "unemployed",
+] as const;
+
+/**
+ * Dataset types where the string "count" refers to a numeric attribute field
+ * (i.e. attribute->>'count') rather than the "count rows" pseudo-metric.
+ */
+export const ATTRIBUTE_COUNT_DATASETS = new Set<DatasetType>(["crime"]);
 export const DISTINGUISHED_ACHIEVER_DIMENSIONS = ["school", "course", "year"] as const;
 /** Population event dimensions that can be used for grouping. */
 export const POPULATION_DIMENSIONS = ["country", "quarter"] as const;
@@ -97,7 +158,14 @@ const VALID_DIMENSIONS = new Set<string>([
   ...SHOPPING_CENTRE_DIMENSIONS,
   ...SCHOOL_ENROLMENT_DIMENSIONS,
   ...TRANSPORT_FACILITY_DIMENSIONS,
+  ...HSC_TOP_ACHIEVER_DIMENSIONS,
+  ...CRIME_DIMENSIONS,
+  ...ABS_COMMUNITY_PROFILE_DIMENSIONS,
+  ...NSW_POPULATION_DIMENSIONS,
+  ...NSW_WEATHER_DIMENSIONS,
   ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
+  ...AUS_POPULATION_DIMENSIONS,
+  ...AUS_GDP_DIMENSIONS,
   ...POPULATION_DIMENSIONS,
   ...GDP_DIMENSIONS,
 ]);
@@ -107,6 +175,12 @@ const VALID_METRICS = new Set<string>([
   ...ESG_METRICS,
   ...SHOPPING_CENTRE_METRICS,
   ...SCHOOL_ENROLMENT_METRICS,
+  ...CRIME_METRICS,
+  ...ABS_COMMUNITY_PROFILE_METRICS,
+  ...NSW_POPULATION_METRICS,
+  ...NSW_WEATHER_METRICS,
+  ...AUS_POPULATION_METRICS,
+  ...AUS_GDP_METRICS,
   ...POPULATION_METRICS,
   ...GDP_METRICS,
 ]);

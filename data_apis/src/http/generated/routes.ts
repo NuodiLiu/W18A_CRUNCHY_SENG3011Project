@@ -46,7 +46,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "DatasetType": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]},{"dataType":"enum","enums":["shopping_centre"]},{"dataType":"enum","enums":["school_enrolment"]},{"dataType":"enum","enums":["transport_facility"]},{"dataType":"enum","enums":["distinguished_achiever"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]},{"dataType":"enum","enums":["shopping_centre"]},{"dataType":"enum","enums":["school_enrolment"]},{"dataType":"enum","enums":["transport_facility"]},{"dataType":"enum","enums":["hsc_top_achiever"]},{"dataType":"enum","enums":["crime"]},{"dataType":"enum","enums":["abs_community_profile"]},{"dataType":"enum","enums":["nsw_population"]},{"dataType":"enum","enums":["nsw_weather"]},{"dataType":"enum","enums":["aus_population"]},{"dataType":"enum","enums":["aus_gdp"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AggregationType": {
@@ -620,6 +620,7 @@ export function RegisterRoutes(app: Router) {
                 suburb: {"in":"query","name":"suburb","dataType":"string"},
                 street_name: {"in":"query","name":"street_name","dataType":"string"},
                 nature_of_property: {"in":"query","name":"nature_of_property","dataType":"string"},
+                offence_category: {"in":"query","name":"offence_category","dataType":"string"},
                 _limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
                 _offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
         };
