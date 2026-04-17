@@ -87,6 +87,17 @@ export const SCHOOL_ENROLMENT_METRICS = ["year_12_enrolment"] as const;
 export const TRANSPORT_FACILITY_DIMENSIONS = ["suburb", "transport_mode"] as const;
 
 export const DISTINGUISHED_ACHIEVER_DIMENSIONS = ["school", "course", "year"] as const;
+/** Population event dimensions that can be used for grouping. */
+export const POPULATION_DIMENSIONS = ["country", "quarter"] as const;
+
+/** Population event metrics that can be aggregated. */
+export const POPULATION_METRICS = ["population"] as const;
+
+/** GDP event dimensions that can be used for grouping. */
+export const GDP_DIMENSIONS = ["country"] as const;
+
+/** GDP event metrics that can be aggregated. */
+export const GDP_METRICS = ["gdp_value"] as const;
 
 export const CRIME_DIMENSIONS = ["suburb", "postcode", "offence_category"] as const;
 export const CRIME_METRICS = ["count"] as const;
@@ -138,6 +149,8 @@ const VALID_DIMENSIONS = new Set<string>([
   ...ABS_CENSUS_DIMENSIONS,
   ...AUS_POPULATION_DIMENSIONS,
   ...AUS_GDP_DIMENSIONS,
+  ...POPULATION_DIMENSIONS,
+  ...GDP_DIMENSIONS,
 ]);
 
 const VALID_METRICS = new Set<string>([
@@ -149,6 +162,8 @@ const VALID_METRICS = new Set<string>([
   ...ABS_CENSUS_METRICS,
   ...AUS_POPULATION_METRICS,
   ...AUS_GDP_METRICS,
+  ...POPULATION_METRICS,
+  ...GDP_METRICS,
 ]);
 
 // ─── Validation (Value-Object guards) ──────────────────────────────────────────
