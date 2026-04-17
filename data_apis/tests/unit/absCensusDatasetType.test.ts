@@ -1,15 +1,15 @@
 /**
- * Unit tests for the "abs_census" (abs_census_2021) dataset type registration.
+ * Unit tests for the "abs_community_profile" (abs_census_2021) dataset type registration.
  *
  * Covers:
- *   - DATASET_TYPE_MAP maps "abs_census" → "abs_census_2021"
- *   - resolveEventType works for "abs_census"
- *   - ABS_CENSUS_DIMENSIONS and ABS_CENSUS_METRICS are valid
- *   - validateDimension does not throw for any ABS_CENSUS_DIMENSION
- *   - validateMetric does not throw for any ABS_CENSUS_METRIC
- *   - getEvents passes dataset_type:abs_census through to dataLakeReader
- *   - HTTP GET /api/v1/events?dataset_type=abs_census returns events
- *   - Suburb filter works for abs_census events
+ *   - DATASET_TYPE_MAP maps "abs_community_profile" → "abs_census_2021"
+ *   - resolveEventType works for "abs_community_profile"
+ *   - ABS_COMMUNITY_PROFILE_DIMENSIONS and ABS_COMMUNITY_PROFILE_METRICS are valid
+ *   - validateDimension does not throw for any ABS_COMMUNITY_PROFILE_DIMENSION
+ *   - validateMetric does not throw for any ABS_COMMUNITY_PROFILE_METRIC
+ *   - getEvents passes dataset_type:abs_community_profile through to dataLakeReader
+ *   - HTTP GET /api/v1/events?dataset_type=abs_community_profile returns events
+ *   - Suburb filter works for abs_community_profile events
  */
 
 import request from "supertest";
@@ -17,14 +17,14 @@ import { createApp } from "../../src/http/app";
 import {
   DATASET_TYPE_MAP,
   resolveEventType,
-  ABS_CENSUS_DIMENSIONS,
-  ABS_CENSUS_METRICS,
+  ABS_COMMUNITY_PROFILE_DIMENSIONS,
+  ABS_COMMUNITY_PROFILE_METRICS,
   validateDimension,
   validateMetric,
 } from "../../src/domain/models/aggregation";
 import { getEvents } from "../../src/application/retrieval/getEvents";
 
-// ── Shared mock abs_census events ─────────────────────────────────────────────
+// ── Shared mock abs_community_profile events ─────────────────────────────────
 
 const fakeAbsEvents = [
   {
@@ -117,59 +117,59 @@ afterEach(() => jest.restoreAllMocks());
 // ── 1. Domain model registration ──────────────────────────────────────────────
 
 describe("DATASET_TYPE_MAP", () => {
-  it('maps "abs_census" to "abs_census_2021"', () => {
-    expect(DATASET_TYPE_MAP["abs_census"]).toBe("abs_census_2021");
+  it('maps "abs_community_profile" to "abs_census_2021"', () => {
+    expect(DATASET_TYPE_MAP["abs_community_profile"]).toBe("abs_census_2021");
   });
 });
 
 describe("resolveEventType", () => {
-  it('resolves "abs_census" to "abs_census_2021"', () => {
-    expect(resolveEventType("abs_census")).toBe("abs_census_2021");
+  it('resolves "abs_community_profile" to "abs_census_2021"', () => {
+    expect(resolveEventType("abs_community_profile")).toBe("abs_census_2021");
   });
 });
 
 // ── 2. Dimension / metric allowlists ──────────────────────────────────────────
 
-describe("ABS_CENSUS_DIMENSIONS", () => {
+describe("ABS_COMMUNITY_PROFILE_DIMENSIONS", () => {
   it("contains suburb and sal_code", () => {
-    expect(ABS_CENSUS_DIMENSIONS).toContain("suburb");
-    expect(ABS_CENSUS_DIMENSIONS).toContain("sal_code");
+    expect(ABS_COMMUNITY_PROFILE_DIMENSIONS).toContain("suburb");
+    expect(ABS_COMMUNITY_PROFILE_DIMENSIONS).toContain("sal_code");
   });
 
-  it.each([...ABS_CENSUS_DIMENSIONS])('validateDimension("%s") does not throw', (dim) => {
+  it.each([...ABS_COMMUNITY_PROFILE_DIMENSIONS])('validateDimension("%s") does not throw', (dim) => {
     expect(() => validateDimension(dim)).not.toThrow();
   });
 });
 
-describe("ABS_CENSUS_METRICS", () => {
+describe("ABS_COMMUNITY_PROFILE_METRICS", () => {
   it("contains key financial and demographic metrics", () => {
-    expect(ABS_CENSUS_METRICS).toContain("total_population");
-    expect(ABS_CENSUS_METRICS).toContain("median_rent_weekly");
-    expect(ABS_CENSUS_METRICS).toContain("median_mortgage_monthly");
-    expect(ABS_CENSUS_METRICS).toContain("median_household_income_weekly");
-    expect(ABS_CENSUS_METRICS).toContain("unemployment_pct");
+    expect(ABS_COMMUNITY_PROFILE_METRICS).toContain("total_population");
+    expect(ABS_COMMUNITY_PROFILE_METRICS).toContain("median_rent_weekly");
+    expect(ABS_COMMUNITY_PROFILE_METRICS).toContain("median_mortgage_monthly");
+    expect(ABS_COMMUNITY_PROFILE_METRICS).toContain("median_household_income_weekly");
+    expect(ABS_COMMUNITY_PROFILE_METRICS).toContain("unemployment_pct");
   });
 
-  it.each([...ABS_CENSUS_METRICS])('validateMetric("%s") does not throw', (metric) => {
+  it.each([...ABS_COMMUNITY_PROFILE_METRICS])('validateMetric("%s") does not throw', (metric) => {
     expect(() => validateMetric(metric)).not.toThrow();
   });
 });
 
 // ── 3. getEvents application service ─────────────────────────────────────────
 
-describe("getEvents with abs_census dataset_type", () => {
-  it("passes dataset_type:abs_census directly to dataLakeReader.queryEvents", async () => {
+describe("getEvents with abs_community_profile dataset_type", () => {
+  it("passes dataset_type:abs_community_profile directly to dataLakeReader.queryEvents", async () => {
     const reader = makeMockReader();
     const deps = { dataLakeReader: reader };
-    await getEvents({ dataset_type: "abs_census", limit: 10, offset: 0 }, deps);
+    await getEvents({ dataset_type: "abs_community_profile", limit: 10, offset: 0 }, deps);
     expect(reader.queryEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ dataset_type: "abs_census" }),
+      expect.objectContaining({ dataset_type: "abs_community_profile" }),
     );
   });
 
   it("returns the events and total from the reader", async () => {
     const reader = makeMockReader();
-    const result = await getEvents({ dataset_type: "abs_census", limit: 10, offset: 0 }, { dataLakeReader: reader });
+    const result = await getEvents({ dataset_type: "abs_community_profile", limit: 10, offset: 0 }, { dataLakeReader: reader });
     expect(result.events).toHaveLength(2);
     expect(result.total).toBe(2);
   });
@@ -178,7 +178,7 @@ describe("getEvents with abs_census dataset_type", () => {
     const reader = makeMockReader();
     const deps = { dataLakeReader: reader };
     await getEvents(
-      { dataset_type: "abs_census", suburb: "Sydney", limit: 10, offset: 0 },
+      { dataset_type: "abs_community_profile", suburb: "Sydney", limit: 10, offset: 0 },
       deps,
     );
     expect(reader.queryEvents).toHaveBeenCalledWith(
@@ -189,27 +189,27 @@ describe("getEvents with abs_census dataset_type", () => {
 
 // ── 4. HTTP layer ─────────────────────────────────────────────────────────────
 
-describe("GET /api/v1/events?dataset_type=abs_census", () => {
-  it("returns 200 with abs_census events", async () => {
+describe("GET /api/v1/events?dataset_type=abs_community_profile", () => {
+  it("returns 200 with abs_community_profile events", async () => {
     const reader = makeMockReader();
     const { app } = buildApp(reader);
 
     const res = await request(app)
-      .get("/api/v1/events?dataset_type=abs_census&limit=10")
+      .get("/api/v1/events?dataset_type=abs_community_profile&limit=10")
       .expect(200);
 
     expect(res.body.events).toHaveLength(2);
     expect(res.body.events[0].event_type).toBe("abs_census_2021");
   });
 
-  it("calls queryEvents with dataset_type=abs_census", async () => {
+  it("calls queryEvents with dataset_type=abs_community_profile", async () => {
     const reader = makeMockReader();
     const { app } = buildApp(reader);
 
-    await request(app).get("/api/v1/events?dataset_type=abs_census").expect(200);
+    await request(app).get("/api/v1/events?dataset_type=abs_community_profile").expect(200);
 
     expect(reader.queryEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ dataset_type: "abs_census" }),
+      expect.objectContaining({ dataset_type: "abs_community_profile" }),
     );
   });
 
@@ -218,7 +218,7 @@ describe("GET /api/v1/events?dataset_type=abs_census", () => {
     const { app } = buildApp(reader);
 
     await request(app)
-      .get("/api/v1/events?dataset_type=abs_census&suburb=Sydney")
+      .get("/api/v1/events?dataset_type=abs_community_profile&suburb=Sydney")
       .expect(200);
 
     expect(reader.queryEvents).toHaveBeenCalledWith(
@@ -231,7 +231,7 @@ describe("GET /api/v1/events?dataset_type=abs_census", () => {
     const { app } = buildApp(reader);
 
     const res = await request(app)
-      .get("/api/v1/events?dataset_type=abs_census&suburb=NoSuchSuburb")
+      .get("/api/v1/events?dataset_type=abs_community_profile&suburb=NoSuchSuburb")
       .expect(200);
 
     expect(res.body.events).toHaveLength(0);
@@ -240,7 +240,7 @@ describe("GET /api/v1/events?dataset_type=abs_census", () => {
 
 // ── 5. Visualisation: breakdown ───────────────────────────────────────────────
 
-describe("GET /api/v1/visualisation/breakdown for abs_census", () => {
+describe("GET /api/v1/visualisation/breakdown for abs_community_profile", () => {
   it("returns 200 for breakdown by suburb + total_population", async () => {
     const reader = makeMockReader();
     reader.aggregateByDimension = jest.fn().mockResolvedValue([
@@ -250,7 +250,7 @@ describe("GET /api/v1/visualisation/breakdown for abs_census", () => {
     const { app } = buildApp(reader);
 
     const res = await request(app)
-      .get("/api/v1/visualisation/breakdown?dataset_type=abs_census&dimension=suburb&metric=total_population&aggregation=sum&limit=10")
+      .get("/api/v1/visualisation/breakdown?dataset_type=abs_community_profile&dimension=suburb&metric=total_population&aggregation=sum&limit=10")
       .expect(200);
 
     expect(res.body.entries).toHaveLength(2);
@@ -266,7 +266,7 @@ describe("GET /api/v1/visualisation/breakdown for abs_census", () => {
     const { app } = buildApp(reader);
 
     const res = await request(app)
-      .get("/api/v1/visualisation/breakdown?dataset_type=abs_census&dimension=suburb&metric=median_rent_weekly&aggregation=avg&limit=10")
+      .get("/api/v1/visualisation/breakdown?dataset_type=abs_community_profile&dimension=suburb&metric=median_rent_weekly&aggregation=avg&limit=10")
       .expect(200);
 
     expect(res.body.entries[0].value).toBe(600);
@@ -277,7 +277,7 @@ describe("GET /api/v1/visualisation/breakdown for abs_census", () => {
     const { app } = buildApp(reader);
 
     await request(app)
-      .get("/api/v1/visualisation/breakdown?dataset_type=abs_census&dimension=invalid_dim&metric=total_population&aggregation=sum")
+      .get("/api/v1/visualisation/breakdown?dataset_type=abs_community_profile&dimension=invalid_dim&metric=total_population&aggregation=sum")
       .expect(400);
   });
 
@@ -286,7 +286,7 @@ describe("GET /api/v1/visualisation/breakdown for abs_census", () => {
     const { app } = buildApp(reader);
 
     await request(app)
-      .get("/api/v1/visualisation/breakdown?dataset_type=abs_census&dimension=suburb&metric=not_a_metric&aggregation=avg")
+      .get("/api/v1/visualisation/breakdown?dataset_type=abs_community_profile&dimension=suburb&metric=not_a_metric&aggregation=avg")
       .expect(400);
   });
 });
