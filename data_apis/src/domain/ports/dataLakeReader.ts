@@ -1,9 +1,8 @@
 import { EventRecord } from "../models/event.js";
-import { DatasetType } from "../models/aggregation.js";
 
 export interface EventQuery {
-  dataset_type?: DatasetType;
-
+  dataset_type?: "esg" | "housing";
+  
   //esg
   company_name?: string;
   permid?: string;
@@ -17,9 +16,6 @@ export interface EventQuery {
   suburb?: string;
   street_name?: string;
   nature_of_property?: string;
-
-  // crime
-  offence_category?: string;
 
   //pagination
   limit?: number;
@@ -66,4 +62,5 @@ export interface DataLakeReader {
     aggregation: string,
     dimensionField?: string,
   ): Promise<AggRow[]>;
+  
 }
