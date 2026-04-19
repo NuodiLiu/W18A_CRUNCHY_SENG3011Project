@@ -51,7 +51,6 @@ const EVENT_TYPE_TO_DATASET_TYPE: Record<string, DatasetType> = Object.fromEntri
   ),
 );
 
-/** Reverse-map an internal event_type to its public DatasetType, if registered. */
 export function eventTypeToDatasetType(eventType: string): DatasetType | undefined {
   return EVENT_TYPE_TO_DATASET_TYPE[eventType];
 }
@@ -236,13 +235,6 @@ export function validateAggregation(aggregation: string): void {
 
 // ─── Filter Keys ──────────────────────────────────────────────────────────────
 
-/**
- * Whitelist of attribute keys that may appear in the `filters[...]` query
- * object on /visualisation/breakdown and /visualisation/timeseries.
- *
- * Any dimension field is a legal filter (so "filter by the same things you can
- * group by" — e.g. suburb, postcode, pillar, industry, offence_category).
- */
 const VALID_FILTER_FIELDS = new Set<string>(VALID_DIMENSIONS);
 
 export function validateFilterKey(key: string): void {
@@ -253,15 +245,6 @@ export function validateFilterKey(key: string): void {
   }
 }
 
-/**
- * Narrow an unknown express `req.query.filters` value into a
- * `Record<string, string>`. Returns undefined when absent.
- *
- * Express (with qs parsing) turns `filters[suburb]=Sydney&filters[postcode]=2000`
- * into `{ suburb: "Sydney", postcode: "2000" }`. A bare `filters=foo` or an
- * array value is rejected so the controller fails cleanly rather than passing
- * garbage to the repository layer.
- */
 export function parseFiltersParam(raw: unknown): Record<string, string> | undefined {
   if (raw == null) return undefined;
   if (typeof raw !== "object" || Array.isArray(raw)) {

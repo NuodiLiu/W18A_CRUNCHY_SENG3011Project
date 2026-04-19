@@ -82,8 +82,8 @@ export async function getBreakdown(
   };
 }
 
-// Rewrite any derived filter keys (e.g. contract_year) to their source
-// attribute (contract_date) so the WHERE clause hits the stored field.
+// derived filter keys (e.g. contract_year) must map back to their stored source
+// attribute (contract_date); otherwise the WHERE clause targets a non-existent field.
 function resolveFilterFields(filters: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(filters)) {

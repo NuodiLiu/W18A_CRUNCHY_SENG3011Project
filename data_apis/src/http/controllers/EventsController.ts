@@ -80,13 +80,9 @@ export class EventsController extends Controller {
     return toEventListResponse(result.events, result.total);
   }
 
-  /**
-   * Returns the list of dataset types currently present in the data lake,
-   * in the same public naming used by the rest of the API (e.g. "housing",
-   * "abs_community_profile") — not the internal event_type column.
-   * Any internal event_type without a registered DatasetType is surfaced
-   * separately under `unknown_event_types` for debugging.
-   */
+  // returns dataset_types using the same public names the rest of the API
+  // accepts. unmapped internal event_types go to unknown_event_types so
+  // unregistered data is still observable.
   @Get("types")
   @SuccessResponse(200, "Array of dataset type strings present in the data lake")
   public async getEventTypes(): Promise<EventTypesResponse> {

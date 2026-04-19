@@ -24,10 +24,8 @@ export class VisualisationController extends Controller {
 
   /**
    * Returns aggregated data grouped by a dimension for bar/pie charts.
-   *
-   * Accepts `filters[<attribute>]=<value>` (Rails/PHP bracket syntax) to narrow
-   * the result set — e.g. `?filters[suburb]=Sydney&filters[postcode]=2000`
-   * restricts the breakdown to events matching those attributes.
+   * Accepts `filters[<attribute>]=<value>` to narrow the result set,
+   * e.g. `?filters[suburb]=Sydney&filters[postcode]=2000`.
    */
   @Get("breakdown")
   @SuccessResponse(200, "Breakdown data for bar/pie charts")
@@ -57,10 +55,8 @@ export class VisualisationController extends Controller {
   /**
    * Returns time series data for line charts.
    * Aggregates events by time period, optionally grouped by a dimension for multi-line charts.
-   *
-   * Accepts `filters[<attribute>]=<value>` (bracket syntax) to narrow the
-   * result set — e.g. `?filters[suburb]=Sydney` returns the timeseries for
-   * Sydney only.
+   * Accepts `filters[<attribute>]=<value>` to narrow the result set,
+   * e.g. `?filters[suburb]=Sydney`.
    */
   @Get("timeseries")
   @SuccessResponse(200, "Time series data for line charts")

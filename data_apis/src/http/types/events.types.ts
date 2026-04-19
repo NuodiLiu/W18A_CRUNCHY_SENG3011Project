@@ -46,9 +46,7 @@ export interface EventListResponse<A = Record<string, unknown>> {
 }
 
 export interface EventTypesResponse {
-  /** Registered dataset types present in the data lake (public API names). */
   dataset_types: string[];
-  /** Raw internal event_type values that do not map to a registered DatasetType. */
   unknown_event_types: string[];
 }
 

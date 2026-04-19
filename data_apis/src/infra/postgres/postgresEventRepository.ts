@@ -193,8 +193,7 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
   ): Promise<AggRow[]> {
     const hasFilters = filters != null && Object.keys(filters).length > 0;
 
-    // MV fast-paths pre-aggregate without attribute filters, so bypass them
-    // whenever the caller narrows the query with filters[...].
+    // MVs are pre-aggregated without attribute predicates, so bypass them when filters are present.
     if (!hasFilters) {
       const mvCol = mvMetricColumn(metricField, aggregation);
       if (eventType === "housing_sale" && dimensionField === "suburb" && mvCol) {
@@ -247,8 +246,7 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
   ): Promise<AggRow[]> {
     const hasFilters = filters != null && Object.keys(filters).length > 0;
 
-    // MV fast-paths can't serve attribute filters — fall through when
-    // filters[...] is present so the WHERE clause actually narrows the scan.
+    // MVs don't carry attribute predicates, so bypass them when filters are present.
     if (!hasFilters) {
       if (eventType === "distinguished_achiever" && timePeriod === "year" && !dimensionField) {
         return this.timeseriesFromMV("mv_achiever_year_stats", "year", "cnt");
@@ -461,18 +459,9 @@ function safeJsonbField(field: string): string {
   return `attribute->>'${field}'`;
 }
 
-/**
- * Build the "AND attribute->>'k' = $N ..." fragment for filters[...] and
- * append each bound value to `params`. Returns "" when filters is empty.
- *
- * Uses `=` (not ILIKE) so the existing btree expression indexes on
- * attribute->>'suburb', attribute->>'postcode', attribute->>'pillar',
- * etc. actually get used — ILIKE, even without wildcards, bypasses
- * default btree and would force a seq scan on large datasets.
- *
- * Field names go through `safeJsonbField` (regex-checked) and values are
- * always bound parameters, so this is injection-safe.
- */
+// uses `=` (not ILIKE) so the existing btree expression indexes on
+// attribute->>'suburb', attribute->>'postcode', etc. get used — ILIKE
+// bypasses default btree even without wildcards and forces a seq scan.
 function buildFilterClause(
   filters: Record<string, string> | undefined,
   params: unknown[],
