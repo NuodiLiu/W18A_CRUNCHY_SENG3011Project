@@ -105,11 +105,6 @@ export async function runJob(msg: JobMessage, deps: RunJobDeps): Promise<void> {
         await deps.jobRepo.updateStatus(jobId, "DONE");
         logger.info({ jobId, totalChunks: job.total_chunks }, "all_chunks_done");
         emitMetric("ImportJobDone", 1, "Count", { service: "datalake-ingest-worker", datasetType: config.dataset_type });
-        // Refresh the read model so visualisation queries use fresh data.
-        if (deps.eventRepository) {
-          await deps.eventRepository.refreshReadModel();
-          logger.info({ jobId }, "read_model_refreshed");
-        }
       }
     } else {
       // non-chunked (small file): mark done directly
@@ -117,11 +112,6 @@ export async function runJob(msg: JobMessage, deps: RunJobDeps): Promise<void> {
       const durationMs = Date.now() - jobStart;
       logger.info({ jobId, totalEvents, durationMs }, "job_done");
       emitMetric("ImportJobDone", 1, "Count", { service: "datalake-ingest-worker", datasetType: config.dataset_type });
-      // Refresh the read model so visualisation queries use fresh data.
-      if (deps.eventRepository) {
-        await deps.eventRepository.refreshReadModel();
-        logger.info({ jobId }, "read_model_refreshed");
-      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
