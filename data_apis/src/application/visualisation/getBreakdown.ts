@@ -6,6 +6,7 @@ import {
   validateDimension,
   validateMetric,
   validateAggregation,
+  validateFilterKey,
   DERIVED_DIMENSION_SOURCES,
   ATTRIBUTE_COUNT_DATASETS,
 } from "../../domain/models/aggregation.js";
@@ -20,6 +21,7 @@ export interface BreakdownQuery {
   metric?: string;
   aggregation?: AggregationType;
   limit?: number;
+  filters?: Record<string, string>;
 }
 
 export interface BreakdownResult {
@@ -44,11 +46,13 @@ export async function getBreakdown(
     metric = "count",
     aggregation = "sum",
     limit = 10,
+    filters,
   } = query;
 
   validateDimension(dimension);
   validateMetric(metric);
   validateAggregation(aggregation);
+  if (filters) for (const k of Object.keys(filters)) validateFilterKey(k);
 
   const eventType = DATASET_TYPE_MAP[dataset_type];
   const dimField = DERIVED_DIMENSION_SOURCES[dimension] ?? dimension;
@@ -59,8 +63,10 @@ export async function getBreakdown(
     : ATTRIBUTE_COUNT_DATASETS.has(dataset_type) ? "count"
     : null;
 
+  const resolvedFilters = filters ? resolveFilterFields(filters) : undefined;
+
   const rows = await deps.dataLakeReader.aggregateByDimension(
-    eventType, dimField, metricField, aggregation, limit,
+    eventType, dimField, metricField, aggregation, limit, resolvedFilters,
   );
 
   return {
@@ -74,4 +80,14 @@ export async function getBreakdown(
       count: r.count,
     })),
   };
+}
+
+// Rewrite any derived filter keys (e.g. contract_year) to their source
+// attribute (contract_date) so the WHERE clause hits the stored field.
+function resolveFilterFields(filters: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(filters)) {
+    out[DERIVED_DIMENSION_SOURCES[k] ?? k] = v;
+  }
+  return out;
 }

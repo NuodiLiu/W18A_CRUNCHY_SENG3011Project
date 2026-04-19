@@ -284,6 +284,7 @@ describe("GET /api/v1/visualisation/breakdown for nsw_population", () => {
       "persons",
       "sum",
       expect.any(Number),
+      undefined,
     );
   });
 

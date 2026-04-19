@@ -189,20 +189,25 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     metricField: string | null,
     aggregation: string,
     limit: number,
+    filters?: Record<string, string>,
   ): Promise<AggRow[]> {
-    // Try materialized view first for housing_sale + suburb queries.
-    const mvCol = mvMetricColumn(metricField, aggregation);
-    if (eventType === "housing_sale" && dimensionField === "suburb" && mvCol) {
-      return this.breakdownFromMV("mv_housing_suburb_stats", "suburb", mvCol, limit);
-    }
+    const hasFilters = filters != null && Object.keys(filters).length > 0;
 
-    // distinguished_achiever MVs (count-only queries).
-    if (eventType === "distinguished_achiever" && (!metricField || aggregation === "count")) {
-      if (dimensionField === "course") {
-        return this.breakdownFromMV("mv_achiever_course_stats", "course", "cnt", limit);
+    // MV fast-paths pre-aggregate without attribute filters, so bypass them
+    // whenever the caller narrows the query with filters[...].
+    if (!hasFilters) {
+      const mvCol = mvMetricColumn(metricField, aggregation);
+      if (eventType === "housing_sale" && dimensionField === "suburb" && mvCol) {
+        return this.breakdownFromMV("mv_housing_suburb_stats", "suburb", mvCol, limit);
       }
-      if (dimensionField === "year") {
-        return this.breakdownFromMV("mv_achiever_year_stats", "year", "cnt", limit);
+
+      if (eventType === "distinguished_achiever" && (!metricField || aggregation === "count")) {
+        if (dimensionField === "course") {
+          return this.breakdownFromMV("mv_achiever_course_stats", "course", "cnt", limit);
+        }
+        if (dimensionField === "year") {
+          return this.breakdownFromMV("mv_achiever_year_stats", "year", "cnt", limit);
+        }
       }
     }
 
@@ -211,13 +216,18 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       ? buildAggExpr(aggregation, `(${safeJsonbField(metricField)})::numeric`)
       : "COUNT(*)";
 
+    const params: unknown[] = [eventType];
+    const filterClause = buildFilterClause(filters, params);
+    const limitParamIdx = params.length + 1;
+    params.push(limit);
+
     const res = await this.pool.query<{ group_key: string; value: string; count: string }>(
       `SELECT ${dimExpr} AS group_key, ${aggExpr} AS value, COUNT(*)::text AS count
-       FROM events WHERE event_type = $1
+       FROM events WHERE event_type = $1 ${filterClause}
        GROUP BY group_key
        ORDER BY value DESC
-       LIMIT $2`,
-      [eventType, limit],
+       LIMIT $${limitParamIdx}`,
+      params,
     );
 
     return res.rows.map((r) => ({
@@ -233,33 +243,37 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     metricField: string | null,
     aggregation: string,
     dimensionField?: string,
+    filters?: Record<string, string>,
   ): Promise<AggRow[]> {
-    // distinguished_achiever timeseries by year via MV.
-    if (eventType === "distinguished_achiever" && timePeriod === "year" && !dimensionField) {
-      return this.timeseriesFromMV("mv_achiever_year_stats", "year", "cnt");
-    }
+    const hasFilters = filters != null && Object.keys(filters).length > 0;
 
-    // Try materialized views for housing_sale + year queries.
-    if (eventType === "housing_sale" && timePeriod === "year") {
-      const mvCol = mvMetricColumn(metricField, aggregation);
-      if (mvCol && !dimensionField) {
-        return this.timeseriesFromMV("mv_housing_yearly_stats", "year", mvCol);
+    // MV fast-paths can't serve attribute filters — fall through when
+    // filters[...] is present so the WHERE clause actually narrows the scan.
+    if (!hasFilters) {
+      if (eventType === "distinguished_achiever" && timePeriod === "year" && !dimensionField) {
+        return this.timeseriesFromMV("mv_achiever_year_stats", "year", "cnt");
       }
-      if (mvCol && dimensionField === "suburb") {
-        return this.timeseriesFromMV("mv_housing_yearly_suburb", "year", mvCol, "suburb");
-      }
-    }
 
-    // Fast paths for nsw_crime year timeseries.
-    if (eventType === "nsw_crime" && timePeriod === "year" && metricField === "count" && aggregation === "sum") {
-      if (!dimensionField) {
-        return this.timeseriesFromMV("mv_crime_yearly_totals", "year", "total_count");
+      if (eventType === "housing_sale" && timePeriod === "year") {
+        const mvCol = mvMetricColumn(metricField, aggregation);
+        if (mvCol && !dimensionField) {
+          return this.timeseriesFromMV("mv_housing_yearly_stats", "year", mvCol);
+        }
+        if (mvCol && dimensionField === "suburb") {
+          return this.timeseriesFromMV("mv_housing_yearly_suburb", "year", mvCol, "suburb");
+        }
       }
-      if (dimensionField === "offence_category") {
-        return this.timeseriesFromMV("mv_crime_yearly_category", "year", "total_count", "offence_category");
-      }
-      if (dimensionField === "suburb") {
-        return this.timeseriesFromMV("mv_crime_yearly_suburb", "year", "total_count", "suburb");
+
+      if (eventType === "nsw_crime" && timePeriod === "year" && metricField === "count" && aggregation === "sum") {
+        if (!dimensionField) {
+          return this.timeseriesFromMV("mv_crime_yearly_totals", "year", "total_count");
+        }
+        if (dimensionField === "offence_category") {
+          return this.timeseriesFromMV("mv_crime_yearly_category", "year", "total_count", "offence_category");
+        }
+        if (dimensionField === "suburb") {
+          return this.timeseriesFromMV("mv_crime_yearly_suburb", "year", "total_count", "suburb");
+        }
       }
     }
 
@@ -279,19 +293,22 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     const selectDim = dimExpr ? `, ${dimExpr} AS series_key` : "";
     const groupDim = dimExpr ? ", series_key" : "";
 
+    const params: unknown[] = [eventType];
+    const filterClause = buildFilterClause(filters, params);
+
     // When grouped by a high-cardinality dimension, limit to top 20 series
     // by count to avoid exceeding Lambda's 6MB response payload limit.
     const TOP_SERIES = 20;
     const dimFilter = dimExpr
-      ? `AND ${dimExpr} IN (SELECT ${dimExpr} FROM events WHERE event_type = $1 GROUP BY ${dimExpr} ORDER BY COUNT(*) DESC LIMIT ${TOP_SERIES})`
+      ? `AND ${dimExpr} IN (SELECT ${dimExpr} FROM events WHERE event_type = $1 ${filterClause} GROUP BY ${dimExpr} ORDER BY COUNT(*) DESC LIMIT ${TOP_SERIES})`
       : "";
 
     const res = await this.pool.query<{ group_key: string; series_key?: string; value: string; count: string }>(
       `SELECT ${periodExpr} AS group_key${selectDim}, ${aggExpr} AS value, COUNT(*)::text AS count
-       FROM events WHERE event_type = $1 ${dimFilter}
+       FROM events WHERE event_type = $1 ${filterClause} ${dimFilter}
        GROUP BY group_key${groupDim}
        ORDER BY group_key${groupDim}`,
-      [eventType],
+      params,
     );
 
     return res.rows.map((r) => ({
@@ -442,6 +459,27 @@ function safeJsonbField(field: string): string {
     throw new Error(`Invalid field name: "${field}"`);
   }
   return `attribute->>'${field}'`;
+}
+
+/**
+ * Build the "AND attribute->>'k' ILIKE $N ..." fragment for filters[...] and
+ * append each bound value to `params`. Returns "" when filters is empty.
+ *
+ * Field names go through `safeJsonbField` (regex-checked) and values are
+ * always bound parameters, so this is injection-safe.
+ */
+function buildFilterClause(
+  filters: Record<string, string> | undefined,
+  params: unknown[],
+): string {
+  if (!filters) return "";
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(filters)) {
+    const expr = safeJsonbField(key);
+    parts.push(`AND ${expr} ILIKE $${params.length + 1}`);
+    params.push(value);
+  }
+  return parts.join(" ");
 }
 
 /**

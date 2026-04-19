@@ -925,6 +925,55 @@ describe("LocalStack boundary conditions", () => {
   });
 });
 
+describe("Visualisation filters[] — integration", () => {
+  it("breakdown filters by suburb narrows results to that suburb only", async () => {
+    const res = await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({
+        "dataset_type": "housing",
+        "dimension": "zoning",
+        "metric": "purchase_price",
+        "aggregation": "avg",
+        "filters[suburb]": "Sydney",
+      })
+      .expect(200);
+
+    // Sydney-only housing events have zoning R1; Parramatta events (R2) must be excluded.
+    const categories = res.body.entries.map((e: { category: string }) => e.category);
+    expect(categories).toContain("R1");
+    expect(categories).not.toContain("R2");
+  });
+
+  it("timeseries filters by suburb=Sydney returns Sydney-only avg price per month", async () => {
+    const res = await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({
+        "dataset_type": "housing",
+        "metric": "purchase_price",
+        "aggregation": "avg",
+        "time_period": "month",
+        "filters[suburb]": "Sydney",
+      })
+      .expect(200);
+
+    const april = res.body.data.find((d: { period: string }) => d.period === "2024-04");
+    // Sydney April avg: (1500000 + 1200000) / 2 = 1350000
+    expect(april.value).toBe(1350000);
+
+    const may = res.body.data.find((d: { period: string }) => d.period === "2024-05");
+    // May only has a Parramatta sale, so must be absent from the Sydney-filtered series.
+    expect(may).toBeUndefined();
+  });
+
+  it("returns 400 when filters key is not a known attribute", async () => {
+    const res = await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({ "dataset_type": "housing", "filters[not_a_field]": "x" })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/Invalid filter key/);
+  });
+});
+
 describe("Visualisation endpoints — combined scenarios", () => {
   it("can generate a dashboard with breakdown and timeseries together", async () => {
     // Get current breakdown
