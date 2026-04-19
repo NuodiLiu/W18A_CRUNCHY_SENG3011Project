@@ -462,8 +462,13 @@ function safeJsonbField(field: string): string {
 }
 
 /**
- * Build the "AND attribute->>'k' ILIKE $N ..." fragment for filters[...] and
+ * Build the "AND attribute->>'k' = $N ..." fragment for filters[...] and
  * append each bound value to `params`. Returns "" when filters is empty.
+ *
+ * Uses `=` (not ILIKE) so the existing btree expression indexes on
+ * attribute->>'suburb', attribute->>'postcode', attribute->>'pillar',
+ * etc. actually get used — ILIKE, even without wildcards, bypasses
+ * default btree and would force a seq scan on large datasets.
  *
  * Field names go through `safeJsonbField` (regex-checked) and values are
  * always bound parameters, so this is injection-safe.
@@ -476,7 +481,7 @@ function buildFilterClause(
   const parts: string[] = [];
   for (const [key, value] of Object.entries(filters)) {
     const expr = safeJsonbField(key);
-    parts.push(`AND ${expr} ILIKE $${params.length + 1}`);
+    parts.push(`AND ${expr} = $${params.length + 1}`);
     params.push(value);
   }
   return parts.join(" ");
