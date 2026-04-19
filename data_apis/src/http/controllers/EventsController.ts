@@ -9,7 +9,7 @@ import {
 } from "../types/events.types.js";
 import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
-import { DatasetType } from "../../domain/models/aggregation.js";
+import { DatasetType, eventTypeToDatasetType } from "../../domain/models/aggregation.js";
 import { getEvents } from "../../application/retrieval/getEvents.js";
 import { getEventById } from "../../application/retrieval/getEventById.js";
 import { deleteEvent } from "../../application/retrieval/deleteEvent.js";
@@ -81,14 +81,26 @@ export class EventsController extends Controller {
   }
 
   /**
-   * Returns the list of distinct event_type values present in the ingested dataset.
-   * Useful for populating filter dropdowns in the reporting frontend.
+   * Returns the list of dataset types currently present in the data lake,
+   * in the same public naming used by the rest of the API (e.g. "housing",
+   * "abs_community_profile") — not the internal event_type column.
+   * Any internal event_type without a registered DatasetType is surfaced
+   * separately under `unknown_event_types` for debugging.
    */
   @Get("types")
-  @SuccessResponse(200, "Array of distinct event type strings")
+  @SuccessResponse(200, "Array of dataset type strings present in the data lake")
   public async getEventTypes(): Promise<EventTypesResponse> {
     const eventTypes = await this.deps.dataLakeReader.getDistinctEventTypes();
-    return { event_types: eventTypes };
+    const dataset_types: string[] = [];
+    const unknown_event_types: string[] = [];
+    for (const et of eventTypes) {
+      const dt = eventTypeToDatasetType(et);
+      if (dt) dataset_types.push(dt);
+      else unknown_event_types.push(et);
+    }
+    dataset_types.sort();
+    unknown_event_types.sort();
+    return { dataset_types, unknown_event_types };
   }
 
   /**

@@ -45,6 +45,17 @@ export function resolveEventType(datasetType: DatasetType): string {
   return DATASET_TYPE_MAP[datasetType];
 }
 
+const EVENT_TYPE_TO_DATASET_TYPE: Record<string, DatasetType> = Object.fromEntries(
+  (Object.entries(DATASET_TYPE_MAP) as [DatasetType, string][]).map(
+    ([dt, et]) => [et, dt],
+  ),
+);
+
+/** Reverse-map an internal event_type to its public DatasetType, if registered. */
+export function eventTypeToDatasetType(eventType: string): DatasetType | undefined {
+  return EVENT_TYPE_TO_DATASET_TYPE[eventType];
+}
+
 // ─── Aggregation Type ──────────────────────────────────────────────────────────
 
 export type AggregationType = "avg" | "sum" | "count" | "min" | "max";
