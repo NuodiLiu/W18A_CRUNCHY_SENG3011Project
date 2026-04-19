@@ -9,17 +9,15 @@ import {
 } from "../types/events.types.js";
 import { ErrorBody } from "../types/common.types.js";
 import { DataLakeReader } from "../../domain/ports/dataLakeReader.js";
+import { DatasetType } from "../../domain/models/aggregation.js";
 import { getEvents } from "../../application/retrieval/getEvents.js";
 import { getEventById } from "../../application/retrieval/getEventById.js";
 import { deleteEvent } from "../../application/retrieval/deleteEvent.js";
 import { getEventStats } from "../../application/retrieval/getEventStats.js";
 import { toEventListResponse, toEventRecordResponseAuto } from "../mappers/eventsMapper.js";
-import { getEventsAvgPrice } from "../../application/retrieval/getEventsAvgPrice.js";
-import { HousingAnalyticsRepository } from "../../domain/ports/housingAnalyticsRepository.js";
 
 export interface EventsControllerDeps {
   dataLakeReader: DataLakeReader;
-  housingAnalytics?: HousingAnalyticsRepository;
 }
 
 @Route("api/v1/events")
@@ -39,8 +37,8 @@ export class EventsController extends Controller {
   @Get("/")
   @SuccessResponse(200, "List of events")
   public async getEvents(
-    @Query("dataset_type") dataset_type?: "esg" | "housing",
-    
+    @Query("dataset_type") dataset_type?: DatasetType,
+
     @Query("company_name") company_name?: string,
     @Query("permid") permid?: string,
     @Query("metric_name") metric_name?: string,
@@ -53,7 +51,10 @@ export class EventsController extends Controller {
     @Query("suburb") suburb?: string,
     @Query("street_name") street_name?: string,
     @Query("nature_of_property") nature_of_property?: string,
-    
+
+    /** NSW crime filter: e.g. "Assault" | "Drug offences" | "Robbery and Theft" */
+    @Query("offence_category") offence_category?: string,
+
     @Query("limit") _limit: number = 50,
     @Query("offset") _offset: number = 0
   ): Promise<EventListResponse> {
@@ -70,6 +71,7 @@ export class EventsController extends Controller {
       suburb,
       street_name,
       nature_of_property,
+      offence_category,
       limit: _limit,
       offset: _offset,
     },
@@ -137,23 +139,4 @@ export class EventsController extends Controller {
     }
     this.setStatus(204);
   }
-
-  /**
-   * Returns average housing price over the last N years (default 2)
-   */
-  @Get("/housing/avg-prices")
-  @SuccessResponse(200, "Average housing prices")
-  public async getAvgHousingPrices(
-    @Query("suburb") suburb?: string,
-    @Query("years") years: number = 2
-  ) {
-    const analytics = this.deps.housingAnalytics;
-
-    if (!analytics) {
-      throw new Error("Housing analytics service not configured");
-    }
-
-    const result = await getEventsAvgPrice(suburb, years, analytics);
-        return result;
-      }
 }
