@@ -55,10 +55,8 @@ const assets = [
   // mapping JSONs are used by the normalizer registry
   { src: "src/mappings/esg_v1.json",      dest: "dist-lambda/api/src/mappings/esg_v1.json" },
   { src: "src/mappings/housing_v1.json",  dest: "dist-lambda/api/src/mappings/housing_v1.json" },
-  { src: "src/mappings/crime_v1.json",    dest: "dist-lambda/api/src/mappings/crime_v1.json" },
   { src: "src/mappings/esg_v1.json",      dest: "dist-lambda/worker/src/mappings/esg_v1.json" },
   { src: "src/mappings/housing_v1.json",  dest: "dist-lambda/worker/src/mappings/housing_v1.json" },
-  { src: "src/mappings/crime_v1.json",    dest: "dist-lambda/worker/src/mappings/crime_v1.json" },
 ];
 
 for (const { src, dest } of assets) {

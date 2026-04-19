@@ -15,7 +15,7 @@ const configStore = new S3ConfigStore(config);
 const queue = new SQSQueueService(config);
 const fileUploadService = new S3PresignService(config);
 
-const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader: pgRepo }, { disableCache: true });
+const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader: pgRepo });
 
 const HOUSING_DATASET_ID = "housing_vis_test";
 const ESG_DATASET_ID = "esg_vis_test";
@@ -196,7 +196,6 @@ const esgEvents: EventRecord[] = [
 beforeAll(async () => {
   await pgRepo.writeEvents(housingEvents, HOUSING_DATASET_ID);
   await pgRepo.writeEvents(esgEvents, ESG_DATASET_ID);
-  await pgRepo.refreshReadModel();
 });
 
 afterAll(async () => {
@@ -216,11 +215,11 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
   it("returns housing breakdown by suburb", async () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dataset_type: "housing", dimension: "suburb" })
+      .query({ event_type: "housing_sale", dimension: "suburb" })
       .expect(200);
 
     expect(res.body.dimension).toBe("suburb");
-    expect(res.body.dataset_type).toBe("housing");
+    expect(res.body.event_type).toBe("housing_sale");
     expect(res.body.entries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ category: "Sydney", count: 3 }),
@@ -232,7 +231,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
   it("returns housing breakdown by zoning", async () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dataset_type: "housing", dimension: "zoning" })
+      .query({ event_type: "housing_sale", dimension: "zoning" })
       .expect(200);
 
     expect(res.body.entries).toEqual(
@@ -247,7 +246,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "purchase_price",
         aggregation: "avg",
@@ -267,7 +266,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "purchase_price",
         aggregation: "sum",
@@ -283,7 +282,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const minRes = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "purchase_price",
         aggregation: "min",
@@ -296,7 +295,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const maxRes = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "purchase_price",
         aggregation: "max",
@@ -311,7 +310,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "area",
         aggregation: "sum",
@@ -327,7 +326,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         dimension: "pillar",
       })
       .expect(200);
@@ -344,7 +343,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         dimension: "pillar",
         metric: "metric_value",
         aggregation: "sum",
@@ -360,7 +359,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         dimension: "company_name",
       })
       .expect(200);
@@ -378,7 +377,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         dimension: "industry",
       })
       .expect(200);
@@ -396,7 +395,7 @@ describe("GET /api/v1/visualisation/breakdown — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         limit: 1,
       })
@@ -413,7 +412,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         time_period: "month",
       })
       .expect(200);
@@ -431,7 +430,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         time_period: "year",
       })
       .expect(200);
@@ -444,7 +443,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         metric: "purchase_price",
         aggregation: "avg",
         time_period: "month",
@@ -464,7 +463,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         metric: "purchase_price",
         aggregation: "sum",
         time_period: "month",
@@ -484,7 +483,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const minRes = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         metric: "purchase_price",
         aggregation: "min",
         time_period: "month",
@@ -497,7 +496,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const maxRes = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         metric: "purchase_price",
         aggregation: "max",
         time_period: "month",
@@ -512,7 +511,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         time_period: "month",
       })
@@ -535,7 +534,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "purchase_price",
         aggregation: "avg",
@@ -553,7 +552,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         time_period: "year",
       })
       .expect(200);
@@ -571,7 +570,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         metric: "metric_value",
         aggregation: "sum",
         time_period: "year",
@@ -595,7 +594,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         metric: "metric_value",
         aggregation: "avg",
         time_period: "year",
@@ -611,7 +610,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         dimension: "company_name",
         time_period: "year",
       })
@@ -634,7 +633,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         dimension: "company_name",
         metric: "metric_value",
         aggregation: "sum",
@@ -662,7 +661,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         dimension: "pillar",
         time_period: "year",
       })
@@ -683,7 +682,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "esg",
+        event_type: "esg_metric",
         time_period: "year",
       })
       .expect(200);
@@ -698,7 +697,7 @@ describe("GET /api/v1/visualisation/timeseries — integration", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         time_period: "day",
       })
       .expect(200);
@@ -728,11 +727,11 @@ describe("GET /api/v1/visualisation/timeseries — empty dataset", () => {
   it("returns 200 with empty data array when no events exist for event_type", async () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ dataset_type: "shopping_centre" })
+      .query({ event_type: "nonexistent_event_type" })
       .expect(200);
 
     expect(res.body.data).toEqual([]);
-    expect(res.body.dataset_type).toBe("shopping_centre");
+    expect(res.body.event_type).toBe("nonexistent_event_type");
   });
 });
 
@@ -808,7 +807,6 @@ describe("LocalStack boundary conditions", () => {
   beforeAll(async () => {
     await pgRepo.writeEvents(largeDataset, LARGE_DATASET_ID);
     await pgRepo.writeEvents(specialCharsEvents, SPECIAL_CHARS_DATASET_ID);
-    await pgRepo.refreshReadModel();
   });
 
   afterAll(async () => {
@@ -825,7 +823,7 @@ describe("LocalStack boundary conditions", () => {
   it("handles large dataset (100+ events) without truncating results", async () => {
     const breakdownRes = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dataset_type: "housing", dimension: "suburb", limit: 100 })
+      .query({ event_type: "housing_sale", dimension: "suburb", limit: 100 })
       .expect(200);
 
     // Calculate expected counts
@@ -855,7 +853,7 @@ describe("LocalStack boundary conditions", () => {
     // Timeseries should also handle large datasets
     const timeseriesRes = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ dataset_type: "housing", time_period: "month" })
+      .query({ event_type: "housing_sale", time_period: "month" })
       .expect(200);
 
     // Should have multiple months of data
@@ -873,7 +871,7 @@ describe("LocalStack boundary conditions", () => {
   it("handles special characters in attribute values without mangling", async () => {
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dataset_type: "housing", dimension: "suburb", limit: 50 })
+      .query({ event_type: "housing_sale", dimension: "suburb", limit: 50 })
       .expect(200);
 
     // Check that suburbs with special characters are present and correctly stored
@@ -901,7 +899,7 @@ describe("LocalStack boundary conditions", () => {
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         time_period: "month",
       })
@@ -931,7 +929,7 @@ describe("Visualisation endpoints — combined scenarios", () => {
     const breakdownRes = await request(app)
       .get("/api/v1/visualisation/breakdown")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "purchase_price",
         aggregation: "avg",
@@ -942,7 +940,7 @@ describe("Visualisation endpoints — combined scenarios", () => {
     const timeseriesRes = await request(app)
       .get("/api/v1/visualisation/timeseries")
       .query({
-        dataset_type: "housing",
+        event_type: "housing_sale",
         dimension: "suburb",
         metric: "purchase_price",
         aggregation: "avg",
@@ -970,19 +968,19 @@ describe("Visualisation endpoints — combined scenarios", () => {
     // Housing breakdown
     const housingRes = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dataset_type: "housing", dimension: "suburb" })
+      .query({ event_type: "housing_sale", dimension: "suburb" })
       .expect(200);
 
-    expect(housingRes.body.dataset_type).toBe("housing");
+    expect(housingRes.body.event_type).toBe("housing_sale");
     expect(housingRes.body.entries.length).toBeGreaterThan(0);
 
     // ESG breakdown
     const esgRes = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dataset_type: "esg", dimension: "pillar" })
+      .query({ event_type: "esg_metric", dimension: "pillar" })
       .expect(200);
 
-    expect(esgRes.body.dataset_type).toBe("esg");
+    expect(esgRes.body.event_type).toBe("esg_metric");
     expect(esgRes.body.entries.length).toBeGreaterThan(0);
 
     // Should not have overlapping dimensions

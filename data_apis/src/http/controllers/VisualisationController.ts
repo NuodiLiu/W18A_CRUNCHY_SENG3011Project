@@ -8,7 +8,7 @@ import {
   BreakdownResponse,
   TimeSeriesResponse,
 } from "../../application/visualisation/visualisation.types.js";
-import { AggregationType, DatasetType } from "../../domain/models/aggregation.js";
+import { AggregationType } from "../../domain/models/aggregation.js";
 
 export interface VisualisationControllerDeps {
   dataLakeReader: DataLakeReader;
@@ -27,7 +27,7 @@ export class VisualisationController extends Controller {
   @Get("breakdown")
   @SuccessResponse(200, "Breakdown data for bar/pie charts")
   public async getBreakdown(
-    @Query() dataset_type?: DatasetType,
+    @Query() event_type?: string,
     @Query() dimension?: string,
     @Query() metric?: string,
     @Query() aggregation?: AggregationType,
@@ -35,7 +35,7 @@ export class VisualisationController extends Controller {
   ): Promise<BreakdownResponse> {
     const result = await getBreakdown(
       {
-        dataset_type,
+        event_type,
         dimension,
         metric,
         aggregation,
@@ -53,7 +53,8 @@ export class VisualisationController extends Controller {
   @Get("timeseries")
   @SuccessResponse(200, "Time series data for line charts")
   public async getTimeSeries(
-    @Query() dataset_type?: DatasetType,
+    /** Event type to filter: "housing_sale" or "esg_metric" */
+    @Query() event_type?: string,
     /** Time granularity: "year" | "month" | "day" (default: "year") */
     @Query() time_period?: "year" | "month" | "day",
     /** Optional dimension to group by for multi-line chart (e.g., "suburb", "pillar") */
@@ -65,7 +66,7 @@ export class VisualisationController extends Controller {
   ): Promise<TimeSeriesResponse> {
     const result = await getTimeSeries(
       {
-        dataset_type,
+        event_type,
         dimension,
         metric,
         aggregation,

@@ -38,15 +38,10 @@ const models: TsoaRoute.Models = {
             "dimension": {"dataType":"string","required":true},
             "metric": {"dataType":"string","required":true},
             "aggregation": {"dataType":"string","required":true},
-            "dataset_type": {"dataType":"string","required":true},
+            "event_type": {"dataType":"string","required":true},
             "entries": {"dataType":"array","array":{"dataType":"refObject","ref":"BreakdownEntry"},"required":true},
         },
         "additionalProperties": true,
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "DatasetType": {
-        "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]},{"dataType":"enum","enums":["shopping_centre"]},{"dataType":"enum","enums":["school_enrolment"]},{"dataType":"enum","enums":["transport_facility"]},{"dataType":"enum","enums":["hsc_top_achiever"]},{"dataType":"enum","enums":["crime"]},{"dataType":"enum","enums":["abs_community_profile"]},{"dataType":"enum","enums":["nsw_population"]},{"dataType":"enum","enums":["nsw_weather"]},{"dataType":"enum","enums":["aus_population"]},{"dataType":"enum","enums":["aus_gdp"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AggregationType": {
@@ -70,7 +65,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "metric": {"dataType":"string","required":true},
             "aggregation": {"dataType":"string","required":true},
-            "dataset_type": {"dataType":"string","required":true},
+            "event_type": {"dataType":"string","required":true},
             "time_period": {"dataType":"string","required":true},
             "dimension": {"dataType":"string"},
             "data": {"dataType":"array","array":{"dataType":"refObject","ref":"TimeSeriesDataPoint"},"required":true},
@@ -247,6 +242,16 @@ const models: TsoaRoute.Models = {
         "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AvgPriceResult": {
+        "dataType": "refObject",
+        "properties": {
+            "suburb": {"dataType":"string","required":true},
+            "average_price": {"dataType":"double","required":true},
+            "count": {"dataType":"double","required":true},
+        },
+        "additionalProperties": true,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "CreateImportResponse": {
         "dataType": "refObject",
         "properties": {
@@ -393,7 +398,7 @@ export function RegisterRoutes(app: Router) {
 
     
         const argsVisualisationController_getBreakdown: Record<string, TsoaRoute.ParameterSchema> = {
-                dataset_type: {"in":"query","name":"dataset_type","ref":"DatasetType"},
+                event_type: {"in":"query","name":"event_type","dataType":"string"},
                 dimension: {"in":"query","name":"dimension","dataType":"string"},
                 metric: {"in":"query","name":"metric","dataType":"string"},
                 aggregation: {"in":"query","name":"aggregation","ref":"AggregationType"},
@@ -432,7 +437,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsVisualisationController_getTimeSeries: Record<string, TsoaRoute.ParameterSchema> = {
-                dataset_type: {"in":"query","name":"dataset_type","ref":"DatasetType"},
+                event_type: {"in":"query","name":"event_type","dataType":"string"},
                 time_period: {"in":"query","name":"time_period","dataType":"union","subSchemas":[{"dataType":"enum","enums":["year"]},{"dataType":"enum","enums":["month"]},{"dataType":"enum","enums":["day"]}]},
                 dimension: {"in":"query","name":"dimension","dataType":"string"},
                 metric: {"in":"query","name":"metric","dataType":"string"},
@@ -609,7 +614,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsEventsController_getEvents: Record<string, TsoaRoute.ParameterSchema> = {
-                dataset_type: {"in":"query","name":"dataset_type","ref":"DatasetType"},
+                dataset_type: {"in":"query","name":"dataset_type","dataType":"union","subSchemas":[{"dataType":"enum","enums":["esg"]},{"dataType":"enum","enums":["housing"]}]},
                 company_name: {"in":"query","name":"company_name","dataType":"string"},
                 permid: {"in":"query","name":"permid","dataType":"string"},
                 metric_name: {"in":"query","name":"metric_name","dataType":"string"},
@@ -620,7 +625,6 @@ export function RegisterRoutes(app: Router) {
                 suburb: {"in":"query","name":"suburb","dataType":"string"},
                 street_name: {"in":"query","name":"street_name","dataType":"string"},
                 nature_of_property: {"in":"query","name":"nature_of_property","dataType":"string"},
-                offence_category: {"in":"query","name":"offence_category","dataType":"string"},
                 _limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
                 _offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
         };
@@ -789,6 +793,42 @@ export function RegisterRoutes(app: Router) {
                 next,
                 validatedArgs,
                 successStatus: 204,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsEventsController_getAvgHousingPrices: Record<string, TsoaRoute.ParameterSchema> = {
+                suburb: {"in":"query","name":"suburb","dataType":"string"},
+                years: {"default":2,"in":"query","name":"years","dataType":"double"},
+        };
+        app.get('/api/v1/events/housing/avg-prices',
+            ...(fetchMiddlewares<RequestHandler>(EventsController)),
+            ...(fetchMiddlewares<RequestHandler>(EventsController.prototype.getAvgHousingPrices)),
+
+            async function EventsController_getAvgHousingPrices(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsEventsController_getAvgHousingPrices, request, response });
+
+                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
+
+                const controller: any = await container.get<EventsController>(EventsController);
+                if (typeof controller['setStatus'] === 'function') {
+                controller.setStatus(undefined);
+                }
+
+              await templateService.apiHandler({
+                methodName: 'getAvgHousingPrices',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: 200,
               });
             } catch (err) {
                 return next(err);

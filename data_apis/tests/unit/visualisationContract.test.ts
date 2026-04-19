@@ -21,7 +21,7 @@ const fakeHousingEvents = [
   {
     event_id: "c-h1",
     time_object: { timestamp: "2022-03-15T00:00:00Z", timezone: "UTC" },
-    dataset_type: "housing",
+    event_type: "housing_sale",
     attribute: {
       property_id: "P100",
       suburb: "Sydney",
@@ -37,7 +37,7 @@ const fakeHousingEvents = [
   {
     event_id: "c-h2",
     time_object: { timestamp: "2023-07-20T00:00:00Z", timezone: "UTC" },
-    dataset_type: "housing",
+    event_type: "housing_sale",
     attribute: {
       property_id: "P101",
       suburb: "Melbourne",
@@ -127,12 +127,12 @@ function buildApp(events = fakeHousingEvents) {
 function assertTimeSeriesContract(body: Record<string, unknown>) {
   expect(body).toHaveProperty("metric");
   expect(body).toHaveProperty("aggregation");
-  expect(body).toHaveProperty("dataset_type");
+  expect(body).toHaveProperty("event_type");
   expect(body).toHaveProperty("data");
 
   expect(typeof body.metric).toBe("string");
   expect(typeof body.aggregation).toBe("string");
-  expect(typeof body.dataset_type).toBe("string");
+  expect(typeof body.event_type).toBe("string");
   expect(Array.isArray(body.data)).toBe(true);
 
   for (const point of body.data as Record<string, unknown>[]) {
@@ -160,13 +160,13 @@ function assertBreakdownContract(body: Record<string, unknown>) {
   expect(body).toHaveProperty("dimension");
   expect(body).toHaveProperty("metric");
   expect(body).toHaveProperty("aggregation");
-  expect(body).toHaveProperty("dataset_type");
+  expect(body).toHaveProperty("event_type");
   expect(body).toHaveProperty("entries");
 
   expect(typeof body.dimension).toBe("string");
   expect(typeof body.metric).toBe("string");
   expect(typeof body.aggregation).toBe("string");
-  expect(typeof body.dataset_type).toBe("string");
+  expect(typeof body.event_type).toBe("string");
   expect(Array.isArray(body.entries)).toBe(true);
 
   for (const entry of body.entries as Record<string, unknown>[]) {
@@ -183,7 +183,7 @@ describe("Contract: GET /api/v1/visualisation/timeseries", () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ dataset_type: "housing", metric: "purchase_price", aggregation: "avg", time_period: "year" })
+      .query({ event_type: "housing_sale", metric: "purchase_price", aggregation: "avg", time_period: "year" })
       .expect(200);
 
     assertTimeSeriesContract(res.body);
@@ -193,7 +193,7 @@ describe("Contract: GET /api/v1/visualisation/timeseries", () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ dataset_type: "housing", metric: "purchase_price", aggregation: "avg", time_period: "year" })
+      .query({ event_type: "housing_sale", metric: "purchase_price", aggregation: "avg", time_period: "year" })
       .expect(200);
 
     // Frontend calls: raw.data.map(d => ({ period: d.period, value: Math.round(d.value) }))
@@ -223,7 +223,7 @@ describe("Contract: GET /api/v1/visualisation/timeseries", () => {
     const { app } = buildApp([]);
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ dataset_type: "housing" })
+      .query({ event_type: "housing_sale" })
       .expect(200);
 
     assertTimeSeriesContract(res.body);
@@ -234,7 +234,7 @@ describe("Contract: GET /api/v1/visualisation/timeseries", () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ dataset_type: "housing", dimension: "suburb", metric: "purchase_price", aggregation: "avg", time_period: "year" })
+      .query({ event_type: "housing_sale", dimension: "suburb", metric: "purchase_price", aggregation: "avg", time_period: "year" })
       .expect(200);
 
     assertTimeSeriesContract(res.body);
@@ -248,12 +248,12 @@ describe("Contract: GET /api/v1/visualisation/timeseries", () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ dataset_type: "housing", metric: "purchase_price", aggregation: "avg", time_period: "month" })
+      .query({ event_type: "housing_sale", metric: "purchase_price", aggregation: "avg", time_period: "month" })
       .expect(200);
 
     expect(res.body.metric).toBe("purchase_price");
     expect(res.body.aggregation).toBe("avg");
-    expect(res.body.dataset_type).toBe("housing");
+    expect(res.body.event_type).toBe("housing_sale");
     expect(res.body.time_period).toBe("month");
   });
 
@@ -283,7 +283,7 @@ describe("Contract: GET /api/v1/visualisation/breakdown", () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dataset_type: "housing", dimension: "suburb", metric: "purchase_price", aggregation: "avg" })
+      .query({ event_type: "housing_sale", dimension: "suburb", metric: "purchase_price", aggregation: "avg" })
       .expect(200);
 
     assertBreakdownContract(res.body);
@@ -328,13 +328,13 @@ describe("Contract: GET /api/v1/visualisation/breakdown", () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ dimension: "suburb", metric: "purchase_price", aggregation: "avg", dataset_type: "housing" })
+      .query({ dimension: "suburb", metric: "purchase_price", aggregation: "avg", event_type: "housing_sale" })
       .expect(200);
 
     expect(res.body.dimension).toBe("suburb");
     expect(res.body.metric).toBe("purchase_price");
     expect(res.body.aggregation).toBe("avg");
-    expect(res.body.dataset_type).toBe("housing");
+    expect(res.body.event_type).toBe("housing_sale");
   });
 
   it("rejects invalid dimension with 400", async () => {
@@ -382,7 +382,7 @@ describe("Contract: cross-endpoint consistency", () => {
     for (const body of [tsRes.body, bdRes.body]) {
       expect(body).toHaveProperty("metric");
       expect(body).toHaveProperty("aggregation");
-      expect(body).toHaveProperty("dataset_type");
+      expect(body).toHaveProperty("event_type");
     }
   });
 

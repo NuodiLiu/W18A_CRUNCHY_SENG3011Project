@@ -448,5 +448,4 @@ export class DynamoEventRepository implements DataLakeReader, EventRepository {
   // not supported for DynamoDB-backed reader
   async aggregateByDimension(): Promise<AggRow[]> { return []; }
   async aggregateByTimePeriod(): Promise<AggRow[]> { return []; }
-  async refreshReadModel(): Promise<void> { /* no-op for DynamoDB */ }
 }

@@ -46,7 +46,7 @@
 						"type": "string",
 						"description": "Aggregation function used"
 					},
-					"dataset_type": {
+					"event_type": {
 						"type": "string",
 						"description": "Event type filter applied"
 					},
@@ -62,28 +62,11 @@
 					"dimension",
 					"metric",
 					"aggregation",
-					"dataset_type",
+					"event_type",
 					"entries"
 				],
 				"type": "object",
 				"additionalProperties": true
-			},
-			"DatasetType": {
-				"type": "string",
-				"enum": [
-					"esg",
-					"housing",
-					"shopping_centre",
-					"school_enrolment",
-					"transport_facility",
-					"hsc_top_achiever",
-					"crime",
-					"abs_community_profile",
-					"nsw_population",
-					"nsw_weather",
-					"aus_population",
-					"aus_gdp"
-				]
 			},
 			"AggregationType": {
 				"type": "string",
@@ -135,7 +118,7 @@
 						"type": "string",
 						"description": "Aggregation function used (avg, sum, count, min, max)"
 					},
-					"dataset_type": {
+					"event_type": {
 						"type": "string",
 						"description": "Event type filter applied"
 					},
@@ -158,7 +141,7 @@
 				"required": [
 					"metric",
 					"aggregation",
-					"dataset_type",
+					"event_type",
 					"time_period",
 					"data"
 				],
@@ -588,6 +571,28 @@
 				"type": "object",
 				"additionalProperties": true
 			},
+			"AvgPriceResult": {
+				"properties": {
+					"suburb": {
+						"type": "string"
+					},
+					"average_price": {
+						"type": "number",
+						"format": "double"
+					},
+					"count": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"suburb",
+					"average_price",
+					"count"
+				],
+				"type": "object",
+				"additionalProperties": true
+			},
 			"CreateImportResponse": {
 				"properties": {
 					"job_id": {
@@ -944,10 +949,10 @@
 				"parameters": [
 					{
 						"in": "query",
-						"name": "dataset_type",
+						"name": "event_type",
 						"required": false,
 						"schema": {
-							"$ref": "#/components/schemas/DatasetType"
+							"type": "string"
 						}
 					},
 					{
@@ -1008,11 +1013,12 @@
 				"security": [],
 				"parameters": [
 					{
+						"description": "Event type to filter: \"housing_sale\" or \"esg_metric\"",
 						"in": "query",
-						"name": "dataset_type",
+						"name": "event_type",
 						"required": false,
 						"schema": {
-							"$ref": "#/components/schemas/DatasetType"
+							"type": "string"
 						}
 					},
 					{
@@ -1216,7 +1222,11 @@
 						"name": "dataset_type",
 						"required": false,
 						"schema": {
-							"$ref": "#/components/schemas/DatasetType"
+							"type": "string",
+							"enum": [
+								"esg",
+								"housing"
+							]
 						}
 					},
 					{
@@ -1298,15 +1308,6 @@
 					{
 						"in": "query",
 						"name": "nature_of_property",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"description": "NSW crime filter: e.g. \"Assault\" | \"Drug offences\" | \"Robbery and Theft\"",
-						"in": "query",
-						"name": "offence_category",
 						"required": false,
 						"schema": {
 							"type": "string"
@@ -1461,6 +1462,51 @@
 						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/api/v1/events/housing/avg-prices": {
+			"get": {
+				"operationId": "GetAvgHousingPrices",
+				"responses": {
+					"200": {
+						"description": "Average housing prices",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/AvgPriceResult"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Returns average housing price over the last N years (default 2)",
+				"tags": [
+					"Events"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "suburb",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "years",
+						"required": false,
+						"schema": {
+							"default": 2,
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
