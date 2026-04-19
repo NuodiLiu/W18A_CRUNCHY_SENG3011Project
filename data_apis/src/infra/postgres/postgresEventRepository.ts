@@ -1,9 +1,9 @@
 import { Pool } from "pg";
 import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
+import { DATASET_TYPE_MAP } from "../../domain/models/aggregation.js";
 import { AggRow, DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 import { EventRepository } from "../../domain/ports/eventRepository.js";
-import { HousingAnalyticsRepository } from "../../domain/ports/housingAnalyticsRepository.js";
 
 export class PostgresEventRepository implements DataLakeReader, EventRepository {
   private readonly pool: Pool;
@@ -13,8 +13,10 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       config.pgSsl || config.pgConnectionString.includes("sslmode=");
     this.pool = new Pool({
       connectionString: config.pgConnectionString,
-      max: 5,
+      max: 10,
       ssl: useSsl ? { rejectUnauthorized: false } : false,
+      statement_timeout: 25_000,
+      idle_in_transaction_session_timeout: 10_000,
     });
   }
 
@@ -61,6 +63,19 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       throw err;
     } finally {
       client.release();
+    }
+  }
+
+  async refreshReadModel(): Promise<void> {
+    const views = [
+      "mv_housing_suburb_stats",
+      "mv_housing_yearly_stats",
+      "mv_housing_yearly_suburb",
+      "mv_achiever_course_stats",
+      "mv_achiever_year_stats",
+    ];
+    for (const view of views) {
+      await this.pool.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${view}`);
     }
   }
 
@@ -175,6 +190,22 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     aggregation: string,
     limit: number,
   ): Promise<AggRow[]> {
+    // Try materialized view first for housing_sale + suburb queries.
+    const mvCol = mvMetricColumn(metricField, aggregation);
+    if (eventType === "housing_sale" && dimensionField === "suburb" && mvCol) {
+      return this.breakdownFromMV("mv_housing_suburb_stats", "suburb", mvCol, limit);
+    }
+
+    // distinguished_achiever MVs (count-only queries).
+    if (eventType === "distinguished_achiever" && (!metricField || aggregation === "count")) {
+      if (dimensionField === "course") {
+        return this.breakdownFromMV("mv_achiever_course_stats", "course", "cnt", limit);
+      }
+      if (dimensionField === "year") {
+        return this.breakdownFromMV("mv_achiever_year_stats", "year", "cnt", limit);
+      }
+    }
+
     const dimExpr = safeJsonbField(dimensionField);
     const aggExpr = metricField
       ? buildAggExpr(aggregation, `(${safeJsonbField(metricField)})::numeric`)
@@ -203,9 +234,40 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     aggregation: string,
     dimensionField?: string,
   ): Promise<AggRow[]> {
+    // distinguished_achiever timeseries by year via MV.
+    if (eventType === "distinguished_achiever" && timePeriod === "year" && !dimensionField) {
+      return this.timeseriesFromMV("mv_achiever_year_stats", "year", "cnt");
+    }
+
+    // Try materialized views for housing_sale + year queries.
+    if (eventType === "housing_sale" && timePeriod === "year") {
+      const mvCol = mvMetricColumn(metricField, aggregation);
+      if (mvCol && !dimensionField) {
+        return this.timeseriesFromMV("mv_housing_yearly_stats", "year", mvCol);
+      }
+      if (mvCol && dimensionField === "suburb") {
+        return this.timeseriesFromMV("mv_housing_yearly_suburb", "year", mvCol, "suburb");
+      }
+    }
+
+    // Fast paths for nsw_crime year timeseries.
+    if (eventType === "nsw_crime" && timePeriod === "year" && metricField === "count" && aggregation === "sum") {
+      if (!dimensionField) {
+        return this.timeseriesFromMV("mv_crime_yearly_totals", "year", "total_count");
+      }
+      if (dimensionField === "offence_category") {
+        return this.timeseriesFromMV("mv_crime_yearly_category", "year", "total_count", "offence_category");
+      }
+      if (dimensionField === "suburb") {
+        return this.timeseriesFromMV("mv_crime_yearly_suburb", "year", "total_count", "suburb");
+      }
+    }
+
     const tsExpr = `(time_object->>'timestamp')::timestamp`;
+    // Year: use left(..., 4) — immutable expression (vs EXTRACT which isn't),
+    // allowing partial expression indexes on this column to be used.
     const periodExpr =
-      timePeriod === "year" ? `EXTRACT(YEAR FROM ${tsExpr})::int::text`
+      timePeriod === "year" ? `left(time_object->>'timestamp', 4)`
       : timePeriod === "month" ? `to_char(${tsExpr}, 'YYYY-MM')`
       : `to_char(${tsExpr}, 'YYYY-MM-DD')`;
 
@@ -217,9 +279,16 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     const selectDim = dimExpr ? `, ${dimExpr} AS series_key` : "";
     const groupDim = dimExpr ? ", series_key" : "";
 
+    // When grouped by a high-cardinality dimension, limit to top 20 series
+    // by count to avoid exceeding Lambda's 6MB response payload limit.
+    const TOP_SERIES = 20;
+    const dimFilter = dimExpr
+      ? `AND ${dimExpr} IN (SELECT ${dimExpr} FROM events WHERE event_type = $1 GROUP BY ${dimExpr} ORDER BY COUNT(*) DESC LIMIT ${TOP_SERIES})`
+      : "";
+
     const res = await this.pool.query<{ group_key: string; series_key?: string; value: string; count: string }>(
       `SELECT ${periodExpr} AS group_key${selectDim}, ${aggExpr} AS value, COUNT(*)::text AS count
-       FROM events WHERE event_type = $1
+       FROM events WHERE event_type = $1 ${dimFilter}
        GROUP BY group_key${groupDim}
        ORDER BY group_key${groupDim}`,
       [eventType],
@@ -233,39 +302,54 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
     }));
   }
 
-  // finding avg housing prices
-  async getAverageHousingPrices(
-    suburb?: string,
-    yearsBack: number = 2
+  // ── Materialized view helpers ────────────────────────────────
+
+  private async breakdownFromMV(
+    view: string,
+    dimCol: string,
+    valueCol: string,
+    limit: number,
   ): Promise<AggRow[]> {
-
-    const params: unknown[] = [];
-    let idx = 1;
-
-    let suburbFilter = "";
-    if (suburb) {
-      suburbFilter = `AND LOWER(attribute->>'suburb') = LOWER($${idx++})`;
-      params.push(suburb);
-    }
-
-    const res = await this.pool.query(
-      `SELECT 
-        attribute->>'suburb' AS group_key,
-        AVG((attribute->>'purchase_price')::numeric) AS value,
-        COUNT(*)::text AS count
-      FROM events
-      WHERE event_type = 'housing_sale'
-      ${suburbFilter}
-      AND (attribute->>'contract_date')::date >= NOW() - INTERVAL '${yearsBack} years'
-      GROUP BY group_key
-      ORDER BY value DESC`,
-      params
+    const res = await this.pool.query<{ group_key: string; value: string; count: string }>(
+      `SELECT ${dimCol} AS group_key, ${valueCol}::text AS value, cnt::text AS count
+       FROM ${view}
+       ORDER BY ${valueCol} DESC
+       LIMIT $1`,
+      [limit],
     );
+    return res.rows.map((r) => ({
+      group_key: r.group_key ?? "unknown",
+      value: Number(r.value) || 0,
+      count: Number(r.count) || 0,
+    }));
+  }
 
+  private async timeseriesFromMV(
+    view: string,
+    periodCol: string,
+    valueCol: string,
+    seriesCol?: string,
+  ): Promise<AggRow[]> {
+    const selectSeries = seriesCol ? `, ${seriesCol} AS series_key` : "";
+    const orderSeries = seriesCol ? `, ${seriesCol}` : "";
+
+    // When grouped by a high-cardinality dimension (e.g. suburb), limit to
+    // top 20 series by total count to avoid exceeding Lambda payload limits.
+    const TOP_SERIES = 20;
+    const whereClause = seriesCol
+      ? `WHERE ${seriesCol} IN (SELECT ${seriesCol} FROM ${view} GROUP BY ${seriesCol} ORDER BY SUM(cnt) DESC LIMIT ${TOP_SERIES})`
+      : "";
+
+    const res = await this.pool.query<{ group_key: string; series_key?: string; value: string; count: string }>(
+      `SELECT ${periodCol}::text AS group_key${selectSeries}, ${valueCol}::text AS value, cnt::text AS count
+       FROM ${view} ${whereClause}
+       ORDER BY ${periodCol}${orderSeries}`,
+    );
     return res.rows.map((r) => ({
       group_key: r.group_key,
-      value: Number(r.value),
-      count: Number(r.count),
+      series_key: r.series_key ?? undefined,
+      value: Number(r.value) || 0,
+      count: Number(r.count) || 0,
     }));
   }
 
@@ -281,7 +365,7 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
 
     if (query.dataset_type) {
       conditions.push(`event_type = $${idx++}`);
-      params.push(query.dataset_type === "esg" ? "esg_metric" : "housing_sale");
+      params.push(DATASET_TYPE_MAP[query.dataset_type] ?? query.dataset_type);
     }
     if (query.company_name) {
       conditions.push(`attribute->>'company_name' ILIKE $${idx++}`);
@@ -323,6 +407,10 @@ export class PostgresEventRepository implements DataLakeReader, EventRepository 
       conditions.push(`attribute->>'nature_of_property' = $${idx++}`);
       params.push(query.nature_of_property);
     }
+    if (query.offence_category) {
+      conditions.push(`attribute->>'offence_category' ILIKE $${idx++}`);
+      params.push(`%${query.offence_category}%`);
+    }
 
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -354,6 +442,27 @@ function safeJsonbField(field: string): string {
     throw new Error(`Invalid field name: "${field}"`);
   }
   return `attribute->>'${field}'`;
+}
+
+/**
+ * Map a (metricField, aggregation) pair to the corresponding
+ * pre-computed column in a materialized view, or null if the MV
+ * cannot serve this combination.
+ */
+function mvMetricColumn(metricField: string | null, aggregation: string): string | null {
+  if (!metricField) return "cnt";  // count-only query
+
+  const metricKey = metricField === "purchase_price" ? "price" : metricField === "area" ? "area" : null;
+  if (!metricKey) return null;
+
+  switch (aggregation) {
+    case "avg":   return `avg_${metricKey}`;
+    case "sum":   return `sum_${metricKey}`;
+    case "min":   return `min_${metricKey}`;
+    case "max":   return `max_${metricKey}`;
+    case "count": return "cnt";
+    default:      return null;
+  }
 }
 
 // build a SQL aggregation expression
