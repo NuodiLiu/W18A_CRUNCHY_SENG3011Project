@@ -1,46 +1,287 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Australia Economic Dashboard</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HouseDomain (HD) — NSW Property Explorer</title>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  HouseDomain (HD) — NSW Property Explorer                       ║
+  ║  SENG3011 W18A CRUNCHY                                          ║
+  ╠══════════════════════════════════════════════════════════════════╣
+  ║  EXTERNAL LIBRARIES & ACCREDITATION                             ║
+  ║                                                                  ║
+  ║  • Leaflet.js v1.9.4                                            ║
+  ║    © 2010–2024 Vladimir Agafonkin. BSD 2-Clause License.        ║
+  ║    https://leafletjs.com                                         ║
+  ║                                                                  ║
+  ║  • Three.js r160                                                 ║
+  ║    © 2010–2024 Three.js Authors. MIT License.                   ║
+  ║    https://threejs.org                                           ║
+  ║    Earth textures: NASA Blue Marble via Three.js examples        ║
+  ║    https://github.com/mrdoob/three.js                           ║
+  ║                                                                  ║
+  ║  • Chart.js v4.4.7                                              ║
+  ║    © 2014–2024 Chart.js Contributors. MIT License.             ║
+  ║    https://www.chartjs.org                                       ║
+  ║                                                                  ║
+  ║  • Esri World Imagery Tiles                                     ║
+  ║    © Esri, DigitalGlobe, GeoEye, Earthstar Geographics,        ║
+  ║    CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS      ║
+  ║    User Community. https://www.esri.com                         ║
+  ║                                                                  ║
+  ║  • CartoDB Dark Matter Tiles                                     ║
+  ║    © OpenStreetMap contributors, © CARTO                        ║
+  ║    https://carto.com/attributions                                ║
+  ║                                                                  ║
+  ║  • NSW Suburb Boundary GeoJSON                                  ║
+  ║    © tonywr71 / GeoJson-Data (GitHub)                           ║
+  ║    Source: NSW Spatial Services                                  ║
+  ║    https://github.com/tonywr71/GeoJson-Data                    ║
+  ║                                                                  ║
+  ║  • NSW Property Events Data                                      ║
+  ║    HouseDomain ESG Data Service API                             ║
+  ║    © 2024 SENG3011 W18A CRUNCHY Team                           ║
+  ║                                                                  ║
+  ║  DEPLOYMENT                                                      ║
+  ║  AWS S3 + CloudFront CDN                                        ║
+  ║  CI/CD: GitHub Actions → S3 sync → CloudFront invalidation     ║
+  ╚══════════════════════════════════════════════════════════════════╝
+-->
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="css/style.css"/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <h1>Australia Economic Dashboard</h1>
-  <p class="subtitle">Housing prices vs GDP — data from ESG Data Service &amp; mock sources</p>
 
-  <!-- control bar -->
-  <div class="controls">
-    <label for="year-start">From</label>
-    <input type="number" id="year-start" min="1990" max="2024">
-    <label for="year-end">To</label>
-    <input type="number" id="year-end" min="1990" max="2024">
-    <button id="btn-load">Load</button>
-    <span id="status"></span>
-  </div>
+<div id="flash"></div>
 
-  <!-- chart -->
-  <div class="chart-container">
-    <h2>Avg Housing Price vs GDP over Time</h2>
-    <canvas id="chart-main"></canvas>
-  </div>
-
-  <!-- stat cards -->
-  <div class="stat-cards">
-    <div class="stat-card" id="stat-gdp">
-      <h3>GDP</h3>
-      <div class="stat-value">--</div>
-      <div class="stat-desc">Loading...</div>
+<!-- ══ S1: GLOBE ══════════════════════════════════════════ -->
+<div id="s1" class="screen active" role="main" aria-label="Globe introduction screen">
+  <canvas id="stars-canvas" aria-hidden="true"></canvas>
+  <canvas id="globe-canvas"
+    aria-label="Spinning Earth globe. Click to begin exploring NSW property data."
+    tabindex="0" role="button"></canvas>
+  <div class="globe-ui" id="globe-ui" aria-hidden="true">
+    <div class="hd-logo">
+      <!-- HD Logo — globe + house mark (green→cyan gradient) -->
+      <div class="hd-logo-mark">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="64" height="64" aria-hidden="true">
+          <defs>
+            <linearGradient id="hd-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   style="stop-color:#10b981;stop-opacity:1"/>
+              <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1"/>
+            </linearGradient>
+          </defs>
+          <circle cx="100" cy="100" r="70" fill="none" stroke="url(#hd-grad)" stroke-width="2.5"/>
+          <ellipse cx="100" cy="100" rx="70" ry="25" fill="none" stroke="url(#hd-grad)" stroke-width="1.5" opacity="0.5"/>
+          <ellipse cx="100" cy="100" rx="70" ry="50" fill="none" stroke="url(#hd-grad)" stroke-width="1.5" opacity="0.5"/>
+          <ellipse cx="100" cy="100" rx="25" ry="70" fill="none" stroke="url(#hd-grad)" stroke-width="1.5" opacity="0.5"/>
+          <path d="M100 75 L120 90 L120 115 L80 115 L80 90 Z" fill="url(#hd-grad)"/>
+          <rect x="95" y="100" width="10" height="15" fill="#0a0a0f"/>
+        </svg>
+      </div>
+      <div class="hd-logo-text">
+        <h1>HouseDomain</h1>
+        <span>NSW Property Explorer</span>
+      </div>
     </div>
-    <div class="stat-card" id="stat-housing">
-      <h3>Avg Housing Price</h3>
-      <div class="stat-value">--</div>
-      <div class="stat-desc">Loading...</div>
+    <p class="globe-hint">Click the globe to begin</p>
+  </div>
+</div>
+
+<!-- ══ S2: SATELLITE ═════════════════════════════════════ -->
+<div id="s2" class="screen" aria-label="Satellite view of New South Wales">
+  <div id="satellite-map" aria-hidden="true"></div>
+  <div class="sat-badge" role="status" aria-live="polite">
+    <span class="eyebrow">Satellite View · New South Wales</span>
+    <h2>Loading suburb data…</h2>
+    <div class="progress-wrap"
+         role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+         id="progress-bar-wrap">
+      <div class="progress-bar" id="price-progress"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S3: HEATMAP ════════════════════════════════════════ -->
+<div id="s3" class="screen" aria-label="NSW suburb suitability heatmap">
+  <div id="heatmap-map" aria-label="Interactive map of NSW suburbs coloured by suitability score"></div>
+
+  <div class="topbar" role="navigation" aria-label="Site navigation">
+    <div class="topbar-left">
+      <a class="hd-logo-sm" id="s3-home" href="#" role="button" aria-label="HouseDomain home — return to globe">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+            <defs>
+              <linearGradient id="hd-grad-sm" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%"   style="stop-color:#10b981;stop-opacity:1"/>
+                <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1"/>
+              </linearGradient>
+            </defs>
+            <circle cx="100" cy="100" r="70" fill="none" stroke="url(#hd-grad-sm)" stroke-width="2.5"/>
+            <ellipse cx="100" cy="100" rx="70" ry="25" fill="none" stroke="url(#hd-grad-sm)" stroke-width="1.5" opacity="0.5"/>
+            <ellipse cx="100" cy="100" rx="70" ry="50" fill="none" stroke="url(#hd-grad-sm)" stroke-width="1.5" opacity="0.5"/>
+            <ellipse cx="100" cy="100" rx="25" ry="70" fill="none" stroke="url(#hd-grad-sm)" stroke-width="1.5" opacity="0.5"/>
+            <path d="M100 75 L120 90 L120 115 L80 115 L80 90 Z" fill="url(#hd-grad-sm)"/>
+            <rect x="95" y="100" width="10" height="15" fill="#0a0a0f"/>
+          </svg>
+        </div>
+        <span class="wordmark">HouseDomain</span>
+      </a>
+    </div>
+    <div class="topbar-right" role="toolbar" aria-label="Accessibility and display options">
+      <div class="a11y-bar" aria-label="Text size controls">
+        <button class="a11y-btn"       id="font-sm" aria-label="Small text"  aria-pressed="false" title="Small text">A</button>
+        <button class="a11y-btn active" id="font-md" aria-label="Normal text" aria-pressed="true"  title="Normal text">A</button>
+        <button class="a11y-btn"       id="font-lg" aria-label="Large text"  aria-pressed="false" title="Large text" style="font-size:1rem">A</button>
+      </div>
+      <button class="theme-btn" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">🌙 Dark</button>
+      <button class="theme-btn" id="cb-toggle"    aria-label="Toggle colour-blind safe mode" title="Colour-blind safe palette">👁 CB</button>
     </div>
   </div>
 
-  <script type="module" src="js/app.js"></script>
+  <!-- Suitability filter panel (right side) -->
+  <nav class="filter-panel" aria-label="Suitability filters">
+    <div class="filter-panel-title" id="filter-panel-heading">Suitability Filters</div>
+    <div role="group" aria-labelledby="filter-panel-heading">
+      <button class="filter-item active" data-filter="housing"        aria-pressed="true">
+        <span class="fi-icon" aria-hidden="true">🏠</span>
+        <span class="fi-label">Avg House Price</span>
+        <span class="fi-check" aria-hidden="true">✓</span>
+      </button>
+      <button class="filter-item" data-filter="education"      aria-pressed="false">
+        <span class="fi-icon" aria-hidden="true">🎓</span>
+        <span class="fi-label">Education</span>
+        <span class="fi-check" aria-hidden="true"></span>
+      </button>
+      <button class="filter-item" data-filter="infrastructure" aria-pressed="false">
+        <span class="fi-icon" aria-hidden="true">🚌</span>
+        <span class="fi-label">Infrastructure</span>
+        <span class="fi-check" aria-hidden="true"></span>
+      </button>
+      <button class="filter-item" data-filter="safety"         aria-pressed="false">
+        <span class="fi-icon" aria-hidden="true">🔒</span>
+        <span class="fi-label">Safety</span>
+        <span class="fi-check" aria-hidden="true"></span>
+      </button>
+      <button class="filter-item" data-filter="greenspace"     aria-pressed="false">
+        <span class="fi-icon" aria-hidden="true">🌳</span>
+        <span class="fi-label">Green Space</span>
+        <span class="fi-check" aria-hidden="true"></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Suitability legend -->
+  <div class="legend" role="note" aria-label="Map colour legend">
+    <span class="legend-lbl">Suitability</span>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--suit-high)"></div> High suitability</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--suit-mid)"></div>  Medium suitability</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--suit-low)"></div>  Low suitability</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--suit-none)"></div> No housing data</div>
+  </div>
+
+  <div id="map-status" role="status" aria-live="polite">Loading…</div>
+</div>
+
+<!-- ══ S4: GRAPH ══════════════════════════════════════════ -->
+<div id="s4" class="screen" aria-label="Suburb property analysis">
+  <div class="topbar" role="navigation">
+    <div class="topbar-left">
+      <button class="btn-back" id="btn-back" aria-label="Go back to heatmap">← Back</button>
+    </div>
+    <div class="topbar-right">
+      <a class="hd-logo-sm" id="s4-home" href="#" role="button" aria-label="HouseDomain home">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+            <use href="#hd-grad-sm-def"/>
+            <circle cx="100" cy="100" r="70" fill="none" stroke="url(#hd-grad-sm)" stroke-width="2.5"/>
+            <ellipse cx="100" cy="100" rx="70" ry="25" fill="none" stroke="url(#hd-grad-sm)" stroke-width="1.5" opacity="0.5"/>
+            <ellipse cx="100" cy="100" rx="70" ry="50" fill="none" stroke="url(#hd-grad-sm)" stroke-width="1.5" opacity="0.5"/>
+            <ellipse cx="100" cy="100" rx="25" ry="70" fill="none" stroke="url(#hd-grad-sm)" stroke-width="1.5" opacity="0.5"/>
+            <path d="M100 75 L120 90 L120 115 L80 115 L80 90 Z" fill="url(#hd-grad-sm)"/>
+            <rect x="95" y="100" width="10" height="15" fill="#0a0a0f"/>
+          </svg>
+        </div>
+        <span class="wordmark">HouseDomain</span>
+      </a>
+      <button class="theme-btn" id="theme-toggle-2" aria-label="Toggle light/dark mode">🌙 Dark</button>
+      <button class="theme-btn" id="cb-toggle-2"    aria-label="Colour-blind mode">👁 CB</button>
+    </div>
+  </div>
+
+  <div class="graph-wrap">
+    <div class="graph-title">
+      <span class="eyebrow">Property Analysis</span>
+      <h2 id="suburb-title">—</h2>
+      <p>Explore property metrics for this suburb over time.</p>
+    </div>
+
+    <!-- Chart metric filter chips — GDP removed, income added -->
+    <div class="filters" role="group" aria-label="Chart metric filters">
+      <button class="chip active" data-f="purchase_price" aria-pressed="true">Avg Sale Price</button>
+      <button class="chip"        data-f="count"          aria-pressed="false">Sales Volume</button>
+      <button class="chip"        data-f="income"         aria-pressed="false">Household Income</button>
+      <button class="chip"        data-f="population"     aria-pressed="false">Population</button>
+      <button class="chip"        data-f="weather"        aria-pressed="false">Weather</button>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-card" role="figure" aria-label="Property data chart">
+      <canvas id="chart" aria-label="Line chart of property metric over time"></canvas>
+      <div class="meta-row">
+        <div class="meta-card">
+          <div class="lbl">Suburb</div>
+          <div class="val" id="meta-suburb">—</div>
+        </div>
+        <div class="meta-card">
+          <div class="lbl">Avg Sale Price (last 3 yrs)</div>
+          <div class="val" id="meta-price">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suitability summary panel -->
+    <div class="suitability-summary" id="suitability-summary"
+         role="region" aria-label="Suitability summary for this suburb">
+      <div class="summary-title">Suitability Breakdown</div>
+      <div class="summary-grid" id="summary-grid">
+        <!-- Populated by renderSuitabilitySummary() in app.js -->
+        <div class="summary-item" style="opacity:0.5">
+          <div class="summary-item-header">
+            <span class="summary-item-icon">📍</span>
+            <span class="summary-item-label">Select a suburb on the map</span>
+          </div>
+        </div>
+      </div>
+      <div class="summary-overall">
+        <span class="summary-overall-label" id="summary-overall-label">Overall suitability</span>
+        <span class="summary-overall-badge" id="summary-overall-badge"
+              style="background:var(--suit-none)">No data</span>
+      </div>
+    </div>
+
+    <!-- Accreditation -->
+    <div class="credits" role="contentinfo" aria-label="Data sources and accreditation">
+      <strong>Data sources &amp; accreditation</strong><br>
+      Map tiles: <a href="https://www.esri.com" target="_blank" rel="noopener">© Esri World Imagery</a> ·
+      <a href="https://carto.com/attributions" target="_blank" rel="noopener">© CARTO / OpenStreetMap contributors</a><br>
+      Suburb boundaries: <a href="https://github.com/tonywr71/GeoJson-Data" target="_blank" rel="noopener">tonywr71/GeoJson-Data</a> (source: NSW Spatial Services)<br>
+      Property &amp; suitability data: HouseDomain ESG Data Service API — SENG3011 W18A CRUNCHY<br>
+      Globe: <a href="https://threejs.org" target="_blank" rel="noopener">Three.js r160</a> ·
+      Earth textures © NASA Blue Marble via Three.js examples<br>
+      Charts: <a href="https://www.chartjs.org" target="_blank" rel="noopener">Chart.js v4.4.7</a> ·
+      Maps: <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet v1.9.4</a>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
