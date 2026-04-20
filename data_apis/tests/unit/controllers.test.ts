@@ -334,14 +334,17 @@ describe("POST /api/v1/collection/uploads/presign", () => {
 /////////////////////////////////////////////////////////////////////////////
 
 describe("GET /api/v1/events/types", () => {
-  it("returns 200 with event_types array", async () => {
+  it("returns 200 with dataset_types array using public names", async () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/events/types")
       .expect(200);
 
-    expect(Array.isArray(res.body.event_types)).toBe(true);
-    expect(res.body.event_types).toContain("housing_sale");
+    expect(Array.isArray(res.body.dataset_types)).toBe(true);
+    // internal "housing_sale" should be mapped to public "housing"
+    expect(res.body.dataset_types).toContain("housing");
+    expect(res.body.dataset_types).not.toContain("housing_sale");
+    expect(res.body.unknown_event_types).toEqual([]);
   });
 
   it("calls dataLakeReader.getDistinctEventTypes", async () => {
@@ -350,7 +353,7 @@ describe("GET /api/v1/events/types", () => {
     expect(deps.dataLakeReader.getDistinctEventTypes).toHaveBeenCalled();
   });
 
-  it("returns empty array when data lake is empty", async () => {
+  it("returns empty arrays when data lake is empty", async () => {
     const { app } = buildApp({
       dataLakeReader: {
         queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
@@ -363,7 +366,32 @@ describe("GET /api/v1/events/types", () => {
       },
     });
     const res = await request(app).get("/api/v1/events/types").expect(200);
-    expect(res.body.event_types).toEqual([]);
+    expect(res.body.dataset_types).toEqual([]);
+    expect(res.body.unknown_event_types).toEqual([]);
+  });
+
+  it("surfaces unregistered event_types under unknown_event_types", async () => {
+    const { app } = buildApp({
+      dataLakeReader: {
+        queryEvents: jest.fn().mockResolvedValue({ events: [], total: 0 }),
+        findEventById: jest.fn().mockResolvedValue(undefined),
+        deleteEvent: jest.fn(),
+        getDistinctEventTypes: jest.fn().mockResolvedValue([
+          "housing_sale",
+          "abs_census_2021",
+          "legacy_unmapped_type",
+        ]),
+        getGroupProjection: jest.fn().mockResolvedValue([]),
+        readDataset: jest.fn(),
+        aggregateByDimension: jest.fn().mockResolvedValue([]),
+        aggregateByTimePeriod: jest.fn().mockResolvedValue([]),
+      },
+    });
+    const res = await request(app).get("/api/v1/events/types").expect(200);
+    expect(res.body.dataset_types).toEqual(
+      expect.arrayContaining(["housing", "abs_community_profile"]),
+    );
+    expect(res.body.unknown_event_types).toEqual(["legacy_unmapped_type"]);
   });
 });
 

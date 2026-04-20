@@ -46,7 +46,8 @@ export interface EventListResponse<A = Record<string, unknown>> {
 }
 
 export interface EventTypesResponse {
-  event_types: string[];
+  dataset_types: string[];
+  unknown_event_types: string[];
 }
 
 export interface EventStatGroup {

@@ -266,7 +266,7 @@ describe("GET /api/v1/visualisation/breakdown for nsw_weather", () => {
       .expect(200);
 
     expect(reader.aggregateByDimension).toHaveBeenCalledWith(
-      "nsw_weather", "suburb", "avg_temp", "avg", expect.any(Number),
+      "nsw_weather", "suburb", "avg_temp", "avg", expect.any(Number), undefined,
     );
   });
 

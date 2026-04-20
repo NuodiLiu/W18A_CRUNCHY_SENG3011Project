@@ -16,7 +16,6 @@ import { S3PresignService } from "./infra/aws/s3PresignService.js";
 import { PostgresEventRepository } from "./infra/postgres/postgresEventRepository.js";
 
 const config = loadConfig();
-// const dataLakeReader = new PostgresEventRepository(config);
 
 const app = createApp({
   jobRepo: new DynamoJobRepository(config),

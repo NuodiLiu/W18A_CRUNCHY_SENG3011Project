@@ -106,7 +106,7 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     expect(res.body.dimension).toBeDefined();
     expect(res.body.metric).toBeDefined();
     expect(res.body.aggregation).toBeDefined();
-    expect(res.body.event_type).toBeDefined();
+    expect(res.body.dataset_type).toBeDefined();
     expect(res.body.entries).toBeInstanceOf(Array);
   });
 
@@ -131,11 +131,11 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     const { app, deps } = buildApp();
     await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ event_type: "housing_sale", dimension: "suburb", metric: "purchase_price", aggregation: "avg", limit: 5 })
+      .query({ dataset_type: "housing", dimension: "suburb", metric: "purchase_price", aggregation: "avg", limit: 5 })
       .expect(200);
 
     expect(deps.dataLakeReader.aggregateByDimension).toHaveBeenCalledWith(
-      "housing_sale", "suburb", "purchase_price", "avg", 5,
+      "housing_sale", "suburb", "purchase_price", "avg", 5, undefined,
     );
   });
 
@@ -162,14 +162,14 @@ describe("GET /api/v1/visualisation/breakdown", () => {
     expect(res.body.entries).toEqual([]);
   });
 
-  it("filters by event_type", async () => {
+  it("filters by dataset_type", async () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/breakdown")
-      .query({ event_type: "housing_sale", dimension: "suburb" })
+      .query({ dataset_type: "housing", dimension: "suburb" })
       .expect(200);
 
-    expect(res.body.event_type).toBe("housing_sale");
+    expect(res.body.dataset_type).toBe("housing");
   });
 });
 
@@ -184,7 +184,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
 
     expect(res.body.metric).toBeDefined();
     expect(res.body.aggregation).toBeDefined();
-    expect(res.body.event_type).toBeDefined();
+    expect(res.body.dataset_type).toBeDefined();
     expect(res.body.data).toBeInstanceOf(Array);
   });
 
@@ -238,11 +238,11 @@ describe("GET /api/v1/visualisation/timeseries", () => {
     const { app, deps } = buildApp();
     await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ event_type: "housing_sale", metric: "purchase_price", aggregation: "avg", time_period: "month" })
+      .query({ dataset_type: "housing", metric: "purchase_price", aggregation: "avg", time_period: "month" })
       .expect(200);
 
     expect(deps.dataLakeReader.aggregateByTimePeriod).toHaveBeenCalledWith(
-      "housing_sale", "month", "purchase_price", "avg", undefined,
+      "housing_sale", "month", "purchase_price", "avg", undefined, undefined,
     );
   });
 
@@ -256,7 +256,7 @@ describe("GET /api/v1/visualisation/timeseries", () => {
       .expect(200);
 
     expect(deps.dataLakeReader.aggregateByTimePeriod).toHaveBeenCalledWith(
-      "housing_sale", "month", null, "sum", "suburb",
+      "housing_sale", "month", null, "sum", "suburb", undefined,
     );
   });
 
@@ -297,14 +297,14 @@ describe("GET /api/v1/visualisation/timeseries", () => {
     expect(res.body.data).toEqual([]);
   });
 
-  it("filters by event_type", async () => {
+  it("filters by dataset_type", async () => {
     const { app } = buildApp();
     const res = await request(app)
       .get("/api/v1/visualisation/timeseries")
-      .query({ event_type: "housing_sale" })
+      .query({ dataset_type: "housing" })
       .expect(200);
 
-    expect(res.body.event_type).toBe("housing_sale");
+    expect(res.body.dataset_type).toBe("housing");
   });
 });
 
@@ -323,6 +323,103 @@ describe("Visualisation endpoints — error handling", () => {
       dataLakeReader: makeMockReader({ aggregateByTimePeriod: jest.fn().mockRejectedValue(new Error("DB error")) }),
     });
     await request(app).get("/api/v1/visualisation/timeseries").expect(500);
+  });
+});
+
+describe("Visualisation endpoints — filters[] bracket query", () => {
+  it("breakdown forwards filters[suburb] to aggregateByDimension", async () => {
+    const { app, deps } = buildApp();
+    await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({ "dataset_type": "housing", "dimension": "zoning", "filters[suburb]": "Sydney" })
+      .expect(200);
+
+    expect(deps.dataLakeReader.aggregateByDimension).toHaveBeenCalledWith(
+      "housing_sale", "zoning", null, "sum", 10, { suburb: "Sydney" },
+    );
+  });
+
+  it("breakdown forwards multiple filters", async () => {
+    const { app, deps } = buildApp();
+    await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({
+        "dataset_type": "housing",
+        "dimension": "zoning",
+        "filters[suburb]": "Sydney",
+        "filters[postcode]": "2000",
+      })
+      .expect(200);
+
+    expect(deps.dataLakeReader.aggregateByDimension).toHaveBeenCalledWith(
+      "housing_sale", "zoning", null, "sum", 10,
+      { suburb: "Sydney", postcode: "2000" },
+    );
+  });
+
+  it("breakdown returns 400 for unknown filter key", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/v1/visualisation/breakdown")
+      .query({ "filters[bogus_field]": "x" })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/Invalid filter key/);
+  });
+
+  it("timeseries forwards filters[suburb] to aggregateByTimePeriod", async () => {
+    const { app, deps } = buildApp();
+    await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({
+        "dataset_type": "housing",
+        "metric": "purchase_price",
+        "aggregation": "avg",
+        "time_period": "year",
+        "filters[suburb]": "Sydney",
+      })
+      .expect(200);
+
+    expect(deps.dataLakeReader.aggregateByTimePeriod).toHaveBeenCalledWith(
+      "housing_sale", "year", "purchase_price", "avg", undefined, { suburb: "Sydney" },
+    );
+  });
+
+  it("timeseries rewrites derived filter contract_year to contract_date", async () => {
+    const { app, deps } = buildApp();
+    await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({ "dataset_type": "housing", "filters[contract_year]": "2024" })
+      .expect(200);
+
+    expect(deps.dataLakeReader.aggregateByTimePeriod).toHaveBeenCalledWith(
+      "housing_sale", "year", null, "sum", undefined, { contract_date: "2024" },
+    );
+  });
+
+  it("timeseries returns 400 for unknown filter key", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({ "filters[totally_made_up]": "x" })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/Invalid filter key/);
+  });
+
+  it("timeseries returns 400 when filters value is empty", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/v1/visualisation/timeseries")
+      .query({ "filters[suburb]": "" })
+      .expect(400);
+    expect(res.body.error.message).toMatch(/expected a non-empty string/);
+  });
+
+  it("timeseries returns 400 when filters is a bare string (not bracket syntax)", async () => {
+    const { app } = buildApp();
+    const res = await request(app)
+      .get("/api/v1/visualisation/timeseries?filters=foo")
+      .expect(400);
+    expect(res.body.error.message).toMatch(/bracket syntax/);
   });
 });
 

@@ -1,14 +1,9 @@
 import { EventRecord } from "../models/event.js";
+import { DatasetType } from "../models/aggregation.js";
 
 export interface EventQuery {
-  dataset_type?:
-  | "esg"
-  | "housing"
-  | "crime"
-  | "nsw_weather"
-  | "nsw_population"
-  | "abs_community_profile";
-  
+  dataset_type?: DatasetType;
+
   //esg
   company_name?: string;
   permid?: string;
@@ -22,6 +17,9 @@ export interface EventQuery {
   suburb?: string;
   street_name?: string;
   nature_of_property?: string;
+
+  // crime
+  offence_category?: string;
 
   //pagination
   limit?: number;
@@ -59,6 +57,7 @@ export interface DataLakeReader {
     metricField: string | null,
     aggregation: string,
     limit: number,
+    filters?: Record<string, string>,
   ): Promise<AggRow[]>;
 
   aggregateByTimePeriod(
@@ -67,6 +66,6 @@ export interface DataLakeReader {
     metricField: string | null,
     aggregation: string,
     dimensionField?: string,
+    filters?: Record<string, string>,
   ): Promise<AggRow[]>;
-  
 }

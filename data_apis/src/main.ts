@@ -17,7 +17,7 @@ const fileUploadService = new S3PresignService(config);
 const dataLakeReader = new PostgresEventRepository(config);
 
 // build Express app with dependencies injected
-const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader, housingAnalytics: dataLakeReader });
+const app = createApp({ jobRepo, configStore, queue, fileUploadService, dataLakeReader });
 
 app.listen(config.port, () => {
   logger.info({ port: config.port }, "api_server_started");
