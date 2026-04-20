@@ -242,16 +242,6 @@ const models: TsoaRoute.Models = {
         "additionalProperties": true,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "AvgPriceResult": {
-        "dataType": "refObject",
-        "properties": {
-            "suburb": {"dataType":"string","required":true},
-            "average_price": {"dataType":"double","required":true},
-            "count": {"dataType":"double","required":true},
-        },
-        "additionalProperties": true,
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "CreateImportResponse": {
         "dataType": "refObject",
         "properties": {
@@ -793,42 +783,6 @@ export function RegisterRoutes(app: Router) {
                 next,
                 validatedArgs,
                 successStatus: 204,
-              });
-            } catch (err) {
-                return next(err);
-            }
-        });
-        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsEventsController_getAvgHousingPrices: Record<string, TsoaRoute.ParameterSchema> = {
-                suburb: {"in":"query","name":"suburb","dataType":"string"},
-                years: {"default":2,"in":"query","name":"years","dataType":"double"},
-        };
-        app.get('/api/v1/events/housing/avg-prices',
-            ...(fetchMiddlewares<RequestHandler>(EventsController)),
-            ...(fetchMiddlewares<RequestHandler>(EventsController.prototype.getAvgHousingPrices)),
-
-            async function EventsController_getAvgHousingPrices(request: ExRequest, response: ExResponse, next: any) {
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            let validatedArgs: any[] = [];
-            try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsEventsController_getAvgHousingPrices, request, response });
-
-                const container: IocContainer = typeof iocContainer === 'function' ? (iocContainer as IocContainerFactory)(request) : iocContainer;
-
-                const controller: any = await container.get<EventsController>(EventsController);
-                if (typeof controller['setStatus'] === 'function') {
-                controller.setStatus(undefined);
-                }
-
-              await templateService.apiHandler({
-                methodName: 'getAvgHousingPrices',
-                controller,
-                response,
-                next,
-                validatedArgs,
-                successStatus: 200,
               });
             } catch (err) {
                 return next(err);

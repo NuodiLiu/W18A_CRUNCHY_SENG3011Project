@@ -14,7 +14,6 @@ import { getEventById } from "../../application/retrieval/getEventById.js";
 import { deleteEvent } from "../../application/retrieval/deleteEvent.js";
 import { getEventStats } from "../../application/retrieval/getEventStats.js";
 import { toEventListResponse, toEventRecordResponseAuto } from "../mappers/eventsMapper.js";
-import { getEventsAvgPrice } from "../../application/retrieval/getEventsAvgPrice.js";
 import { HousingAnalyticsRepository } from "../../domain/ports/housingAnalyticsRepository.js";
 
 export interface EventsControllerDeps {
@@ -137,23 +136,4 @@ export class EventsController extends Controller {
     }
     this.setStatus(204);
   }
-
-  /**
-   * Returns average housing price over the last N years (default 2)
-   */
-  @Get("/housing/avg-prices")
-  @SuccessResponse(200, "Average housing prices")
-  public async getAvgHousingPrices(
-    @Query("suburb") suburb?: string,
-    @Query("years") years: number = 2
-  ) {
-    const analytics = this.deps.housingAnalytics;
-
-    if (!analytics) {
-      throw new Error("Housing analytics service not configured");
-    }
-
-    const result = await getEventsAvgPrice(suburb, years, analytics);
-        return result;
-      }
 }

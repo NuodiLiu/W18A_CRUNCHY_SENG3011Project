@@ -1,7 +1,13 @@
 import { EventRecord } from "../models/event.js";
 
 export interface EventQuery {
-  dataset_type?: "esg" | "housing";
+  dataset_type?:
+  | "esg"
+  | "housing"
+  | "crime"
+  | "nsw_weather"
+  | "nsw_population"
+  | "abs_community_profile";
   
   //esg
   company_name?: string;

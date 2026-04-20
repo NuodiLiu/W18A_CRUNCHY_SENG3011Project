@@ -3,7 +3,6 @@ import { AppConfig } from "../../config/index.js";
 import { EventRecord } from "../../domain/models/event.js";
 import { AggRow, DataLakeReader, EventQuery, EventQueryResult } from "../../domain/ports/dataLakeReader.js";
 import { EventRepository } from "../../domain/ports/eventRepository.js";
-import { HousingAnalyticsRepository } from "../../domain/ports/housingAnalyticsRepository.js";
 
 export class PostgresEventRepository implements DataLakeReader, EventRepository {
   private readonly pool: Pool;

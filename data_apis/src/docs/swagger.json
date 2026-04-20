@@ -571,28 +571,6 @@
 				"type": "object",
 				"additionalProperties": true
 			},
-			"AvgPriceResult": {
-				"properties": {
-					"suburb": {
-						"type": "string"
-					},
-					"average_price": {
-						"type": "number",
-						"format": "double"
-					},
-					"count": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"suburb",
-					"average_price",
-					"count"
-				],
-				"type": "object",
-				"additionalProperties": true
-			},
 			"CreateImportResponse": {
 				"properties": {
 					"job_id": {
@@ -1462,51 +1440,6 @@
 						"required": true,
 						"schema": {
 							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/api/v1/events/housing/avg-prices": {
-			"get": {
-				"operationId": "GetAvgHousingPrices",
-				"responses": {
-					"200": {
-						"description": "Average housing prices",
-						"content": {
-							"application/json": {
-								"schema": {
-									"items": {
-										"$ref": "#/components/schemas/AvgPriceResult"
-									},
-									"type": "array"
-								}
-							}
-						}
-					}
-				},
-				"description": "Returns average housing price over the last N years (default 2)",
-				"tags": [
-					"Events"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "query",
-						"name": "suburb",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "years",
-						"required": false,
-						"schema": {
-							"default": 2,
-							"format": "double",
-							"type": "number"
 						}
 					}
 				]
