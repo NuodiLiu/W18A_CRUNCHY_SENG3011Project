@@ -142,17 +142,18 @@ describe("GET /api/v1/events/:eventId — integration", () => {
 });
 
 describe("GET /api/v1/events/types — integration", () => {
-  it("returns distinct event types", async () => {
+  it("returns distinct dataset types (public names)", async () => {
     const res = await request(app)
       .get("/api/v1/events/types")
       .expect(200);
 
-    expect(res.body.event_types).toBeDefined();
-    expect(res.body.event_types).toContain("esg_metric");
-    expect(res.body.event_types).toContain("housing_sale");
+    expect(res.body.dataset_types).toBeDefined();
+    // esg_metric → esg, housing_sale → housing
+    expect(res.body.dataset_types).toContain("esg");
+    expect(res.body.dataset_types).toContain("housing");
   });
 
-  it("returns empty array when no event types exist", async () => {
+  it("returns empty arrays when no event types exist", async () => {
     await clearSeededDataset();
 
     try {
@@ -160,7 +161,8 @@ describe("GET /api/v1/events/types — integration", () => {
         .get("/api/v1/events/types")
         .expect(200);
 
-      expect(res.body.event_types).toEqual([]);
+      expect(res.body.dataset_types).toEqual([]);
+      expect(res.body.unknown_event_types).toEqual([]);
     } finally {
       await restoreSeededDataset();
     }

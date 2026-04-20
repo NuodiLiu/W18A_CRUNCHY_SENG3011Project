@@ -290,6 +290,7 @@ describe("GET /api/v1/visualisation/breakdown for nsw_tax", () => {
       "avg_taxable_income",
       "avg",
       expect.any(Number),
+      undefined,
     );
   });
 
@@ -354,6 +355,7 @@ describe("GET /api/v1/visualisation/timeseries for nsw_tax", () => {
       "year",
       "avg_taxable_income",
       "avg",
+      undefined,
       undefined,
     );
   });

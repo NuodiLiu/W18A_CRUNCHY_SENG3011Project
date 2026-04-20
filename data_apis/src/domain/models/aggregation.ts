@@ -45,6 +45,16 @@ export function resolveEventType(datasetType: DatasetType): string {
   return DATASET_TYPE_MAP[datasetType];
 }
 
+const EVENT_TYPE_TO_DATASET_TYPE: Record<string, DatasetType> = Object.fromEntries(
+  (Object.entries(DATASET_TYPE_MAP) as [DatasetType, string][]).map(
+    ([dt, et]) => [et, dt],
+  ),
+);
+
+export function eventTypeToDatasetType(eventType: string): DatasetType | undefined {
+  return EVENT_TYPE_TO_DATASET_TYPE[eventType];
+}
+
 // ─── Aggregation Type ──────────────────────────────────────────────────────────
 
 export type AggregationType = "avg" | "sum" | "count" | "min" | "max";
@@ -221,6 +231,36 @@ export function validateAggregation(aggregation: string): void {
       `Invalid aggregation "${aggregation}". Valid aggregations: ${VALID_AGGREGATIONS.join(", ")}`,
     );
   }
+}
+
+// ─── Filter Keys ──────────────────────────────────────────────────────────────
+
+const VALID_FILTER_FIELDS = new Set<string>(VALID_DIMENSIONS);
+
+export function validateFilterKey(key: string): void {
+  if (!VALID_FILTER_FIELDS.has(key)) {
+    throw new ValidationError(
+      `Invalid filter key "${key}". Valid filter keys: ${[...VALID_FILTER_FIELDS].join(", ")}`,
+    );
+  }
+}
+
+export function parseFiltersParam(raw: unknown): Record<string, string> | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new ValidationError(
+      `Invalid filters parameter — expected filters[key]=value bracket syntax.`,
+    );
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v !== "string" || v.length === 0) {
+      throw new ValidationError(`Invalid value for filters[${k}] — expected a non-empty string.`);
+    }
+    validateFilterKey(k);
+    out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 // ─── Derived Dimensions ────────────────────────────────────────────────────────

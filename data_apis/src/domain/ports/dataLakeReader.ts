@@ -57,6 +57,7 @@ export interface DataLakeReader {
     metricField: string | null,
     aggregation: string,
     limit: number,
+    filters?: Record<string, string>,
   ): Promise<AggRow[]>;
 
   aggregateByTimePeriod(
@@ -65,5 +66,6 @@ export interface DataLakeReader {
     metricField: string | null,
     aggregation: string,
     dimensionField?: string,
+    filters?: Record<string, string>,
   ): Promise<AggRow[]>;
 }
