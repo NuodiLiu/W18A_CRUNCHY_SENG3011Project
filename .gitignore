@@ -11,6 +11,8 @@ __pycache__/
 localstack-data/
 data_apis/tmp/
 data_apis/reports/
+data_apis/src/http/generated/
+data_apis/src/docs/swagger.json
 *.zip
 reporting_frontend/reports/
 reporting_frontend/playwright-report/

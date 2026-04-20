@@ -6,6 +6,7 @@ import {
   validateDimension,
   validateMetric,
   validateAggregation,
+  validateFilterKey,
   DERIVED_DIMENSION_SOURCES,
   ATTRIBUTE_COUNT_DATASETS,
 } from "../../domain/models/aggregation.js";
@@ -16,6 +17,7 @@ export interface TimeSeriesQuery {
   metric?: string;
   aggregation?: AggregationType;
   time_period?: "year" | "month" | "day";
+  filters?: Record<string, string>;
 }
 
 export interface TimeSeriesEntry {
@@ -48,11 +50,13 @@ export async function getTimeSeries(
     metric = "count",
     aggregation = "sum",
     time_period = "year",
+    filters,
   } = query;
 
   if (dimension) validateDimension(dimension);
   validateMetric(metric);
   validateAggregation(aggregation);
+  if (filters) for (const k of Object.keys(filters)) validateFilterKey(k);
 
   const eventType = DATASET_TYPE_MAP[dataset_type];
   const dimField = dimension ? (DERIVED_DIMENSION_SOURCES[dimension] ?? dimension) : undefined;
@@ -61,8 +65,14 @@ export async function getTimeSeries(
     : ATTRIBUTE_COUNT_DATASETS.has(dataset_type) ? "count"
     : null;
 
+  const resolvedFilters = filters
+    ? Object.fromEntries(
+        Object.entries(filters).map(([k, v]) => [DERIVED_DIMENSION_SOURCES[k] ?? k, v]),
+      )
+    : undefined;
+
   const rows = await deps.dataLakeReader.aggregateByTimePeriod(
-    eventType, time_period, metricField, aggregation, dimField,
+    eventType, time_period, metricField, aggregation, dimField, resolvedFilters,
   );
 
   return {
