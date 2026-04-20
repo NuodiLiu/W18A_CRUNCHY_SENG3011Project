@@ -82,7 +82,8 @@
 					"nsw_population",
 					"nsw_weather",
 					"aus_population",
-					"aus_gdp"
+					"aus_gdp",
+					"nsw_tax"
 				]
 			},
 			"AggregationType": {
