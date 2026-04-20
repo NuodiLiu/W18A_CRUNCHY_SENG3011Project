@@ -22,7 +22,8 @@ export type DatasetType =
   | "nsw_population"
   | "nsw_weather"
   | "aus_population"
-  | "aus_gdp";
+  | "aus_gdp"
+  | "nsw_tax";
 
 export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   esg:                    "esg_metric",
@@ -37,6 +38,7 @@ export const DATASET_TYPE_MAP: Record<DatasetType, string> = {
   nsw_weather:            "nsw_weather",
   aus_population:         "aus_population",
   aus_gdp:                "aus_gdp",
+  nsw_tax:                "nsw_tax",
 };
 
 export function resolveEventType(datasetType: DatasetType): string {
@@ -114,6 +116,14 @@ export const AUS_POPULATION_METRICS = ["population"] as const;
 export const AUS_GDP_DIMENSIONS = ["country", "quarter", "year"] as const;
 export const AUS_GDP_METRICS = ["real_gdp_aud_millions", "nominal_gdp_aud_millions"] as const;
 
+/** NSW suburb-level ATO tax statistics (financial year ending). */
+export const NSW_TAX_DIMENSIONS = ["suburb", "postcode", "year"] as const;
+export const NSW_TAX_METRICS = [
+  "avg_taxable_income",
+  "prop_salary_wages",
+  "avg_salary_wages",
+] as const;
+
 export const ABS_COMMUNITY_PROFILE_METRICS = [
   "total_population",
   "median_age",
@@ -166,6 +176,7 @@ const VALID_DIMENSIONS = new Set<string>([
   ...DISTINGUISHED_ACHIEVER_DIMENSIONS,
   ...AUS_POPULATION_DIMENSIONS,
   ...AUS_GDP_DIMENSIONS,
+  ...NSW_TAX_DIMENSIONS,
   ...POPULATION_DIMENSIONS,
   ...GDP_DIMENSIONS,
 ]);
@@ -181,6 +192,7 @@ const VALID_METRICS = new Set<string>([
   ...NSW_WEATHER_METRICS,
   ...AUS_POPULATION_METRICS,
   ...AUS_GDP_METRICS,
+  ...NSW_TAX_METRICS,
   ...POPULATION_METRICS,
   ...GDP_METRICS,
 ]);
