@@ -1,7 +1,4 @@
-/**
- * render dual axis line chart in canvas
- * return chart instance and destroy before rerender
- */
+// render a dual axis line chart
 export function renderDualAxisLine(canvasId, chartData, leftTitle, rightTitle) {
   const ctx = document.getElementById(canvasId).getContext("2d");
 
@@ -35,9 +32,7 @@ export function renderDualAxisLine(canvasId, chartData, leftTitle, rightTitle) {
   });
 }
 
-/**
- * render single axis line chart
- */
+// render a single axis line chart
 export function renderLine(canvasId, chartData, yTitle) {
   const ctx = document.getElementById(canvasId).getContext("2d");
 

@@ -1,6 +1,4 @@
-/**
- * render bar chart in canvas
- */
+// render a bar chart
 export function renderBar(canvasId, chartData, yTitle) {
   const ctx = document.getElementById(canvasId).getContext("2d");
 

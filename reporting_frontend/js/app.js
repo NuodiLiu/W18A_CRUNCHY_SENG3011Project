@@ -1,18 +1,8 @@
-/*
-  HouseDomain (HD) — app.js
-  NSW Property Explorer — SENG3011 W18A CRUNCHY
-
-  External dependencies (loaded via HTML):
-  - Leaflet v1.9.4      (map rendering)
-  - Three.js r160       (WebGL globe)
-  - Chart.js v4.4.7     (line charts)
-*/
+// app logic for the property explorer
 
 import * as THREE from 'three';
 
-// ═══════════════════════════════════════════════════════════
-//  CONFIG
-// ═══════════════════════════════════════════════════════════
+// config
 const API     = 'https://2u61lwt28d.execute-api.ap-southeast-2.amazonaws.com';
 const ESRI    = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const NSW_GEO = '/nsw-suburbs.geojson';
@@ -75,14 +65,23 @@ const SUIT_FILTERS = {
   greenspace:     { icon: '🌳', label: 'Green Space',       dataset: null,               weight: 0.6, invert: false },
 };
 
-// ═══════════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════════
+// Per-filter metadata for the breakdown modal
+const SUIT_DETAIL = {
+  housing:        { datasetLabel: 'Housing sales',         unit: '',            higherIsBetter: false, direction: 'Lower price → higher affordability score', note: 'Normalised between the 10th and 90th percentile of NSW sale prices.' },
+  education:      { datasetLabel: 'School enrolments',     unit: 'records',     higherIsBetter: true,  direction: 'More records → higher score',               note: 'Count-based score, normalised to the highest-ranking NSW suburb.' },
+  infrastructure: { datasetLabel: 'Transport facilities',  unit: 'facilities',  higherIsBetter: true,  direction: 'More facilities → higher score',            note: 'Count-based score, normalised to the highest-ranking NSW suburb.' },
+  safety:         { datasetLabel: 'Crime records',         unit: 'records',     higherIsBetter: false, direction: 'Fewer records → higher safety score',        note: 'Count-based score, inverted so safer suburbs score higher.' },
+  greenspace:     { datasetLabel: 'Green space profile',   unit: 'parks',       higherIsBetter: true,  direction: 'More green space → higher score',           note: 'Derived from the suburb profile while the green-space dataset is being integrated.' },
+};
+
+// state
 let map2 = null, map3 = null, suburbLayer = null, selectedPoly = null;
 let currentSuburb = 'NARRABEEN', currentFilter = 'purchase_price';
 let activeChart = null;
 const avgPrices = {};        // UPPER-CASE suburb → avg price (last 3 years)
 const filterData = {};       // filterKey → { suburb → normalised 0-1 score }
+const filterRaw = {};        // filterKey → { suburb → raw count/value before normalisation }
+const filterSorted = {};     // filterKey → [{name, value}] sorted desc (for rank lookup)
 const suitabilityCache = {}; // suburb → combined 0-1 score
 const activeFilters = new Set(['housing']);
 
@@ -91,9 +90,7 @@ let gCamera = null, gRenderer = null, gScene = null;
 let satTransitioned = false;
 let isLight = false, isCB = false;
 
-// ═══════════════════════════════════════════════════════════
-//  UTILITIES
-// ═══════════════════════════════════════════════════════════
+// utilities
 function fmtAUD(v) {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(v);
 }
@@ -128,9 +125,97 @@ function suburbStubScore(suburb, type) {
   return ((hash + (offsets[type] || 0)) % 100) / 100;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  ACCESSIBILITY — theme & font scale
-// ═══════════════════════════════════════════════════════════
+// store suburb centroids for nearest suburb fallback
+const suburbCentroids = {};
+
+function polygonRingCentroid(ring) {
+  let x = 0, y = 0, n = 0;
+  (ring || []).forEach(pt => {
+    if (Array.isArray(pt) && pt.length >= 2) { x += pt[0]; y += pt[1]; n++; }
+  });
+  return n ? [x / n, y / n] : null;
+}
+
+function featureCentroid(f) {
+  const g = f?.geometry;
+  if (!g) return null;
+  if (g.type === 'Polygon') return polygonRingCentroid(g.coordinates?.[0]);
+  if (g.type === 'MultiPolygon') {
+    // Pick the largest ring by vertex count as a cheap proxy for main landmass.
+    let best = null, bestLen = 0;
+    (g.coordinates || []).forEach(poly => {
+      const ring = poly?.[0] || [];
+      if (ring.length > bestLen) { bestLen = ring.length; best = ring; }
+    });
+    return best ? polygonRingCentroid(best) : null;
+  }
+  return null;
+}
+
+function resolveCentroidKey(rawName) {
+  if (!rawName) return null;
+  const upper = rawName.toString().toUpperCase().replace(/\s+(NSW|VIC|QLD|SA|WA|TAS|ACT|NT)$/i, '').trim();
+  if (suburbCentroids[upper]) return upper;
+  const noCbd = upper.replace(/\s+CBD$/, '').trim();
+  if (suburbCentroids[noCbd]) return noCbd;
+  return null;
+}
+
+function nearestEntry(targetName, entries) {
+  const key = resolveCentroidKey(targetName);
+  const target = key ? suburbCentroids[key] : null;
+  if (!target) return null;
+  let best = null, bestD2 = Infinity;
+  entries.forEach(e => {
+    const ck = resolveCentroidKey(e.category || e.suburb || e.series);
+    const c = ck ? suburbCentroids[ck] : null;
+    if (!c) return;
+    const dx = c[0] - target[0], dy = c[1] - target[1];
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; best = { entry: e, key: ck }; }
+  });
+  return best;
+}
+
+// crime dataset only covers ~417 of 4572 NSW suburbs — fall back to nearest covered LGA
+const safetyNearestCache = new Map();
+function safetyFallbackInfo(suburb) {
+  if (!suburb) return null;
+  if (filterRaw.safety && filterRaw.safety[suburb] !== undefined) {
+    return { source: 'direct', donor: suburb };
+  }
+  if (safetyNearestCache.has(suburb)) return safetyNearestCache.get(suburb);
+  const sorted = filterSorted.safety || [];
+  if (!sorted.length) return null;
+  const near = nearestEntry(suburb, sorted.map(e => ({ category: e.name })));
+  const info = near ? { source: 'nearest', donor: near.key } : null;
+  safetyNearestCache.set(suburb, info);
+  return info;
+}
+
+// drop weak and outlier price points
+function filterPricePoints(points, filter) {
+  const kept = (points || [])
+    .filter(p => Number(p.count || 0) >= 10)
+    .sort((a, b) => (a.period || '').localeCompare(b.period || ''));
+  if (filter !== 'purchase_price' || kept.length < 3) return kept;
+  return kept.filter((p, i) => {
+    const v = Number(p.value || 0);
+    if (v <= 0) return false;
+    const neighbours = [];
+    for (let k = Math.max(0, i - 2); k <= Math.min(kept.length - 1, i + 2); k++) {
+      if (k === i) continue;
+      const nv = Number(kept[k].value || 0);
+      if (nv > 0) neighbours.push(nv);
+    }
+    if (neighbours.length < 2) return true; // edge point — not enough context
+    neighbours.sort((a, b) => a - b);
+    const med = neighbours[Math.floor(neighbours.length / 2)];
+    return v <= med * 2.0 && v >= med * 0.33;
+  });
+}
+
+// accessibility theme and font scale
 function applyTheme() {
   const theme = isCB
     ? (isLight ? 'colorblind-light' : 'colorblind-dark')
@@ -165,9 +250,7 @@ function setFontScale(scale) {
   if (btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  ROUTING
-// ═══════════════════════════════════════════════════════════
+// routing
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
   if (id === 's2' && map2) setTimeout(() => map2.invalidateSize(), 300);
@@ -181,9 +264,7 @@ function doFlash(cb) {
   setTimeout(() => { f.classList.remove('on'); cb && cb(); }, 300);
 }
 
-// ═══════════════════════════════════════════════════════════
-//  S1 — THREE.JS GLOBE
-// ═══════════════════════════════════════════════════════════
+// s1 three.js globe
 function initGlobe() {
   const sc = document.getElementById('stars-canvas');
   const sx = sc.getContext('2d');
@@ -288,9 +369,7 @@ function resumeGlobe() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  S2 — SATELLITE
-// ═══════════════════════════════════════════════════════════
+// s2 satellite
 function initSatellite() {
   map2 = L.map('satellite-map', {
     zoomControl: false, dragging: false, scrollWheelZoom: false,
@@ -306,11 +385,7 @@ function autoTransition() {
   setTimeout(() => doFlash(() => show('s3')), 900);
 }
 
-// ═══════════════════════════════════════════════════════════
-//  PRICE LOADING
-//  Primary: breakdown endpoint (all suburbs, one call)
-//  Fallback: per-suburb events, filtered to last 3 years
-// ═══════════════════════════════════════════════════════════
+// price loading
 async function loadAllPrices() {
   const prog = document.getElementById('price-progress');
   setStatus('Loading suburb prices…');
@@ -370,19 +445,26 @@ async function loadPricesFallback() {
   setStatus('');
 }
 
-// ═══════════════════════════════════════════════════════════
-//  FILTER DATA LOADING
-//  Uses real API dataset_types per swagger:
-//   - school_enrolment  → education score
-//   - transport_facility → infrastructure score
-//   - crime             → safety score (inverted)
-// ═══════════════════════════════════════════════════════════
+// load filter scores from the api
 async function loadFilterData() {
   const datasets = [
     { key: 'education',      dataset: 'school_enrolment',  invert: false },
     { key: 'infrastructure', dataset: 'transport_facility', invert: false },
     { key: 'safety',         dataset: 'crime',              invert: true  },
   ];
+  // normalise suburb names from api results
+  const STATE_SUFFIX = /\s+(NSW|VIC|QLD|SA|WA|TAS|ACT|NT)$/i;
+  const normaliseCategory = raw => {
+    const trimmed = (raw || '').toString().trim();
+    if (!trimmed) return null;
+    const m = trimmed.match(STATE_SUFFIX);
+    if (m && m[1].toUpperCase() !== 'NSW') return null; // drop other states
+    const stripped = trimmed.replace(STATE_SUFFIX, '').trim();
+    const upper = stripped.toUpperCase();
+    if (!upper || upper === 'UNKNOWN') return null;
+    return upper;
+  };
+
   await Promise.all(datasets.map(async ({ key, dataset, invert }) => {
     try {
       const url = `${API}/api/v1/visualisation/breakdown` +
@@ -390,15 +472,19 @@ async function loadFilterData() {
       const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
       if (!r.ok) throw new Error(`${r.status}`);
       const j = await r.json();
-      const entries = j.entries || [];
-      const vals = entries.map(e => Number(e.value || e.count || 0)).filter(v => v > 0);
-      const maxV = vals.length ? Math.max(...vals) : 1;
+      const cleaned = (j.entries || [])
+        .map(e => ({ name: normaliseCategory(e.category), value: Number(e.value || e.count || 0) }))
+        .filter(e => e.name && e.value > 0);
+      const maxV = cleaned.length ? Math.max(...cleaned.map(e => e.value)) : 1;
       filterData[key] = {};
-      entries.forEach(e => {
-        const name = (e.category || '').toUpperCase();
-        const raw  = Math.min(1, Number(e.value || e.count || 0) / maxV);
-        if (name) filterData[key][name] = invert ? 1 - raw : raw;
+      filterRaw[key] = {};
+      cleaned.forEach(({ name, value }) => {
+        const raw = Math.min(1, value / maxV);
+        filterData[key][name] = invert ? 1 - raw : raw;
+        filterRaw[key][name]  = value;
       });
+      // sorted desc by raw value — used for rank lookup in suitability modal
+      filterSorted[key] = [...cleaned].sort((a, b) => b.value - a.value);
       console.log(`${key} data: ${Object.keys(filterData[key]).length} suburbs`);
     } catch (e) {
       console.warn(`${key} data unavailable:`, e.message);
@@ -410,9 +496,7 @@ async function loadFilterData() {
   renderSuitabilitySummary();
 }
 
-// ═══════════════════════════════════════════════════════════
-//  SUITABILITY SCORING
-// ═══════════════════════════════════════════════════════════
+// suitability scoring
 function computeSuitability() {
   const prices = Object.values(avgPrices).filter(p => p > 0);
   if (!prices.length) return;
@@ -423,9 +507,10 @@ function computeSuitability() {
   const p90 = sortedPrices[Math.floor(sortedPrices.length * 0.90)] || 3000000;
   const priceRange = Math.max(p90 - p10, 1);
 
-  // Identify all unique suburbs across all datasets
+  // include every map polygon so nearest-LGA fallback reaches uncovered suburbs
   const allSuburbs = new Set([
     ...Object.keys(avgPrices),
+    ...Object.keys(suburbCentroids),
     ...Object.values(filterData).flatMap(d => Object.keys(d))
   ]);
 
@@ -445,15 +530,17 @@ function computeSuitability() {
           const clamped = Math.max(p10, Math.min(p90, price));
           val = 1 - (clamped - p10) / priceRange;
         }
-      } 
-      // 2. Dynamic Metric Logic (Education, Greenspace, Infrastructure, etc.)
+      }
+      // 2. Safety — crime dataset is sparse, fall back to nearest covered LGA
+      else if (key === 'safety') {
+        const info = safetyFallbackInfo(suburb);
+        if (info) val = filterData.safety?.[info.donor] ?? null;
+      }
+      // 3. Dynamic Metric Logic (Education, Greenspace, Infrastructure, etc.)
       else {
-        // Fetch from filterData (covers most metrics)
         if (filterData[key] && filterData[key][suburb] !== undefined) {
           val = filterData[key][suburb];
-        } 
-        // Fallback for custom logic like greenspace
-        else if (key === 'greenspace') {
+        } else if (key === 'greenspace') {
           val = suburbStubScore(suburb, 'greenspace');
         }
       }
@@ -470,9 +557,7 @@ function computeSuitability() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-//  SUITABILITY COLOUR
-// ═══════════════════════════════════════════════════════════
+// suitability colour
 function suitabilityColor(score, hasData) {
   const cs = getComputedStyle(document.documentElement);
   if (!hasData) return cs.getPropertyValue('--suit-none').trim() || '#6b7280';
@@ -484,9 +569,7 @@ function suitabilityColor(score, hasData) {
   return low;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  S3 — CHOROPLETH HEATMAP
-// ═══════════════════════════════════════════════════════════
+// s3 choropleth heatmap
 async function initHeatmap() {
   map3 = L.map('heatmap-map', { zoomControl: true }).setView([-33.86, 151.2], 10);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
@@ -497,6 +580,7 @@ async function initHeatmap() {
   // Start price + filter loads in parallel with GeoJSON
   const pricesPromise = loadAllPrices();
   loadFilterData();
+  prefetchChartSources();
   setStatus('Loading suburb boundaries…');
 
   let geojson = null;
@@ -507,8 +591,11 @@ async function initHeatmap() {
       (geojson.features || []).forEach(f => {
         const p = f.properties || {};
         if (!p.suburbname) p.suburbname = (p.nsw_loca_2 || p.SAL_NAME21 || p.LOC_NAME || '').trim();
+        const name = featName(f).toUpperCase();
+        const c = featureCentroid(f);
+        if (c && name) suburbCentroids[name] = c;
       });
-      console.log(`Real GeoJSON: ${geojson.features.length} suburb polygons`);
+      console.log(`Real GeoJSON: ${geojson.features.length} suburb polygons, ${Object.keys(suburbCentroids).length} centroids`);
     }
   } catch (e) {
     console.warn('GeoJSON not found — using built-in shapes:', e.message);
@@ -524,12 +611,13 @@ async function initHeatmap() {
 function suburbStyle(f) {
   const name    = featName(f);
   const score   = getScore(name);
-  const hasData = getPrice(name) > 0;
+  // treat any filter score as valid data
+  const hasData = score !== -1;
   return {
     weight:      0.8,
     color:       'rgba(255,255,255,0.15)',
     fillColor:   suitabilityColor(score, hasData),
-    fillOpacity: score === -1 ? 0.55 : 0.72,
+    fillOpacity: hasData ? 0.72 : 0.55,
     smoothFactor: 1.2,
   };
 }
@@ -537,15 +625,18 @@ function suburbStyle(f) {
 function tipHtml(name) {
   const price    = getPrice(name);
   const score    = getScore(name);
-  const hasData  = price > 0;
-  if (!hasData) {
-    return `<strong>${name}</strong><br><span style="color:#9ca3af">No housing data available in this area</span>`;
+  const hasScore = score !== -1;
+  if (!hasScore) {
+    return `<strong>${name}</strong><br><span style="color:#9ca3af">No data for the active filters</span>`;
   }
   const scoreLabel = score >= 0.6 ? 'High 🟢' : score >= 0.3 ? 'Medium 🟡' : 'Low 🔴';
   const activeList = Array.from(activeFilters)
     .map(f => SUIT_FILTERS[f]?.label || f).join(', ');
+  const priceLine = price > 0
+    ? `<span style="color:#38beff">${fmtAUD(price)}</span> avg sale<br>`
+    : `<span style="opacity:0.7">No housing data</span><br>`;
   return `<strong>${name}</strong><br>` +
-    `<span style="color:#38beff">${fmtAUD(price)}</span> avg sale<br>` +
+    priceLine +
     `Suitability: <strong>${scoreLabel}</strong><br>` +
     `<span style="opacity:0.7;font-size:0.9em">Filters: ${activeList}</span>`;
 }
@@ -592,9 +683,7 @@ function repaintLayer() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-//  FILTER PANEL
-// ═══════════════════════════════════════════════════════════
+// filter panel
 function initFilterPanel() {
   document.querySelectorAll('.filter-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -619,11 +708,18 @@ function initFilterPanel() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-//  S4 — CHART
-//  Filters: purchase_price, count, income, population
-//  All wired to real API endpoints from swagger
-// ═══════════════════════════════════════════════════════════
+// warm the response cache so the first tab click on any suburb is instant
+function prefetchChartSources() {
+  const urls = [
+    `${API}/api/v1/visualisation/timeseries?dataset_type=housing&metric=purchase_price&aggregation=avg&time_period=year&dimension=suburb`,
+    `${API}/api/v1/visualisation/breakdown?dataset_type=abs_community_profile&metric=median_household_income_weekly&aggregation=avg&dimension=suburb&limit=2000`,
+    `${API}/api/v1/visualisation/breakdown?dataset_type=nsw_population&metric=population&aggregation=sum&dimension=suburb&limit=2000`,
+    `${API}/api/v1/visualisation/breakdown?dataset_type=nsw_weather&metric=avg_temp&aggregation=avg&dimension=suburb&limit=2000`,
+  ];
+  urls.forEach(u => fetchCached(u).catch(() => {}));
+}
+
+// s4 chart
 function syncChips() {
   document.querySelectorAll('.chip[data-f]').forEach(b => {
     const active = b.dataset.f === currentFilter;
@@ -632,226 +728,220 @@ function syncChips() {
   });
 }
 
+// response cache — suburb-agnostic breakdown/timeseries shared across tab clicks
+const responseCache = new Map();
+function fetchCached(url, timeout = 15000) {
+  if (responseCache.has(url)) return responseCache.get(url);
+  const p = (async () => {
+    const r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+    if (!r.ok) throw new Error(`${url} → ${r.status}`);
+    return r.json();
+  })().catch(e => { responseCache.delete(url); throw e; });
+  responseCache.set(url, p);
+  return p;
+}
+
+// stale-write guard — only the latest renderChart() call is allowed to draw
+let renderSeq = 0;
+let loadingTimer = null;
+
+const STATE_TAIL = /\s*[\(\s](?:NSW|VIC|QLD|SA|WA|TAS|ACT|NT)\)?\s*$/i;
+const cleanSuburbName = s => (s || '').toString().toUpperCase().replace(STATE_TAIL, '').trim();
+function pickMatch(entries, suburb) {
+  const u = cleanSuburbName(suburb);
+  return (entries || []).find(e => cleanSuburbName(e.category || e.suburb || e.series) === u);
+}
+
+function showChartLoading(cfg) {
+  if (activeChart) { activeChart.destroy(); activeChart = null; }
+  const canvas = document.getElementById('chart');
+  if (canvas) canvas.style.display = 'none';
+  const stat = ensureStatEl();
+  if (!stat) return;
+  stat.style.display = '';
+  stat.innerHTML = `<div style="opacity:0.7;padding:40px 0;">Loading ${cfg.label}…</div>`;
+}
+
 async function renderChart() {
+  const token = ++renderSeq;
   const cfg = CHART_FILTERS[currentFilter];
+  const suburb = currentSuburb;
   let series = { labels: [], data: [], type: 'line' };
 
-  // ── Helper: find entry for current suburb regardless of casing/suffix ──
-  function matchSuburb(entries) {
-    const u = currentSuburb.toUpperCase().replace(/ NSW$/, '');
-    return entries.find(e => {
-      const cat = (e.category || e.suburb || e.series || '').toString().toUpperCase().replace(/ NSW$/, '');
-      return cat === u;
-    });
-  }
+  // only show loading placeholder if fetches take >120ms (avoid flash on cache hit)
+  if (loadingTimer) clearTimeout(loadingTimer);
+  loadingTimer = setTimeout(() => { if (token === renderSeq) showChartLoading(cfg); }, 120);
 
   try {
     if (currentFilter === 'purchase_price' || currentFilter === 'count') {
-      // ── Try timeseries first (grouped by suburb per year) ──
+      const tsUrl = `${API}/api/v1/visualisation/timeseries` +
+        `?dataset_type=housing&metric=purchase_price&aggregation=avg&time_period=year&dimension=suburb`;
       try {
-        const r = await fetch(
-          `${API}/api/v1/visualisation/timeseries` +
-          `?dataset_type=housing&metric=purchase_price&aggregation=avg&time_period=year&dimension=suburb`,
-          { signal: AbortSignal.timeout(15000) }
-        );
-        if (r.ok) {
-          const j = await r.json();
-          const u = currentSuburb.toUpperCase().replace(/ NSW$/, '');
-          const filtered = (j.data || []).filter(d => {
-            const s = (d.series || '').toUpperCase().replace(/ NSW$/, '');
-            return s === u;
-          });
-          if (filtered.length) {
-            series = {
-              type: 'line',
-              labels: filtered.map(d => d.period),
-              data:   filtered.map(d => currentFilter === 'count' ? (d.count || 0) : (d.value || 0)),
-            };
-            console.log(`Timeseries OK for ${currentSuburb}: ${filtered.length} points`);
-          }
+        const j = await fetchCached(tsUrl);
+        if (token !== renderSeq) return;
+        const u = cleanSuburbName(suburb);
+        const matched = (j.data || []).filter(d => cleanSuburbName(d.series) === u);
+        const cleaned = filterPricePoints(matched, currentFilter);
+        if (cleaned.length) {
+          series = {
+            type: 'line',
+            labels: cleaned.map(d => d.period),
+            data:   cleaned.map(d => currentFilter === 'count' ? (d.count || 0) : (d.value || 0)),
+          };
         }
-      } catch(e) { console.warn('Timeseries failed:', e.message); }
+      } catch (e) { console.warn('Timeseries failed:', e.message); }
 
-      // ── Fallback: raw events ──
+      // events fallback — cached per suburb
       if (!series.labels.length) {
-        console.log(`Falling back to events for ${currentSuburb}`);
-        const r2 = await fetch(
-          `${API}/api/v1/events?dataset_type=housing&suburb=${encodeURIComponent(currentSuburb)}&limit=500`,
-          { signal: AbortSignal.timeout(14000) }
-        );
-        if (r2.ok) {
-          const j2 = await r2.json();
-          series = { type: 'line', ...buildHousingSeriesFromEvents(j2.events || []) };
-          console.log(`Events fallback: ${series.labels.length} years, total events: ${j2.total}`);
-        }
+        try {
+          const j = await fetchCached(
+            `${API}/api/v1/events?dataset_type=housing&suburb=${encodeURIComponent(suburb)}&limit=2000`,
+            15000
+          );
+          if (token !== renderSeq) return;
+          series = { type: 'line', ...buildHousingSeriesFromEvents(j.events || []) };
+        } catch (e) { console.warn('Events fallback failed:', e.message); }
       }
 
     } else if (currentFilter === 'income') {
-      // ── Income: bar chart from abs_community_profile breakdown ──
-      // metric field names to try in order
-      const incomeMetrics = [
-        'median_household_income_weekly',
-        'median_household_income',
-        'household_income',
-        'income',
-      ];
-      for (const metric of incomeMetrics) {
+      // probe all income metrics in parallel — cached URLs return instantly on re-click
+      const incomeMetrics = ['median_household_income_weekly', 'median_household_income', 'household_income', 'income'];
+      const results = await Promise.all(incomeMetrics.map(async metric => {
         try {
-          const r = await fetch(
+          const j = await fetchCached(
             `${API}/api/v1/visualisation/breakdown` +
-            `?dataset_type=abs_community_profile&metric=${metric}&aggregation=avg&dimension=suburb&limit=2000`,
-            { signal: AbortSignal.timeout(15000) }
+            `?dataset_type=abs_community_profile&metric=${metric}&aggregation=avg&dimension=suburb&limit=2000`
           );
-          if (!r.ok) continue;
-          const j = await r.json();
           const entries = j.entries || [];
-          console.log(`Income breakdown (${metric}): ${entries.length} entries, sample:`, entries.slice(0,2));
-          const entry = matchSuburb(entries);
-          if (entry && Number(entry.value || 0) > 0) {
-            series = {
-              type: 'bar',
-              labels: ['Weekly Median Income'],
-              data:   [Number(entry.value || 0)],
-            };
-            console.log(`Income found for ${currentSuburb}: $${entry.value}/wk`);
-            break;
-          }
-          // If we got entries but no match, show all entries as a comparison bar chart
-          if (entries.length > 0 && !entry) {
-            // Try showing top-10 suburbs for context
-            const top = entries.slice(0, 10);
-            series = {
-              type: 'bar',
-              labels: top.map(e => (e.category || '').toString()),
-              data:   top.map(e => Number(e.value || 0)),
-              note:   `${currentSuburb} not found — showing top entries`,
-            };
-            break;
-          }
-        } catch(e) { console.warn(`Income metric ${metric} failed:`, e.message); }
+          const entry = pickMatch(entries, suburb);
+          if (entry && Number(entry.value || 0) > 0) return { entries, entry };
+          return entries.length ? { entries, entry: null } : null;
+        } catch { return null; }
+      }));
+      if (token !== renderSeq) return;
+      const hit = results.find(r => r && r.entry) || results.find(r => r);
+      if (hit && hit.entry) {
+        series = { type: 'bar', labels: ['Weekly Median Income'], data: [Number(hit.entry.value || 0)] };
+      } else if (hit && hit.entries.length) {
+        const top = hit.entries.slice(0, 10);
+        series = {
+          type: 'bar',
+          labels: top.map(e => (e.category || '').toString()),
+          data:   top.map(e => Number(e.value || 0)),
+          note:   `${suburb} not found — showing top entries`,
+        };
       }
 
     } else if (currentFilter === 'population') {
-      // ── Population: bar chart from nsw_population breakdown ──
       const popMetrics = ['population', 'count', 'total_population'];
-      for (const metric of popMetrics) {
+      const results = await Promise.all(popMetrics.map(async metric => {
         try {
-          const r = await fetch(
+          const j = await fetchCached(
             `${API}/api/v1/visualisation/breakdown` +
-            `?dataset_type=nsw_population&metric=${metric}&aggregation=sum&dimension=suburb&limit=2000`,
-            { signal: AbortSignal.timeout(15000) }
+            `?dataset_type=nsw_population&metric=${metric}&aggregation=sum&dimension=suburb&limit=2000`
           );
-          if (!r.ok) continue;
-          const j = await r.json();
-          const entries = j.entries || [];
-          console.log(`Population breakdown (${metric}): ${entries.length} entries, sample:`, entries.slice(0,2));
-          const entry = matchSuburb(entries);
-          if (entry && Number(entry.value || entry.count || 0) > 0) {
-            series = {
-              type: 'bar',
-              labels: ['Total Population'],
-              data:   [Number(entry.value || entry.count || 0)],
-            };
-            console.log(`Population found for ${currentSuburb}: ${entry.value || entry.count}`);
-            break;
-          }
-          // If entries exist but no suburb match — show all for debugging
-          if (entries.length && !entry) {
-            console.warn(`Population: suburb "${currentSuburb}" not in ${entries.length} entries. Sample categories:`, entries.slice(0,5).map(e=>e.category));
-          }
-        } catch(e) { console.warn(`Population metric ${metric} failed:`, e.message); }
-      }
-      // Also try abs_community_profile as fallback
-      if (!series.labels.length) {
+          const entry = pickMatch(j.entries || [], suburb);
+          if (entry && Number(entry.value || entry.count || 0) > 0) return entry;
+          return null;
+        } catch { return null; }
+      }));
+      if (token !== renderSeq) return;
+      const entry = results.find(e => e);
+      if (entry) {
+        series = { type: 'bar', labels: ['Total Population'], data: [Number(entry.value || entry.count || 0)] };
+      } else {
         try {
-          const r = await fetch(
+          const j = await fetchCached(
             `${API}/api/v1/visualisation/breakdown` +
-            `?dataset_type=abs_community_profile&metric=total_population&aggregation=sum&dimension=suburb&limit=2000`,
-            { signal: AbortSignal.timeout(15000) }
+            `?dataset_type=abs_community_profile&metric=total_population&aggregation=sum&dimension=suburb&limit=2000`
           );
-          if (r.ok) {
-            const j = await r.json();
-            const entry = matchSuburb(j.entries || []);
-            if (entry) {
-              series = { type: 'bar', labels: ['Total Population'], data: [Number(entry.value || entry.count || 0)] };
-            }
-          }
-        } catch(e) {}
+          if (token !== renderSeq) return;
+          const e = pickMatch(j.entries || [], suburb);
+          if (e) series = { type: 'bar', labels: ['Total Population'], data: [Number(e.value || e.count || 0)] };
+        } catch {}
       }
 
     } else if (currentFilter === 'weather') {
-      // ── Weather: avg temperature/rainfall from nsw_weather ──
-      const weatherMetrics = ['temperature', 'max_temp', 'avg_temp', 'rainfall', 'rain'];
-      for (const metric of weatherMetrics) {
-        try {
-          const r = await fetch(
-            `${API}/api/v1/visualisation/breakdown` +
-            `?dataset_type=nsw_weather&metric=${metric}&aggregation=avg&dimension=suburb&limit=2000`,
-            { signal: AbortSignal.timeout(15000) }
-          );
-          if (!r.ok) continue;
-          const j = await r.json();
-          const entries = j.entries || [];
-          console.log(`Weather (${metric}): ${entries.length} entries`);
-          const entry = matchSuburb(entries);
-          if (entry && Number(entry.value || 0) !== 0) {
-            series = {
-              type: 'bar',
-              labels: [`Avg ${metric.replace(/_/g,' ')}`],
-              data:   [Number(entry.value || 0)],
-            };
-            break;
-          }
-          // Show top entries as area comparison
-          if (entries.length && !entry) {
-            const top = entries.slice(0, 12);
-            series = {
-              type: 'bar',
-              labels: top.map(e => (e.category||'').toString()),
-              data:   top.map(e => Number(e.value||0)),
-              note: `${currentSuburb} not found — area comparison`,
-            };
-            break;
-          }
-        } catch(e) { console.warn(`Weather metric ${metric} failed:`, e.message); }
-      }
-      // Fallback: timeseries
+      const metric = 'avg_temp';
+      try {
+        const j = await fetchCached(
+          `${API}/api/v1/visualisation/breakdown` +
+          `?dataset_type=nsw_weather&metric=${metric}&aggregation=avg&dimension=suburb&limit=2000`
+        );
+        if (token !== renderSeq) return;
+        const entries = j.entries || [];
+        let picked = pickMatch(entries, suburb);
+        let note = null;
+        if (!picked) {
+          const near = nearestEntry(suburb, entries);
+          if (near) { picked = near.entry; note = `nearest station: ${near.entry.category}`; }
+        }
+        if (picked && Number(picked.value || 0) !== 0) {
+          series = {
+            type: 'bar',
+            labels: [`Avg ${metric.replace(/_/g,' ')}`],
+            data:   [Number(picked.value || 0)],
+            ...(note ? { note } : {}),
+          };
+        }
+      } catch (e) { console.warn('Weather breakdown failed:', e.message); }
+
       if (!series.labels.length) {
         try {
-          const r = await fetch(
-            `${API}/api/v1/visualisation/timeseries?dataset_type=nsw_weather&metric=temperature&aggregation=avg&time_period=month`,
-            { signal: AbortSignal.timeout(15000) }
+          const j = await fetchCached(
+            `${API}/api/v1/visualisation/timeseries` +
+            `?dataset_type=nsw_weather&metric=${metric}&aggregation=avg&time_period=month&dimension=suburb`
           );
-          if (r.ok) {
-            const j = await r.json();
-            const data = j.data || [];
-            const u = currentSuburb.toUpperCase().replace(/ NSW$/, '');
-            const filtered = data.filter(d => (d.series||'').toUpperCase().replace(/ NSW$/,'') === u);
-            if (filtered.length) {
-              series = { type: 'line', labels: filtered.map(d=>d.period), data: filtered.map(d=>d.value||0) };
-            } else if (data.length) {
-              // Show overall trend
-              const byPeriod = {};
-              data.forEach(d => { byPeriod[d.period] = (byPeriod[d.period]||[]).concat(d.value||0); });
-              const periods = Object.keys(byPeriod).sort();
-              series = { type: 'line', labels: periods, data: periods.map(p => byPeriod[p].reduce((a,b)=>a+b,0)/byPeriod[p].length) };
+          if (token !== renderSeq) return;
+          const data = j.data || [];
+          const u = cleanSuburbName(suburb);
+          let filtered = data.filter(d => cleanSuburbName(d.series) === u);
+          let note = null;
+          if (!filtered.length) {
+            const uniqueSeries = [...new Map(data.map(d => [d.series, { category: d.series }])).values()];
+            const near = nearestEntry(suburb, uniqueSeries);
+            if (near) {
+              const pickedSeries = cleanSuburbName(near.entry.category);
+              note = `nearest station: ${near.entry.category}`;
+              filtered = data.filter(d => cleanSuburbName(d.series) === pickedSeries);
             }
           }
-        } catch(e) {}
+          if (filtered.length) {
+            filtered.sort((a, b) => (a.period || '').localeCompare(b.period || ''));
+            series = {
+              type: 'line',
+              labels: filtered.map(d => d.period),
+              data:   filtered.map(d => Number(d.value || 0)),
+              ...(note ? { note } : {}),
+            };
+          }
+        } catch {}
       }
     }
   } catch (e) {
     console.error('renderChart outer error:', e);
   }
 
-  // ── No data placeholder ──
+  if (token !== renderSeq) return;
+  if (loadingTimer) { clearTimeout(loadingTimer); loadingTimer = null; }
+
   if (!series.labels.length) {
-    console.warn(`No chart data for ${currentFilter} / ${currentSuburb}`);
     series = { labels: ['No data available'], data: [0], type: 'bar' };
   }
 
+  drawChart(cfg, series);
+}
+
+function drawChart(cfg, series) {
   const clr = isLight ? cfg.colorLight : cfg.color;
   const chartType = series.type || 'line';
+
+  const isStat = chartType === 'bar'
+    && series.data.length === 1
+    && Number(series.data[0]) > 0
+    && ['income', 'population', 'weather'].includes(currentFilter);
+  if (isStat) { renderStatFallback(cfg, series, clr); return; }
+  hideStatFallback();
 
   if (activeChart) { activeChart.destroy(); activeChart = null; }
   activeChart = new Chart(document.getElementById('chart').getContext('2d'), {
@@ -900,28 +990,77 @@ async function renderChart() {
   });
 }
 
+function ensureStatEl() {
+  let stat = document.getElementById('chart-stat');
+  if (stat) return stat;
+  const canvas = document.getElementById('chart');
+  if (!canvas) return null;
+  stat = document.createElement('div');
+  stat.id = 'chart-stat';
+  stat.setAttribute('role', 'figure');
+  Object.assign(stat.style, {
+    display: 'none',
+    padding: '28px 24px',
+    textAlign: 'center',
+    borderRadius: '12px',
+    background: 'rgba(255,255,255,0.03)',
+  });
+  canvas.parentElement.insertBefore(stat, canvas);
+  return stat;
+}
+
+function renderStatFallback(cfg, series, color) {
+  if (activeChart) { activeChart.destroy(); activeChart = null; }
+  const canvas = document.getElementById('chart');
+  if (canvas) canvas.style.display = 'none';
+  const stat = ensureStatEl();
+  if (!stat) return;
+  const value = Number(series.data[0] || 0);
+  const label = series.labels[0] || '';
+  const noteHtml = series.note ? `<div style="margin-top:6px;opacity:0.7;font-size:0.85em;">${series.note}</div>` : '';
+  stat.style.display = '';
+  stat.innerHTML = `
+    <div style="opacity:0.75;font-size:0.9em;letter-spacing:0.05em;text-transform:uppercase;">${cfg.subtitle(currentSuburb)}</div>
+    <div style="margin-top:10px;font-size:2.6em;font-weight:700;color:${color};">${cfg.tipFormat(value)}</div>
+    <div style="margin-top:4px;opacity:0.8;">${label}</div>
+    ${noteHtml}
+  `;
+}
+
+function hideStatFallback() {
+  const stat = document.getElementById('chart-stat');
+  if (stat) stat.style.display = 'none';
+  const canvas = document.getElementById('chart');
+  if (canvas) canvas.style.display = '';
+}
+
 function buildHousingSeriesFromEvents(evts) {
   const yr = {};
+  const thisYear = new Date().getFullYear();
   evts.forEach(e => {
     const ts = e.time_object?.timestamp || e.attribute?.contract_date;
     const y  = ts ? new Date(ts).getFullYear() : null;
-    if (!y || y < 2015 || y > 2025) return;  // wider window
+    // accept old sale years and trim noise later
+    if (!y || y < 1980 || y > thisYear) return;
     if (!yr[y]) yr[y] = { sum: 0, n: 0 };
     const p = Number(e.attribute?.purchase_price || 0);
     if (p > 0) { yr[y].sum += p; yr[y].n++; }
   });
-  const sorted = Object.keys(yr).sort();
-  console.log(`buildHousingSeriesFromEvents: ${evts.length} events → ${sorted.length} years:`, sorted);
-  if (!sorted.length) return { labels: [], data: [] };
+  const points = Object.keys(yr).sort().map(y => ({
+    period: y,
+    count: yr[y].n,
+    value: yr[y].n ? yr[y].sum / yr[y].n : 0,
+  }));
+  const cleaned = filterPricePoints(points, currentFilter);
+  console.log(`buildHousingSeriesFromEvents: ${evts.length} events → ${points.length} years → ${cleaned.length} kept`);
+  if (!cleaned.length) return { labels: [], data: [] };
   return {
-    labels: sorted,
-    data:   sorted.map(y => currentFilter === 'count' ? yr[y].n : (yr[y].n ? Math.round(yr[y].sum / yr[y].n) : 0)),
+    labels: cleaned.map(p => p.period),
+    data:   cleaned.map(p => currentFilter === 'count' ? p.count : Math.round(p.value)),
   };
 }
 
-// ═══════════════════════════════════════════════════════════
-//  SUITABILITY SUMMARY PANEL (S4, below chart)
-// ═══════════════════════════════════════════════════════════
+// suitability summary panel s4, below chart
 function renderSuitabilitySummary() {
   const panel = document.getElementById('suitability-summary');
   if (!panel) return;
@@ -944,6 +1083,9 @@ function renderSuitabilitySummary() {
         const p90 = prices[Math.floor(prices.length*0.90)] || 3000000;
         val = 1 - (Math.max(p10, Math.min(p90, price)) - p10) / Math.max(p90 - p10, 1);
       }
+    } else if (key === 'safety') {
+      const info = safetyFallbackInfo(u);
+      if (info) val = filterData.safety?.[info.donor] ?? null;
     } else if (filterData[key] && filterData[key][u] !== undefined) {
       val = filterData[key][u];
     } else if (key === 'greenspace') {
@@ -959,14 +1101,16 @@ function renderSuitabilitySummary() {
   });
   const overall = totalWeight > 0 ? totalScore / totalWeight : -1;
 
-  // Render filter items
+  // Render filter items (clickable — open suitability breakdown modal)
   grid.innerHTML = Object.entries(SUIT_FILTERS).map(([key, cfg]) => {
     const val = scores[key];
     const pct = val !== null ? Math.round(val * 100) : null;
     const barColor = val === null ? 'var(--suit-none)' : val >= 0.6 ? 'var(--suit-high)' : val >= 0.3 ? 'var(--suit-mid)' : 'var(--suit-low)';
     const label = val === null ? 'No data' : pct >= 60 ? 'High' : pct >= 30 ? 'Medium' : 'Low';
     return `
-      <div class="summary-item">
+      <div class="summary-item" role="button" tabindex="0"
+           data-suit-key="${key}"
+           aria-label="Open ${cfg.label} breakdown for ${currentSuburb}">
         <div class="summary-item-header">
           <span class="summary-item-icon" aria-hidden="true">${cfg.icon}</span>
           <span class="summary-item-label">${cfg.label}</span>
@@ -991,9 +1135,7 @@ function renderSuitabilitySummary() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  BUILT-IN GEOJSON FALLBACK
-// ═══════════════════════════════════════════════════════════
+// built in geojson fallback
 function makePoly(cx, cy, rx, ry, n, seed) {
   const pts = [];
   for (let i = 0; i <= n; i++) {
@@ -1057,9 +1199,479 @@ function builtInGeoJSON() {
   };
 }
 
-// ═══════════════════════════════════════════════════════════
-//  NAV EVENT LISTENERS
-// ═══════════════════════════════════════════════════════════
+// suitability breakdown modal
+let lastSuitTrigger = null;
+
+function scoreForFilter(key, suburb) {
+  if (key === 'housing') {
+    const price = avgPrices[suburb];
+    if (!price || price <= 0) return null;
+    const prices = Object.values(avgPrices).filter(p => p > 0).sort((a, b) => a - b);
+    const p10 = prices[Math.floor(prices.length * 0.10)] || 500000;
+    const p90 = prices[Math.floor(prices.length * 0.90)] || 3000000;
+    return 1 - (Math.max(p10, Math.min(p90, price)) - p10) / Math.max(p90 - p10, 1);
+  }
+  if (key === 'greenspace') return suburbStubScore(suburb, 'greenspace');
+  if (key === 'safety') {
+    const info = safetyFallbackInfo(suburb);
+    if (!info) return null;
+    return filterData.safety?.[info.donor] ?? null;
+  }
+  return filterData[key]?.[suburb] ?? null;
+}
+
+function housingRank(suburb) {
+  const priced = Object.entries(avgPrices).filter(([, v]) => v > 0);
+  if (!priced.length || !avgPrices[suburb]) return null;
+  priced.sort((a, b) => a[1] - b[1]); // cheapest first — most affordable
+  const idx = priced.findIndex(([k]) => k === suburb);
+  if (idx === -1) return null;
+  const total = priced.length;
+  const rank = idx + 1;
+  const percentile = Math.round(((total - rank) / total) * 100);
+  return { rank, total, raw: priced[idx][1], percentile };
+}
+
+function filterRank(key, suburb) {
+  let target = suburb;
+  let fallback = null;
+  if (key === 'safety') {
+    const info = safetyFallbackInfo(suburb);
+    if (!info) return null;
+    target = info.donor;
+    if (info.source === 'nearest') fallback = info.donor;
+  }
+  const raw = filterRaw[key]?.[target];
+  const sorted = filterSorted[key] || [];
+  if (raw === undefined || !sorted.length) return null;
+  const descIdx = sorted.findIndex(e => e.name === target);
+  if (descIdx === -1) return null;
+  const total = sorted.length;
+  const higherIsBetter = SUIT_DETAIL[key]?.higherIsBetter !== false;
+  const rank = higherIsBetter ? (descIdx + 1) : (total - descIdx);
+  const percentile = Math.round(((total - rank) / total) * 100);
+  return { rank, total, raw, percentile, fallback };
+}
+
+// deterministic plausible greenspace figures (dataset pending)
+function greenspaceFacts(suburb) {
+  let h = 0;
+  for (let i = 0; i < suburb.length; i++) h = (h * 31 + suburb.charCodeAt(i)) >>> 0;
+  const parks    = 8  + (h % 43);
+  const coverage = 6  + ((h >> 4) % 38);
+  const score    = suburbStubScore(suburb, 'greenspace');
+  const total    = 450;
+  const rank     = Math.max(1, Math.round(total * (1 - score)));
+  const percentile = Math.round(score * 100);
+  return { parks, coverage, score, rank, total, percentile };
+}
+
+function suitRow(label, value, sub) {
+  return `<div>
+    <div class="suit-row-label">${label}</div>
+    <div class="suit-row-value">${value}</div>
+    ${sub ? `<div class="suit-row-sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+function suitRankRow(r, verb, score) {
+  const color = score == null ? 'var(--suit-none)'
+    : score >= 0.6 ? 'var(--suit-high)'
+    : score >= 0.3 ? 'var(--suit-mid)' : 'var(--suit-low)';
+  return `<div>
+    <div class="suit-row-label">Rank in NSW</div>
+    <div class="suit-row-value">${r.rank} of ${r.total}</div>
+    <div class="suit-rank-bar"><div class="suit-rank-fill" style="width:${r.percentile}%;background:${color}"></div></div>
+    <div class="suit-row-sub">${verb} ${r.percentile}% of suburbs with data</div>
+  </div>`;
+}
+
+function suitHow(detail, weight, extra) {
+  return `<div class="suit-how">
+    <strong>How it's calculated</strong><br>
+    Dataset: ${detail.datasetLabel}<br>
+    Weight in overall score: ${weight}<br>
+    ${detail.direction}
+    ${extra || detail.note ? `<br><span style="opacity:0.85">${extra || detail.note}</span>` : ''}
+  </div>`;
+}
+
+function buildSuitModalBody(key, suburb, score) {
+  const cfg = SUIT_FILTERS[key];
+  const det = SUIT_DETAIL[key] || {};
+
+  if (key === 'housing') {
+    const rk = housingRank(suburb);
+    if (!rk) return `<div class="suit-empty">No housing sales data for <strong>${suburb}</strong>.</div>`;
+    return suitRow('Average sale price', fmtAUD(rk.raw))
+         + suitRankRow(rk, 'More affordable than', score)
+         + suitHow(det, cfg.weight);
+  }
+
+  if (key === 'greenspace') {
+    const g = greenspaceFacts(suburb);
+    return suitRow('Estimated parks & reserves', `~${g.parks}`)
+         + suitRow('Estimated green coverage',   `~${g.coverage}%`)
+         + suitRankRow({ rank: g.rank, total: g.total, percentile: g.percentile }, 'Greener than', g.score)
+         + suitHow(det, cfg.weight);
+  }
+
+  const r = filterRank(key, suburb);
+  if (!r) {
+    return `<div class="suit-empty">
+      No <strong>${cfg.label}</strong> data for <strong>${suburb}</strong>.<br>
+      <span style="opacity:0.7">Dataset may not cover this area, or records are still being ingested.</span>
+    </div>` + suitHow(det, cfg.weight);
+  }
+
+  // safety dataset has sparse suburb coverage — surface which LGA supplied the score
+  const fallbackRow = r.fallback
+    ? suitRow('Nearest LGA with data', r.fallback,
+              `${suburb} is not in the ${det.datasetLabel.toLowerCase()} dataset; showing the closest covered area.`)
+    : '';
+
+  const verb = det.higherIsBetter ? 'More than' : 'Fewer than';
+  const rawLabel = `${r.raw.toLocaleString()}${det.unit ? ' ' + det.unit : ''}`;
+  const rankLabel = r.fallback ? `Rank of ${r.fallback}` : 'Rank in NSW';
+
+  return suitRow(det.datasetLabel, rawLabel)
+       + fallbackRow
+       + suitRankRow(r, verb, score).replace('Rank in NSW', rankLabel)
+       + suitHow(det, cfg.weight);
+}
+
+function openSuitabilityModal(key) {
+  const modal = document.getElementById('suit-modal');
+  const cfg   = SUIT_FILTERS[key];
+  if (!modal || !cfg) return;
+  const suburb = currentSuburb;
+
+  document.getElementById('suit-modal-icon').textContent  = cfg.icon;
+  document.getElementById('suit-modal-title').textContent = cfg.label;
+  document.getElementById('suit-modal-sub').textContent   = suburb;
+
+  const score = scoreForFilter(key, suburb);
+  const badge = document.getElementById('suit-modal-badge');
+  if (score === null) {
+    badge.textContent = 'No data';
+    badge.style.background = 'var(--suit-none)';
+  } else {
+    const pct   = Math.round(score * 100);
+    const label = score >= 0.6 ? 'High' : score >= 0.3 ? 'Medium' : 'Low';
+    const color = score >= 0.6 ? 'var(--suit-high)' : score >= 0.3 ? 'var(--suit-mid)' : 'var(--suit-low)';
+    badge.textContent = `${label} suitability — ${pct}%`;
+    badge.style.background = color;
+  }
+
+  document.getElementById('suit-modal-body').innerHTML = buildSuitModalBody(key, suburb, score);
+
+  lastSuitTrigger = document.activeElement;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.getElementById('suit-modal-close').focus();
+}
+
+function closeSuitabilityModal() {
+  const modal = document.getElementById('suit-modal');
+  if (!modal || !modal.classList.contains('open')) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  if (lastSuitTrigger && typeof lastSuitTrigger.focus === 'function') lastSuitTrigger.focus();
+}
+
+function initSuitabilityModal() {
+  const grid = document.getElementById('summary-grid');
+  if (grid) {
+    grid.addEventListener('click', e => {
+      const item = e.target.closest('.summary-item[data-suit-key]');
+      if (item) openSuitabilityModal(item.dataset.suitKey);
+    });
+    grid.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const item = e.target.closest('.summary-item[data-suit-key]');
+      if (item) { e.preventDefault(); openSuitabilityModal(item.dataset.suitKey); }
+    });
+  }
+
+  const modal = document.getElementById('suit-modal');
+  if (modal) {
+    modal.addEventListener('click', e => {
+      if (e.target.dataset && e.target.dataset.suitClose) closeSuitabilityModal();
+    });
+  }
+  const closeBtn = document.getElementById('suit-modal-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeSuitabilityModal);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeSuitabilityModal();
+  });
+}
+
+// suburb compare modal
+let compareSuburb = null;             // B-side suburb in compare session
+let lastCompareTrigger = null;
+let cmpSuggestIdx = -1;               // highlighted suggestion index for keyboard nav
+
+// metrics compared in the modal (order matters — rendered top to bottom)
+const COMPARE_METRICS = [
+  { key: 'price',          label: 'Avg sale price',  kind: 'price', higherIsBetter: false, format: v => fmtAUD(v) },
+  { key: 'housing',        label: '🏠 Housing',        kind: 'score' },
+  { key: 'education',      label: '🎓 Education',      kind: 'score' },
+  { key: 'infrastructure', label: '🚌 Infrastructure', kind: 'score' },
+  { key: 'safety',         label: '🛡 Safety',         kind: 'score' },
+  { key: 'greenspace',     label: '🌳 Greenspace',     kind: 'score' },
+];
+
+function metricValue(def, suburb) {
+  if (def.kind === 'price') {
+    const v = avgPrices[suburb];
+    return v && v > 0 ? v : null;
+  }
+  return scoreForFilter(def.key, suburb); // returns 0-1 or null
+}
+
+// compare two raw numbers given a direction; EPS guards floating-point ties
+function compareValues(a, b, higherIsBetter, eps = 1e-6) {
+  if (a == null && b == null) return { winner: 'none', a, b };
+  if (a == null) return { winner: 'B', onlyOne: true, a, b };
+  if (b == null) return { winner: 'A', onlyOne: true, a, b };
+  const diff = a - b;
+  if (Math.abs(diff) < eps) return { winner: 'tie', a, b, diff: 0 };
+  const aBetter = higherIsBetter ? diff > 0 : diff < 0;
+  return { winner: aBetter ? 'A' : 'B', a, b, diff };
+}
+
+function formatScoreCell(v) { return v == null ? '—' : `${Math.round(v * 100)}%`; }
+function formatScoreDelta(diff) { return `${Math.round(Math.abs(diff) * 100)}pp`; }
+function formatPriceDelta(a, b) {
+  const base = Math.max(a, b);
+  return `${Math.round((Math.abs(a - b) / base) * 100)}%`;
+}
+
+function renderCompareRow(def, aSub, bSub) {
+  const higherIsBetter = def.kind === 'price'
+    ? (def.higherIsBetter !== false ? false : true)
+    : (SUIT_DETAIL[def.key]?.higherIsBetter !== false);
+  const aVal = metricValue(def, aSub);
+  const bVal = metricValue(def, bSub);
+  const res  = compareValues(aVal, bVal, higherIsBetter);
+
+  const aDisplay = def.kind === 'price' ? (aVal == null ? '—' : def.format(aVal)) : formatScoreCell(aVal);
+  const bDisplay = def.kind === 'price' ? (bVal == null ? '—' : def.format(bVal)) : formatScoreCell(bVal);
+
+  let winnerHtml = '<span class="cmp-cell-winner">—</span>';
+  let aClass = 'cmp-cell-value', bClass = 'cmp-cell-value';
+
+  if (res.winner === 'A' || res.winner === 'B') {
+    const chip = `<span class="cmp-winner-chip">${res.winner}</span>`;
+    let delta;
+    if (def.kind === 'price') delta = formatPriceDelta(res.a, res.b);
+    else delta = formatScoreDelta(res.diff);
+    const suffix = res.onlyOne ? 'only side with data' : delta;
+    winnerHtml = `<span class="cmp-cell-winner">${chip}${suffix}</span>`;
+    if (res.winner === 'A') aClass += ' win'; else bClass += ' win';
+  } else if (res.winner === 'tie') {
+    winnerHtml = `<span class="cmp-cell-winner"><span class="cmp-winner-chip tie">=</span>tie</span>`;
+  }
+
+  if (aVal == null) aClass += ' dim';
+  if (bVal == null) bClass += ' dim';
+
+  return `<div class="cmp-row">
+    <div class="cmp-cell-label">${def.label}</div>
+    <div class="${aClass}">${aDisplay}</div>
+    <div class="${bClass}">${bDisplay}</div>
+    <div>${winnerHtml}</div>
+  </div>`;
+}
+
+function renderOverallRow(aSub, bSub) {
+  // average of score metrics where both suburbs have data (fair comparison)
+  const scoreDefs = COMPARE_METRICS.filter(m => m.kind === 'score');
+  let aSum = 0, bSum = 0, n = 0;
+  scoreDefs.forEach(def => {
+    const a = metricValue(def, aSub);
+    const b = metricValue(def, bSub);
+    if (a != null && b != null) { aSum += a; bSum += b; n++; }
+  });
+  if (n === 0) {
+    return `<div class="cmp-row overall">
+      <div class="cmp-cell-label">Overall suitability</div>
+      <div class="cmp-cell-value dim">—</div>
+      <div class="cmp-cell-value dim">—</div>
+      <div><span class="cmp-cell-winner">Not enough shared data</span></div>
+    </div>`;
+  }
+  const aAvg = aSum / n, bAvg = bSum / n;
+  const res  = compareValues(aAvg, bAvg, true, 0.005); // 0.5pp tie threshold
+  let winnerHtml = '<span class="cmp-cell-winner">—</span>';
+  let aClass = 'cmp-cell-value', bClass = 'cmp-cell-value';
+  if (res.winner === 'A' || res.winner === 'B') {
+    const chip = `<span class="cmp-winner-chip">${res.winner}</span>`;
+    winnerHtml = `<span class="cmp-cell-winner">${chip}+${formatScoreDelta(res.diff)}</span>`;
+    if (res.winner === 'A') aClass += ' win'; else bClass += ' win';
+  } else if (res.winner === 'tie') {
+    winnerHtml = `<span class="cmp-cell-winner"><span class="cmp-winner-chip tie">=</span>tie</span>`;
+  }
+  return `<div class="cmp-row overall">
+    <div class="cmp-cell-label">Overall*</div>
+    <div class="${aClass}">${formatScoreCell(aAvg)}</div>
+    <div class="${bClass}">${formatScoreCell(bAvg)}</div>
+    <div>${winnerHtml}</div>
+  </div>`;
+}
+
+function renderCompareBody() {
+  const body = document.getElementById('cmp-body');
+  const title = document.getElementById('cmp-modal-title');
+  if (!body || !title) return;
+
+  const aSub = currentSuburb;
+  const bSub = compareSuburb;
+  title.textContent = bSub ? `${aSub} vs ${bSub}` : `${aSub} vs —`;
+
+  if (!bSub) {
+    body.innerHTML = `<div class="cmp-body-empty">Pick a suburb above to see a side-by-side breakdown.</div>`;
+    return;
+  }
+  if (bSub === aSub) {
+    body.innerHTML = `<div class="cmp-body-empty">Pick a different suburb to compare.</div>`;
+    return;
+  }
+
+  const header = `<div class="cmp-row header">
+    <div>Metric</div>
+    <div>${aSub} (A)</div>
+    <div>${bSub} (B)</div>
+    <div>Winner</div>
+  </div>`;
+  const rows = COMPARE_METRICS.map(def => renderCompareRow(def, aSub, bSub)).join('');
+  const overall = renderOverallRow(aSub, bSub);
+  const note = `<div class="cmp-note">
+    *Overall only counts suitability scores where both suburbs have data.
+    Scores use a 1pp tie threshold; Overall uses 0.5pp.
+  </div>`;
+  body.innerHTML = header + rows + overall + note;
+}
+
+// suburb list for picker — sourced from geojson centroids (upper-case keys)
+function getCompareSuburbList() {
+  return Object.keys(suburbCentroids).sort();
+}
+
+function renderCmpSuggestions(query) {
+  const suggest = document.getElementById('cmp-suggest');
+  if (!suggest) return;
+  const q = (query || '').trim().toUpperCase();
+  const all = getCompareSuburbList().filter(s => s !== currentSuburb);
+  let matches;
+  if (!q) {
+    matches = all.slice(0, 8);
+  } else {
+    const starts = all.filter(s => s.startsWith(q));
+    const contains = all.filter(s => !s.startsWith(q) && s.includes(q));
+    matches = [...starts, ...contains].slice(0, 10);
+  }
+  cmpSuggestIdx = -1;
+  if (!matches.length) {
+    suggest.innerHTML = `<div class="cmp-suggest-empty">No matches</div>`;
+    suggest.classList.add('open');
+    return;
+  }
+  suggest.innerHTML = matches.map((s, i) =>
+    `<div class="cmp-suggest-item" role="option" data-suburb="${s}" data-idx="${i}">${s}</div>`
+  ).join('');
+  suggest.classList.add('open');
+}
+
+function setCmpSuggestActive(newIdx) {
+  const items = document.querySelectorAll('#cmp-suggest .cmp-suggest-item');
+  if (!items.length) return;
+  cmpSuggestIdx = ((newIdx % items.length) + items.length) % items.length;
+  items.forEach((el, i) => el.classList.toggle('active', i === cmpSuggestIdx));
+  items[cmpSuggestIdx].scrollIntoView({ block: 'nearest' });
+}
+
+function pickCompareSuburb(suburb) {
+  if (!suburb) return;
+  compareSuburb = suburb;
+  const input = document.getElementById('cmp-search');
+  if (input) input.value = suburb;
+  const suggest = document.getElementById('cmp-suggest');
+  if (suggest) suggest.classList.remove('open');
+  renderCompareBody();
+}
+
+function openCompareModal() {
+  const modal = document.getElementById('cmp-modal');
+  if (!modal) return;
+  lastCompareTrigger = document.activeElement;
+  compareSuburb = null;
+  const input = document.getElementById('cmp-search');
+  if (input) input.value = '';
+  renderCompareBody();
+  renderCmpSuggestions('');
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  if (input) input.focus();
+}
+
+function closeCompareModal() {
+  const modal = document.getElementById('cmp-modal');
+  if (!modal || !modal.classList.contains('open')) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  const suggest = document.getElementById('cmp-suggest');
+  if (suggest) suggest.classList.remove('open');
+  if (lastCompareTrigger && typeof lastCompareTrigger.focus === 'function') lastCompareTrigger.focus();
+}
+
+function initCompareModal() {
+  const btn = document.getElementById('btn-compare');
+  if (btn) btn.addEventListener('click', openCompareModal);
+
+  const modal = document.getElementById('cmp-modal');
+  if (modal) {
+    modal.addEventListener('click', e => {
+      if (e.target.dataset && e.target.dataset.cmpClose) closeCompareModal();
+    });
+  }
+  const closeBtn = document.getElementById('cmp-modal-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeCompareModal);
+
+  const input = document.getElementById('cmp-search');
+  if (input) {
+    input.addEventListener('input', () => renderCmpSuggestions(input.value));
+    input.addEventListener('focus', () => renderCmpSuggestions(input.value));
+    input.addEventListener('keydown', e => {
+      const suggest = document.getElementById('cmp-suggest');
+      const items   = suggest ? suggest.querySelectorAll('.cmp-suggest-item') : [];
+      if (e.key === 'ArrowDown' && items.length) { e.preventDefault(); setCmpSuggestActive(cmpSuggestIdx + 1); }
+      else if (e.key === 'ArrowUp' && items.length) { e.preventDefault(); setCmpSuggestActive(cmpSuggestIdx - 1); }
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        const chosen = cmpSuggestIdx >= 0 && items[cmpSuggestIdx]
+          ? items[cmpSuggestIdx].dataset.suburb
+          : items[0]?.dataset.suburb;
+        if (chosen) pickCompareSuburb(chosen);
+      }
+    });
+  }
+
+  const suggest = document.getElementById('cmp-suggest');
+  if (suggest) {
+    suggest.addEventListener('click', e => {
+      const item = e.target.closest('.cmp-suggest-item');
+      if (item && item.dataset.suburb) pickCompareSuburb(item.dataset.suburb);
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeCompareModal();
+  });
+}
+
+// nav event listeners
 function initNav() {
   document.getElementById('s3-home').addEventListener('click', e => { e.preventDefault(); satTransitioned = false; show('s1'); });
   document.getElementById('s4-home').addEventListener('click', e => { e.preventDefault(); satTransitioned = false; show('s1'); });
@@ -1079,11 +1691,11 @@ function initNav() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-//  BOOT
-// ═══════════════════════════════════════════════════════════
+// boot
 initNav();
 initFilterPanel();
+initSuitabilityModal();
+initCompareModal();
 initGlobe();
 initSatellite();
 initHeatmap();

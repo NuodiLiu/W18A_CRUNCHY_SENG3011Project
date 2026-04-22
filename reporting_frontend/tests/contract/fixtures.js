@@ -1,12 +1,6 @@
-/**
- * Contract tests — verify the frontend's assumptions about API response shapes.
- *
- * These fixtures represent the contract defined by the backend
- * TimeSeriesResponse / BreakdownResponse schemas (OpenAPI / tsoa types).
- */
+// contract fixtures for frontend api shape tests
 
-// ── TimeSeriesResponse shape (from backend visualisation.types.ts) ──
-
+// timeseriesresponse shape from backend visualisation.types.ts
 export const TIMESERIES_RESPONSE = {
   metric: "purchase_price",
   aggregation: "avg",
@@ -44,8 +38,7 @@ export const TIMESERIES_EMPTY = {
   data: [],
 };
 
-// ── BreakdownResponse shape ──
-
+// breakdownresponse shape
 export const BREAKDOWN_RESPONSE = {
   dimension: "suburb",
   metric: "purchase_price",

@@ -1,8 +1,6 @@
 import { COLORS } from "../config.js";
 
-/**
- * convert merged array to chart data with two axes
- */
+// build dual axis chart data
 export function toDualAxisData(merged, leftLabel, rightLabel) {
   return {
     labels: merged.map((d) => d.period),
@@ -29,9 +27,7 @@ export function toDualAxisData(merged, leftLabel, rightLabel) {
   };
 }
 
-/**
- * convert one normalized array to single axis chart data
- */
+// build single axis chart data
 export function toSingleData(normalised, label, color, fillColor) {
   return {
     labels: normalised.map((d) => d.period),
