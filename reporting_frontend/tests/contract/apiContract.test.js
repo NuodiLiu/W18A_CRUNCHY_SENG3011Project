@@ -1,11 +1,4 @@
-/**
- * Contract tests — validate that the API response shapes satisfy
- * the frontend's transform/normalise functions.
- *
- * These tests do NOT call the real API; they verify the *contract*:
- * "given a response that matches the documented schema, the frontend
- *  transform pipeline produces the expected chart-ready data."
- */
+// contract tests for frontend api shapes
 
 import { describe, it, expect } from "vitest";
 import {
@@ -15,12 +8,7 @@ import {
   BREAKDOWN_RESPONSE,
 } from "./fixtures.js";
 
-// ─── Helpers ────────────────────────────────────────────────────
-
-/**
- * Validates that an object matches the TimeSeriesResponse schema
- * as defined in the backend's visualisation.types.ts / OpenAPI spec.
- */
+// helpers for the time series schema
 function assertTimeSeriesSchema(obj) {
   expect(obj).toHaveProperty("metric");
   expect(obj).toHaveProperty("aggregation");
@@ -60,8 +48,7 @@ function assertBreakdownSchema(obj) {
   }
 }
 
-// ─── Schema validation tests ────────────────────────────────────
-
+// schema validation tests
 describe("API response schema contract", () => {
   it("TimeSeriesResponse fixture matches schema", () => {
     assertTimeSeriesSchema(TIMESERIES_RESPONSE);
@@ -87,11 +74,7 @@ describe("API response schema contract", () => {
   });
 });
 
-// ─── Frontend transform pipeline contract tests ─────────────────
-
-// Re-implement the transforms inline so we don't need module resolution hacks
-// (the source files use bare ES-module imports with .js extensions).
-// We test the *same logic* against the *contract fixture*.
+// reuse inline transforms for the contract tests
 
 function normaliseHousing(raw) {
   return raw.data
