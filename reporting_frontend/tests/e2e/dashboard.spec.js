@@ -1,18 +1,8 @@
-/**
- * E2E tests — HouseDomain (HD) NSW Property Explorer.
- *
- * The app is a 4-screen SPA (s1 globe → s2 satellite → s3 heatmap → s4 analysis).
- * Screen transitions on s1/s2 are time-based (3D animation + flyTo), so these
- * tests mostly drive the UI by flipping the `.active` class directly — the same
- * thing the internal `show()` helper does — rather than waiting for animations.
- *
- * All backend API calls are intercepted so tests don't depend on live data.
- */
+// e2e tests for the dashboard
 
 import { test, expect } from "@playwright/test";
 
-// ── Fixtures matching the backend response shapes ─────────────────
-
+// fixtures matching the backend response shapes
 const BREAKDOWN_PRICES = {
   dimension: "suburb",
   metric: "purchase_price",
@@ -56,8 +46,7 @@ const EVENTS_HOUSING = {
   ],
 };
 
-// ── Helpers ───────────────────────────────────────────────────────
-
+// helpers
 async function mockAllApis(page) {
   await page.route("**/api/v1/visualisation/breakdown*", (route) => {
     const url = route.request().url();
@@ -97,8 +86,7 @@ async function gotoScreen(page, id) {
   }, id);
 }
 
-// ── S1: Globe landing screen ──────────────────────────────────────
-
+// s1 globe landing screen
 test.describe("S1 — Globe landing", () => {
   test("renders the HouseDomain logo and globe canvas", async ({ page }) => {
     await mockAllApis(page);
@@ -120,8 +108,7 @@ test.describe("S1 — Globe landing", () => {
   });
 });
 
-// ── S3: Heatmap screen ────────────────────────────────────────────
-
+// s3 heatmap screen
 test.describe("S3 — Heatmap", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
@@ -163,8 +150,7 @@ test.describe("S3 — Heatmap", () => {
   });
 });
 
-// ── S4: Suburb analysis screen ────────────────────────────────────
-
+// s4 suburb analysis screen
 test.describe("S4 — Suburb analysis", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
@@ -205,8 +191,7 @@ test.describe("S4 — Suburb analysis", () => {
   });
 });
 
-// ── Accessibility controls (topbar on s3) ─────────────────────────
-
+// accessibility controls topbar on s3
 test.describe("Accessibility controls", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
@@ -250,8 +235,7 @@ test.describe("Accessibility controls", () => {
   });
 });
 
-// ── API failure handling ──────────────────────────────────────────
-
+// api failure handling
 test.describe("API failure handling", () => {
   test("app still renders the globe when breakdown endpoint is 500", async ({
     page,

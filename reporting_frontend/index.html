@@ -221,6 +221,7 @@
       <span class="eyebrow">Property Analysis</span>
       <h2 id="suburb-title">—</h2>
       <p>Explore property metrics for this suburb over time.</p>
+      <button class="btn-compare" id="btn-compare" type="button">⇄ Compare with…</button>
     </div>
 
     <!-- Chart metric filter chips — GDP removed, income added -->
@@ -279,6 +280,45 @@
       Charts: <a href="https://www.chartjs.org" target="_blank" rel="noopener">Chart.js v4.4.7</a> ·
       Maps: <a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet v1.9.4</a>
     </div>
+  </div>
+</div>
+
+<!-- Suitability breakdown modal -->
+<div class="suit-modal" id="suit-modal" role="dialog" aria-modal="true"
+     aria-labelledby="suit-modal-title" aria-hidden="true">
+  <div class="suit-modal-overlay" data-suit-close="1"></div>
+  <div class="suit-modal-card" role="document">
+    <button class="suit-modal-close" id="suit-modal-close" aria-label="Close">✕</button>
+    <div class="suit-modal-header">
+      <span class="suit-modal-icon" id="suit-modal-icon" aria-hidden="true"></span>
+      <div>
+        <div class="suit-modal-title" id="suit-modal-title"></div>
+        <div class="suit-modal-sub"   id="suit-modal-sub"></div>
+      </div>
+    </div>
+    <div class="suit-modal-badge" id="suit-modal-badge"></div>
+    <div class="suit-modal-body"  id="suit-modal-body"></div>
+  </div>
+</div>
+
+<!-- Suburb compare modal -->
+<div class="cmp-modal" id="cmp-modal" role="dialog" aria-modal="true"
+     aria-labelledby="cmp-modal-title" aria-hidden="true">
+  <div class="suit-modal-overlay" data-cmp-close="1"></div>
+  <div class="cmp-modal-card" role="document">
+    <button class="suit-modal-close" id="cmp-modal-close" aria-label="Close">✕</button>
+    <div class="cmp-modal-header">
+      <div class="suit-modal-sub">Compare suburbs</div>
+      <div class="cmp-modal-title" id="cmp-modal-title">— vs —</div>
+    </div>
+    <div class="cmp-picker">
+      <input type="search" id="cmp-search" class="cmp-search"
+             placeholder="Type to search NSW suburbs…"
+             autocomplete="off" spellcheck="false"
+             aria-label="Search a suburb to compare with" />
+      <div class="cmp-suggest" id="cmp-suggest" role="listbox" aria-label="Suburb suggestions"></div>
+    </div>
+    <div class="cmp-body" id="cmp-body"></div>
   </div>
 </div>
 
