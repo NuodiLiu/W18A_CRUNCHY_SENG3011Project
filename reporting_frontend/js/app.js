@@ -609,79 +609,115 @@ function buildSuburbSchoolIndex() {
 
 async function loadEducationData() {
   try {
-    // Use 2024 data for latest rankings
     const year = 2024;
 
-    // 1. HSC top achievers by school for 2024
-    const hscUrl = `${API}/api/v1/visualisation/breakdown` +
-      `?dataset_type=hsc_top_achiever&dimension=school&metric=count&aggregation=count&limit=500&filters[year]=${year}`;
+
+    // 1. Fetch ALL HSC top achievers (remove limit=500!) and filter client-side for 2024 to get a more complete dataset 
+    // — some schools have very few achievers per year and may be missing from the top 500 list
+    const hscUrl = `${API}/api/v1/visualisation/breakdown?dataset_type=hsc_top_achiever&dimension=school&metric=count&aggregation=count&limit=5000&filters[year]=${year}`;
     const hscJ = await fetchCached(hscUrl, 15000);
-    const hscEntries = (hscJ.entries || []).filter(e => e.category && e.category !== 'unknown');
+
+    const hscEntries = (hscJ.entries || []).filter(
+      e => e.category && e.category !== "unknown"
+    );
+
     hscEntries.forEach(e => {
       const school = e.category.toString().trim();
-      if (!school) return;
-      schoolHscData[school] = { count: Number(e.value || 0) };
+      schoolHscData[school] = Number(e.value || 0);
     });
 
-    // 2. School enrolment
-    const enrolUrl = `${API}/api/v1/visualisation/breakdown` +
-      `?dataset_type=school_enrolment&dimension=school_name&metric=count&aggregation=count&limit=500`;
+
+    // 2. Fetch School enrolment
+    const enrolUrl = `${API}/api/v1/visualisation/breakdown?dataset_type=school_enrolment&dimension=school_name&metric=count&aggregation=count&limit=5000`;
     const enrolJ = await fetchCached(enrolUrl, 15000);
-    (enrolJ.entries || []).forEach(e => {
-      const school = (e.category || '').toString().trim();
-      if (!school || school === 'unknown') return;
-      schoolEnrolData[school] = Number(e.value || e.count || 1);
+
+    enrolJ.entries.forEach(e => {
+      const school = (e.category || "").toString().trim();
+      if (!school || school === "unknown") return;
+
+      const total = Number(e.value || e.count || 1);
+      // Estimate Year 12 cohort = total enrolment / 6
+      schoolEnrolData[school] = Math.max(5, Math.round(total / 6));
     });
 
-    // 3. Calculate rates and ranks
-    const schoolList = Object.keys(schoolHscData).map(school => {
-      const count = schoolHscData[school].count || 0;
-      const enrolment = schoolEnrolData[school] || 1;
-      const rate = count / enrolment;
-      return { school, rate, count, enrolment };
-    });
-    // Sort by rate descending for ranking
-    schoolList.sort((a, b) => b.rate - a.rate);
-    schoolList.forEach((item, idx) => {
-      schoolHscData[item.school].rank = idx + 1;
-      schoolHscData[item.school].rate = item.rate;
-      schoolHscData[item.school].enrolment = item.enrolment;
-    });
 
-    console.log(`HSC data: ${Object.keys(schoolHscData).length} schools`);
-
-    // 4. Build suburb → schools index
+    // 3. Map Suburb → Schools by fuzzy-matching school names to suburb centroid keys
     buildSuburbSchoolIndex();
 
-    // 5. Score each suburb by average band-6 rate of its schools
-    const suburbRates = {};
+    // 4. Compute Dampened Band 6 Rate per Suburb
+    const STATE_AVG_RATE = 0.05;
+    const CONF_WEIGHT = 30;
+
+    const suburbStats = {};
+
     Object.entries(suburbSchools).forEach(([suburb, schools]) => {
-      const rates = schools.map(s => schoolHscData[s.name]?.rate || 0).filter(r => r > 0);
-      const avgRate = rates.length ? rates.reduce((sum, r) => sum + r, 0) / rates.length : 0;
-      suburbRates[suburb] = avgRate;
+      let totalBand6 = 0;
+      let totalYr12 = 0;
+
+      for (const s of schools) {
+        const band6 = schoolHscData[s.name];
+        const yr12 = schoolEnrolData[s.name];
+        if (band6 != null && yr12 != null) {
+          totalBand6 += band6;
+          totalYr12 += yr12;
+        }
+      }
+
+      if (totalYr12 > 0) {
+        const rawRate = totalBand6 / totalYr12;
+
+        const dampened =
+          (totalBand6 + STATE_AVG_RATE * CONF_WEIGHT) /
+          (totalYr12 + CONF_WEIGHT);
+
+        suburbStats[suburb] = {
+          rawRate,
+          rate: dampened,
+          totalBand6,
+          totalYr12
+        };
+      }
     });
 
-    // 6. Normalise leniently: 2% rate = good score
-    const goodRate = 0.02; // 2% band-6 success rate considered good
+
+    // 5. Percentile Ranking (fixes "all red" issue)
+    const rates = Object.values(suburbStats)
+      .map(s => s.rate)
+      .sort((a, b) => a - b);
+
+    function percentile(value) {
+      const idx = rates.findIndex(r => r >= value);
+      if (idx === -1) return 1;
+      return idx / (rates.length - 1);
+    }
+
     filterData.education = {};
     filterRaw.education = {};
-    Object.entries(suburbRates).forEach(([suburb, rate]) => {
-      filterData.education[suburb] = Math.min(1, rate / goodRate);
-      filterRaw.education[suburb] = Math.round(rate * 10000) / 100; // 2dp %
+
+    Object.entries(suburbStats).forEach(([suburb, stats]) => {
+      const p = percentile(stats.rate);
+      filterData.education[suburb] = p; // 0–1
+      filterRaw.education[suburb] = (stats.rawRate * 100).toFixed(2);
     });
-    filterSorted.education = Object.entries(suburbRates)
-      .map(([name, value]) => ({ name, value }))
+
+
+    // 6. Sorted list for UI (descending by raw rate for rank labels)
+    filterSorted.education = Object.entries(suburbStats)
+      .map(([name, stats]) => ({ name, value: stats.rate }))
       .sort((a, b) => b.value - a.value);
 
-    console.log(`Education scores: ${Object.keys(filterData.education).length} suburbs`);
+    console.log(`Education processed: ${Object.keys(filterData.education).length} suburbs`);
+
     computeSuitability();
     repaintLayer();
     renderSuitabilitySummary();
+
   } catch (e) {
-    console.warn('Education data load failed:', e.message);
+    console.warn("Education data load failed:", e.message);
     filterData.education = {};
   }
 }
+
 
 // load filter scores from the api
 async function loadFilterData() {
