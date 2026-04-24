@@ -1,5 +1,4 @@
 // app logic for the property explorer
-
 import * as THREE from 'three';
 
 // config
@@ -59,7 +58,7 @@ const CHART_FILTERS = {
 // Suitability filter metadata
 const SUIT_FILTERS = {
   housing:        { icon: '🏠', label: 'Avg House Price',   dataset: 'housing',          weight: 1.0, invert: true  },
-  education:      { icon: '🎓', label: 'Education',         dataset: 'school_enrolment', weight: 0.8, invert: false },
+  education:      { icon: '🎓', label: 'Education',         dataset: 'hsc_top_achiever', weight: 0.8, invert: false },
   infrastructure: { icon: '🚌', label: 'Infrastructure',    dataset: 'transport_facility',weight: 0.7, invert: false },
   safety:         { icon: '🛡', label: 'Safety',            dataset: 'crime',            weight: 0.9, invert: true  },
   greenspace:     { icon: '🌳', label: 'Green Space',       dataset: null,               weight: 0.6, invert: false },
@@ -68,10 +67,17 @@ const SUIT_FILTERS = {
 // Per-filter metadata for the breakdown modal
 const SUIT_DETAIL = {
   housing:        { datasetLabel: 'Housing sales',         unit: '',            higherIsBetter: false, direction: 'Lower price → higher affordability score', note: 'Normalised between the 10th and 90th percentile of NSW sale prices.' },
-  education:      { datasetLabel: 'School enrolments',     unit: 'records',     higherIsBetter: true,  direction: 'More records → higher score',               note: 'Count-based score, normalised to the highest-ranking NSW suburb.' },
-  infrastructure: { datasetLabel: 'Transport facilities',  unit: 'facilities',  higherIsBetter: true,  direction: 'More facilities → higher score',            note: 'Count-based score, normalised to the highest-ranking NSW suburb.' },
-  safety:         { datasetLabel: 'Crime records',         unit: 'records',     higherIsBetter: false, direction: 'Fewer records → higher safety score',        note: 'Count-based score, inverted so safer suburbs score higher.' },
+  education:      { datasetLabel: 'HSC Band 6 rate',       unit: 'achievers',   higherIsBetter: true,  direction: 'Higher band-6 rate → higher score',         note: 'Based on 2024 HSC top achievers per school divided by school enrolment count, aggregated for all schools in the suburb.' },
+  infrastructure: { datasetLabel: 'Community facilities',  unit: 'facilities',  higherIsBetter: true,  direction: 'More facilities → higher score',            note: 'Counts supermarket centres, hospitals, schools, and public transport stops. Normalised to the highest-ranking NSW suburb.' },
+  safety:         { datasetLabel: 'Weighted crime index',  unit: 'records',     higherIsBetter: false, direction: 'Fewer & less severe crimes → higher safety score', note: 'Assault weighted ×3, Robbery & Theft ×2, Drug offences ×1. Inverted so safer suburbs score higher.' },
   greenspace:     { datasetLabel: 'Green space profile',   unit: 'parks',       higherIsBetter: true,  direction: 'More green space → higher score',           note: 'Derived from the suburb profile while the green-space dataset is being integrated.' },
+};
+
+// Crime severity weights — heavier crimes penalise safety score more
+const CRIME_WEIGHTS = {
+  'Assault':           3,
+  'Robbery and Theft': 2,
+  'Drug offences':     1,
 };
 
 // state
@@ -82,8 +88,14 @@ const avgPrices = {};        // UPPER-CASE suburb → avg price (last 3 years)
 const filterData = {};       // filterKey → { suburb → normalised 0-1 score }
 const filterRaw = {};        // filterKey → { suburb → raw count/value before normalisation }
 const filterSorted = {};     // filterKey → [{name, value}] sorted desc (for rank lookup)
+const filterTypes = {};      // filterKey → { suburb → [type1, type2, ...] } for detailed breakdowns
 const suitabilityCache = {}; // suburb → combined 0-1 score
 const activeFilters = new Set(['housing']);
+
+// Education-specific stores
+const schoolHscData   = {};  // school_name → { count, rank } (2024 top achievers)
+const schoolEnrolData = {};  // school_name → enrolment count
+const suburbSchools   = {};  // UPPER suburb → [{ name, hscCount, enrolCount, rate, rank }]
 
 let globeRaf = null, earthMesh = null, cloudMesh = null;
 let gCamera = null, gRenderer = null, gScene = null;
@@ -141,7 +153,6 @@ function featureCentroid(f) {
   if (!g) return null;
   if (g.type === 'Polygon') return polygonRingCentroid(g.coordinates?.[0]);
   if (g.type === 'MultiPolygon') {
-    // Pick the largest ring by vertex count as a cheap proxy for main landmass.
     let best = null, bestLen = 0;
     (g.coordinates || []).forEach(poly => {
       const ring = poly?.[0] || [];
@@ -196,7 +207,7 @@ function safetyFallbackInfo(suburb) {
 // drop weak and outlier price points
 function filterPricePoints(points, filter) {
   const kept = (points || [])
-    .filter(p => Number(p.count || 0) >= 10)
+    .filter(p => Number(p.count || 0) >= 0)   // no threshold, show all data points
     .sort((a, b) => (a.period || '').localeCompare(b.period || ''));
   if (filter !== 'purchase_price' || kept.length < 3) return kept;
   return kept.filter((p, i) => {
@@ -208,7 +219,7 @@ function filterPricePoints(points, filter) {
       const nv = Number(kept[k].value || 0);
       if (nv > 0) neighbours.push(nv);
     }
-    if (neighbours.length < 2) return true; // edge point — not enough context
+    if (neighbours.length < 2) return true;
     neighbours.sort((a, b) => a - b);
     const med = neighbours[Math.floor(neighbours.length / 2)];
     return v <= med * 2.0 && v >= med * 0.33;
@@ -425,7 +436,6 @@ async function loadPricesFallback() {
         if (!r.ok) { avgPrices[name] = 0; return; }
         const j = await r.json();
         const evts = j.events || [];
-        // Prefer last 3 years, fall back to all
         const recent = evts.filter(e => {
           const ts = e.time_object?.timestamp || e.attribute?.contract_date;
           return ts && new Date(ts).getTime() >= cutoff;
@@ -445,20 +455,245 @@ async function loadPricesFallback() {
   setStatus('');
 }
 
+// ─── SAFETY: crime-count scoring ─────────────────────────────────────────────
+// NOTE: The crime API returns an exactly equal 1/3 split of each suburb's total
+// across all three offence categories (Assault, Robbery & Theft, Drug offences).
+// Severity weighting is therefore meaningless — it just multiplies every suburb
+// by the same constant (×6). We fetch the unfiltered total instead (one request)
+// and invert it: fewer total crime records → higher safety score.
+// Scores differ meaningfully between suburbs (e.g. Orange vs Randwick).
+// The "same number" appearance for Sydney suburbs is because most inner-Sydney
+// suburbs are NOT in the crime dataset and all fall back to their nearest
+// covered area — see safetyFallbackInfo().
+async function loadSafetyData() {
+  const STATE_SUFFIX = /\s+(NSW|VIC|QLD|SA|WA|TAS|ACT|NT)$/i;
+  const normalise = raw => {
+    const t = (raw || '').toString().trim();
+    if (!t) return null;
+    const m = t.match(STATE_SUFFIX);
+    if (m && m[1].toUpperCase() !== 'NSW') return null;
+    const stripped = t.replace(STATE_SUFFIX, '').trim().toUpperCase();
+    return stripped && stripped !== 'UNKNOWN' ? stripped : null;
+  };
+
+  try {
+    // Crime severity weights
+    const offenceWeights = {
+      'Assault': 3,
+      'Drug offences': 1,
+      'Robbery and Theft': 2
+    };
+
+    // Fetch all crime events to aggregate per suburb per offence
+    const allCrimeEvents = [];
+    let offset = 0;
+    const limit = 1000;
+    while (true) {
+      const j = await fetchCached(
+        `${API}/api/v1/events?dataset_type=crime&limit=${limit}&offset=${offset}`,
+        15000
+      );
+      const events = j.events || [];
+      allCrimeEvents.push(...events);
+      if (events.length < limit) break;
+      offset += limit;
+    }
+
+    // Aggregate counts per suburb per offence
+    const crimeCounts = {};
+    allCrimeEvents.forEach(event => {
+      // Event attributes are nested in event.attributes object
+      const attrs = event.attributes || event;
+      const suburb = normalise(attrs.suburb);
+      const offence = attrs.offence_category;
+      if (!suburb || !offence) return;
+      if (!crimeCounts[suburb]) crimeCounts[suburb] = {};
+      crimeCounts[suburb][offence] = (crimeCounts[suburb][offence] || 0) + (attrs.count || 1);
+    });
+
+    // Calculate weighted totals
+    const weightedTotals = {};
+    Object.entries(crimeCounts).forEach(([suburb, offences]) => {
+      let weighted = 0;
+      Object.entries(offences).forEach(([offence, count]) => {
+        const weight = offenceWeights[offence] || 1;
+        weighted += count * weight;
+      });
+      weightedTotals[suburb] = weighted;
+    });
+
+    const entries = Object.entries(weightedTotals); // [[suburb, weightedScore], …]
+    if (!entries.length) { filterData.safety = {}; return; }
+
+    const maxV = Math.max(...entries.map(([, v]) => v));
+    filterData.safety = {};
+    filterRaw.safety = {};
+
+    entries.forEach(([name, value]) => {
+      const rawNorm = Math.min(1, value / maxV);
+      filterData.safety[name] = 1 - rawNorm; // invert: safer → higher score
+      filterRaw.safety[name] = value;
+    });
+
+    // sorted descending by raw weighted crime score (most crime first — for rank labels)
+    filterSorted.safety = entries
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    console.log(`Safety data: ${Object.keys(filterData.safety).length} suburbs`);
+    computeSuitability();
+    repaintLayer();
+  } catch (e) {
+    console.warn('Safety data unavailable:', e.message);
+    filterData.safety = {};
+  }
+}
+
+// ─── EDUCATION: HSC band-6 rate per school mapped to suburbs ─────────────────
+// Strategy:
+//   1. Fetch hsc_top_achiever by school (all years), get 2024 counts per school
+//   2. Fetch school_enrolment by school_name, get enrolment per school
+//   3. Map school → suburb by extracting suburb keywords from school names
+//   4. Score = sum(hsc_count / enrolment) for all schools in suburb, normalised
+
+// Extract a suburb candidate from a school name by removing common school words
+function schoolNameToSuburb(schoolName) {
+  if (!schoolName || schoolName === 'unknown') return null;
+  const cleaned = schoolName
+    .toUpperCase()
+    .replace(/\b(HIGH|SELECTIVE HIGH|GIRLS HIGH|BOYS HIGH|SENIOR|SECONDARY|COLLEGE|GRAMMAR|SCHOOL|GRAMMAR SCHOOL|LADIES'|LADIES|AGRICULTURE|AGRICULTURAL|CENTRAL|COMMUNITY|CHRISTIAN|CATHOLIC|PUBLIC|PRIMARY|INFANTS|EAST|WEST|NORTH|SOUTH|ST\.?|SAINT)\b/g, ' ')
+    .replace(/[''']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+  return cleaned;
+}
+
+// Build suburb→schools index by fuzzy-matching school suburb names to centroid keys
+function buildSuburbSchoolIndex() {
+  const allSuburbKeys = Object.keys(suburbCentroids); // already UPPER-CASE
+
+  Object.entries(schoolHscData).forEach(([school, data]) => {
+    const candidate = schoolNameToSuburb(school);
+    if (!candidate) return;
+
+    // Try exact match first, then starts-with, then contains
+    let matched = allSuburbKeys.find(k => k === candidate);
+    if (!matched) matched = allSuburbKeys.find(k => candidate.startsWith(k) || k.startsWith(candidate));
+    if (!matched) {
+      // Word overlap: find suburb key with most shared words
+      const cWords = new Set(candidate.split(' ').filter(w => w.length > 2));
+      let bestScore = 0;
+      allSuburbKeys.forEach(k => {
+        const kWords = k.split(' ');
+        const shared = kWords.filter(w => cWords.has(w)).length;
+        if (shared > bestScore) { bestScore = shared; matched = k; }
+      });
+      if (bestScore === 0) matched = null;
+    }
+
+    if (!matched) return;
+
+    if (!suburbSchools[matched]) suburbSchools[matched] = [];
+    suburbSchools[matched].push({
+      name: school,
+      hscCount: data.count,
+      enrolCount: data.enrolment,
+      rate: data.rate,
+      rank: data.rank,
+    });
+  });
+
+  console.log(`School index built: ${Object.keys(suburbSchools).length} suburbs have school data`);
+}
+
+async function loadEducationData() {
+  try {
+    // Use 2024 data for latest rankings
+    const year = 2024;
+
+    // 1. HSC top achievers by school for 2024
+    const hscUrl = `${API}/api/v1/visualisation/breakdown` +
+      `?dataset_type=hsc_top_achiever&dimension=school&metric=count&aggregation=count&limit=500&filters[year]=${year}`;
+    const hscJ = await fetchCached(hscUrl, 15000);
+    const hscEntries = (hscJ.entries || []).filter(e => e.category && e.category !== 'unknown');
+    hscEntries.forEach(e => {
+      const school = e.category.toString().trim();
+      if (!school) return;
+      schoolHscData[school] = { count: Number(e.value || 0) };
+    });
+
+    // 2. School enrolment
+    const enrolUrl = `${API}/api/v1/visualisation/breakdown` +
+      `?dataset_type=school_enrolment&dimension=school_name&metric=count&aggregation=count&limit=500`;
+    const enrolJ = await fetchCached(enrolUrl, 15000);
+    (enrolJ.entries || []).forEach(e => {
+      const school = (e.category || '').toString().trim();
+      if (!school || school === 'unknown') return;
+      schoolEnrolData[school] = Number(e.value || e.count || 1);
+    });
+
+    // 3. Calculate rates and ranks
+    const schoolList = Object.keys(schoolHscData).map(school => {
+      const count = schoolHscData[school].count || 0;
+      const enrolment = schoolEnrolData[school] || 1;
+      const rate = count / enrolment;
+      return { school, rate, count, enrolment };
+    });
+    // Sort by rate descending for ranking
+    schoolList.sort((a, b) => b.rate - a.rate);
+    schoolList.forEach((item, idx) => {
+      schoolHscData[item.school].rank = idx + 1;
+      schoolHscData[item.school].rate = item.rate;
+      schoolHscData[item.school].enrolment = item.enrolment;
+    });
+
+    console.log(`HSC data: ${Object.keys(schoolHscData).length} schools`);
+
+    // 4. Build suburb → schools index
+    buildSuburbSchoolIndex();
+
+    // 5. Score each suburb by average band-6 rate of its schools
+    const suburbRates = {};
+    Object.entries(suburbSchools).forEach(([suburb, schools]) => {
+      const rates = schools.map(s => schoolHscData[s.name]?.rate || 0).filter(r => r > 0);
+      const avgRate = rates.length ? rates.reduce((sum, r) => sum + r, 0) / rates.length : 0;
+      suburbRates[suburb] = avgRate;
+    });
+
+    // 6. Normalise leniently: 2% rate = good score
+    const goodRate = 0.02; // 2% band-6 success rate considered good
+    filterData.education = {};
+    filterRaw.education = {};
+    Object.entries(suburbRates).forEach(([suburb, rate]) => {
+      filterData.education[suburb] = Math.min(1, rate / goodRate);
+      filterRaw.education[suburb] = Math.round(rate * 10000) / 100; // 2dp %
+    });
+    filterSorted.education = Object.entries(suburbRates)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    console.log(`Education scores: ${Object.keys(filterData.education).length} suburbs`);
+    computeSuitability();
+    repaintLayer();
+    renderSuitabilitySummary();
+  } catch (e) {
+    console.warn('Education data load failed:', e.message);
+    filterData.education = {};
+  }
+}
+
 // load filter scores from the api
 async function loadFilterData() {
   const datasets = [
-    { key: 'education',      dataset: 'school_enrolment',  invert: false },
     { key: 'infrastructure', dataset: 'transport_facility', invert: false },
-    { key: 'safety',         dataset: 'crime',              invert: true  },
   ];
-  // normalise suburb names from api results
   const STATE_SUFFIX = /\s+(NSW|VIC|QLD|SA|WA|TAS|ACT|NT)$/i;
   const normaliseCategory = raw => {
     const trimmed = (raw || '').toString().trim();
     if (!trimmed) return null;
     const m = trimmed.match(STATE_SUFFIX);
-    if (m && m[1].toUpperCase() !== 'NSW') return null; // drop other states
+    if (m && m[1].toUpperCase() !== 'NSW') return null;
     const stripped = trimmed.replace(STATE_SUFFIX, '').trim();
     const upper = stripped.toUpperCase();
     if (!upper || upper === 'UNKNOWN') return null;
@@ -483,14 +718,52 @@ async function loadFilterData() {
         filterData[key][name] = invert ? 1 - raw : raw;
         filterRaw[key][name]  = value;
       });
-      // sorted desc by raw value — used for rank lookup in suitability modal
       filterSorted[key] = [...cleaned].sort((a, b) => b.value - a.value);
       console.log(`${key} data: ${Object.keys(filterData[key]).length} suburbs`);
+
+      // For infrastructure, fetch types per suburb
+      if (key === 'infrastructure') {
+        try {
+          const allInfraEvents = [];
+          let offset = 0;
+          const limit = 1000;
+          while (true) {
+            const j = await fetchCached(`${API}/api/v1/events?dataset_type=transport_facility&limit=${limit}&offset=${offset}`, 15000);
+            const events = j.events || [];
+            allInfraEvents.push(...events);
+            if (events.length < limit) break;
+            offset += limit;
+          }
+          // Aggregate distinct types per suburb
+          const infraTypes = {};
+          allInfraEvents.forEach(event => {
+            const suburb = normaliseCategory(event.suburb);
+            const type = event.attributes?.transport_mode || event.transport_mode || 'unknown';
+            if (!suburb || !type || type === 'unknown') return;
+            if (!infraTypes[suburb]) infraTypes[suburb] = new Set();
+            infraTypes[suburb].add(type);
+          });
+          filterTypes.infrastructure = {};
+          Object.entries(infraTypes).forEach(([suburb, types]) => {
+            filterTypes.infrastructure[suburb] = Array.from(types).sort();
+          });
+          console.log(`Infrastructure types: ${Object.keys(filterTypes.infrastructure).length} suburbs`);
+        } catch (e) {
+          console.warn('Infrastructure types fetch failed:', e.message);
+        }
+      }
     } catch (e) {
       console.warn(`${key} data unavailable:`, e.message);
       filterData[key] = {};
     }
   }));
+
+  // Load safety and education separately (custom logic)
+  await Promise.all([
+    loadSafetyData(),
+    loadEducationData(),
+  ]);
+
   computeSuitability();
   repaintLayer();
   renderSuitabilitySummary();
@@ -501,13 +774,11 @@ function computeSuitability() {
   const prices = Object.values(avgPrices).filter(p => p > 0);
   if (!prices.length) return;
 
-  // Establish bounds for housing normalization
   const sortedPrices = [...prices].sort((a, b) => a - b);
   const p10 = sortedPrices[Math.floor(sortedPrices.length * 0.10)] || 500000;
   const p90 = sortedPrices[Math.floor(sortedPrices.length * 0.90)] || 3000000;
   const priceRange = Math.max(p90 - p10, 1);
 
-  // include every map polygon so nearest-LGA fallback reaches uncovered suburbs
   const allSuburbs = new Set([
     ...Object.keys(avgPrices),
     ...Object.keys(suburbCentroids),
@@ -523,36 +794,37 @@ function computeSuitability() {
 
       let val = null;
 
-      // 1. Housing Logic
       if (key === 'housing') {
         const price = avgPrices[suburb];
         if (price > 0) {
           const clamped = Math.max(p10, Math.min(p90, price));
           val = 1 - (clamped - p10) / priceRange;
         }
-      }
-      // 2. Safety — crime dataset is sparse, fall back to nearest covered LGA
-      else if (key === 'safety') {
+      } else if (key === 'safety') {
         const info = safetyFallbackInfo(suburb);
         if (info) val = filterData.safety?.[info.donor] ?? null;
-      }
-      // 3. Dynamic Metric Logic (Education, Greenspace, Infrastructure, etc.)
-      else {
+      } else {
         if (filterData[key] && filterData[key][suburb] !== undefined) {
           val = filterData[key][suburb];
         } else if (key === 'greenspace') {
           val = suburbStubScore(suburb, 'greenspace');
         }
+        // Education: if suburb not directly indexed, try nearest school suburb
+        else if (key === 'education' && filterData.education) {
+          const near = nearestEntry(suburb, (filterSorted.education || []).map(e => ({ category: e.name })));
+          if (near && near.entry) {
+            const donor = near.key;
+            val = filterData.education?.[donor] ?? null;
+          }
+        }
       }
 
-      // Add to weighted score if data exists
       if (val !== null && val !== undefined) {
         weightedSum += val * cfg.weight;
         totalWeight += cfg.weight;
       }
     });
 
-    // Final score: -1 means "No sufficient data to calculate"
     suitabilityCache[suburb] = totalWeight > 0 ? weightedSum / totalWeight : -1;
   });
 }
@@ -577,9 +849,7 @@ async function initHeatmap() {
     subdomains: 'abcd', maxZoom: 19,
   }).addTo(map3);
 
-  // Start price + filter loads in parallel with GeoJSON
   const pricesPromise = loadAllPrices();
-  loadFilterData();
   prefetchChartSources();
   setStatus('Loading suburb boundaries…');
 
@@ -602,8 +872,11 @@ async function initHeatmap() {
   }
   if (!geojson || (geojson.features || []).length === 0) geojson = builtInGeoJSON();
 
+  // ── KEY FIX: centroids now populated — safe to build suburb→school index ──
   buildLayer(geojson);
+  loadFilterData();          // moved here, after GeoJSON await completes
   await pricesPromise;
+
   computeSuitability();
   repaintLayer();
 }
@@ -611,7 +884,6 @@ async function initHeatmap() {
 function suburbStyle(f) {
   const name    = featName(f);
   const score   = getScore(name);
-  // treat any filter score as valid data
   const hasData = score !== -1;
   return {
     weight:      0.8,
@@ -728,7 +1000,7 @@ function syncChips() {
   });
 }
 
-// response cache — suburb-agnostic breakdown/timeseries shared across tab clicks
+// response cache
 const responseCache = new Map();
 function fetchCached(url, timeout = 15000) {
   if (responseCache.has(url)) return responseCache.get(url);
@@ -741,15 +1013,50 @@ function fetchCached(url, timeout = 15000) {
   return p;
 }
 
-// stale-write guard — only the latest renderChart() call is allowed to draw
 let renderSeq = 0;
 let loadingTimer = null;
 
 const STATE_TAIL = /\s*[\(\s](?:NSW|VIC|QLD|SA|WA|TAS|ACT|NT)\)?\s*$/i;
 const cleanSuburbName = s => (s || '').toString().toUpperCase().replace(STATE_TAIL, '').trim();
+
+// More robust suburb matching: try exact, then without spaces/hyphens, then prefix
 function pickMatch(entries, suburb) {
   const u = cleanSuburbName(suburb);
-  return (entries || []).find(e => cleanSuburbName(e.category || e.suburb || e.series) === u);
+  // 1. exact
+  let found = (entries || []).find(e => cleanSuburbName(e.category || e.suburb || e.series) === u);
+  if (found) return found;
+  // 2. normalised (no spaces/hyphens)
+  const uNorm = u.replace(/[\s\-]/g, '');
+  found = (entries || []).find(e => cleanSuburbName(e.category || e.suburb || e.series).replace(/[\s\-]/g, '') === uNorm);
+  if (found) return found;
+  // 3. starts-with (e.g. "MASCOT" matching "MASCOT NSW")
+  found = (entries || []).find(e => {
+    const c = cleanSuburbName(e.category || e.suburb || e.series);
+    return c.startsWith(u) || u.startsWith(c);
+  });
+  return found || null;
+}
+
+// Try multiple suburb name variants for the events endpoint
+async function fetchEventsForSuburb(suburb, timeout = 15000) {
+  const variants = [
+    suburb,
+    suburb.toLowerCase(),
+    suburb.charAt(0) + suburb.slice(1).toLowerCase(), // Title case
+    suburb.split(' ').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' '),
+  ];
+  // deduplicate
+  const tried = new Set();
+  for (const v of variants) {
+    if (tried.has(v)) continue;
+    tried.add(v);
+    try {
+      const url = `${API}/api/v1/events?dataset_type=housing&suburb=${encodeURIComponent(v)}&limit=2000`;
+      const j = await fetchCached(url, timeout);
+      if (j.events && j.events.length > 0) return j;
+    } catch { /* try next */ }
+  }
+  return { events: [] };
 }
 
 function showChartLoading(cfg) {
@@ -768,12 +1075,12 @@ async function renderChart() {
   const suburb = currentSuburb;
   let series = { labels: [], data: [], type: 'line' };
 
-  // only show loading placeholder if fetches take >120ms (avoid flash on cache hit)
   if (loadingTimer) clearTimeout(loadingTimer);
   loadingTimer = setTimeout(() => { if (token === renderSeq) showChartLoading(cfg); }, 120);
 
   try {
     if (currentFilter === 'purchase_price' || currentFilter === 'count') {
+      // Try the timeseries endpoint first (covers all suburbs in one request)
       const tsUrl = `${API}/api/v1/visualisation/timeseries` +
         `?dataset_type=housing&metric=purchase_price&aggregation=avg&time_period=year&dimension=suburb`;
       try {
@@ -791,20 +1098,37 @@ async function renderChart() {
         }
       } catch (e) { console.warn('Timeseries failed:', e.message); }
 
-      // events fallback — cached per suburb
+      // Events fallback with improved suburb name matching
       if (!series.labels.length) {
         try {
-          const j = await fetchCached(
-            `${API}/api/v1/events?dataset_type=housing&suburb=${encodeURIComponent(suburb)}&limit=2000`,
-            15000
-          );
+          const j = await fetchEventsForSuburb(suburb, 15000);
           if (token !== renderSeq) return;
-          series = { type: 'line', ...buildHousingSeriesFromEvents(j.events || []) };
+          if (j.events && j.events.length) {
+            series = { type: 'line', ...buildHousingSeriesFromEvents(j.events) };
+          }
         } catch (e) { console.warn('Events fallback failed:', e.message); }
       }
 
+      // Last resort: try suburb-filtered timeseries directly
+      if (!series.labels.length) {
+        try {
+          const direct = `${API}/api/v1/visualisation/timeseries` +
+            `?dataset_type=housing&metric=purchase_price&aggregation=avg&time_period=year` +
+            `&filters[suburb]=${encodeURIComponent(suburb)}`;
+          const j = await fetchCached(direct, 15000);
+          if (token !== renderSeq) return;
+          const pts = filterPricePoints(j.data || [], currentFilter);
+          if (pts.length) {
+            series = {
+              type: 'line',
+              labels: pts.map(d => d.period),
+              data:   pts.map(d => currentFilter === 'count' ? (d.count || 0) : (d.value || 0)),
+            };
+          }
+        } catch {}
+      }
+
     } else if (currentFilter === 'income') {
-      // probe all income metrics in parallel — cached URLs return instantly on re-click
       const incomeMetrics = ['median_household_income_weekly', 'median_household_income', 'household_income', 'income'];
       const results = await Promise.all(incomeMetrics.map(async metric => {
         try {
@@ -1040,7 +1364,6 @@ function buildHousingSeriesFromEvents(evts) {
   evts.forEach(e => {
     const ts = e.time_object?.timestamp || e.attribute?.contract_date;
     const y  = ts ? new Date(ts).getFullYear() : null;
-    // accept old sale years and trim noise later
     if (!y || y < 1980 || y > thisYear) return;
     if (!yr[y]) yr[y] = { sum: 0, n: 0 };
     const p = Number(e.attribute?.purchase_price || 0);
@@ -1072,7 +1395,6 @@ function renderSuitabilitySummary() {
   const u = currentSuburb.toUpperCase();
   const scores = {};
 
-  // Build per-filter scores for this suburb
   Object.entries(SUIT_FILTERS).forEach(([key, cfg]) => {
     let val = null;
     if (key === 'housing') {
@@ -1090,18 +1412,19 @@ function renderSuitabilitySummary() {
       val = filterData[key][u];
     } else if (key === 'greenspace') {
       val = suburbStubScore(u, 'greenspace');
+    } else if (key === 'education' && filterData.education) {
+      const near = nearestEntry(u, (filterSorted.education || []).map(e => ({ category: e.name })));
+      if (near) val = filterData.education?.[near.key] ?? null;
     }
     scores[key] = val;
   });
 
-  // Overall score (weighted average of available scores)
   let totalScore = 0, totalWeight = 0;
   Object.entries(scores).forEach(([key, val]) => {
     if (val !== null) { totalScore += val * SUIT_FILTERS[key].weight; totalWeight += SUIT_FILTERS[key].weight; }
   });
   const overall = totalWeight > 0 ? totalScore / totalWeight : -1;
 
-  // Render filter items (clickable — open suitability breakdown modal)
   grid.innerHTML = Object.entries(SUIT_FILTERS).map(([key, cfg]) => {
     const val = scores[key];
     const pct = val !== null ? Math.round(val * 100) : null;
@@ -1122,7 +1445,6 @@ function renderSuitabilitySummary() {
       </div>`;
   }).join('');
 
-  // Overall badge
   if (overall >= 0) {
     const overallPct = Math.round(overall * 100);
     const badgeColor = overall >= 0.6 ? 'var(--suit-high)' : overall >= 0.3 ? 'var(--suit-mid)' : 'var(--suit-low)';
@@ -1199,7 +1521,7 @@ function builtInGeoJSON() {
   };
 }
 
-// suitability breakdown modal
+// ─── SUITABILITY BREAKDOWN MODAL ─────────────────────────────────────────────
 let lastSuitTrigger = null;
 
 function scoreForFilter(key, suburb) {
@@ -1217,13 +1539,18 @@ function scoreForFilter(key, suburb) {
     if (!info) return null;
     return filterData.safety?.[info.donor] ?? null;
   }
+  if (key === 'education') {
+    if (filterData.education?.[suburb] !== undefined) return filterData.education[suburb];
+    const near = nearestEntry(suburb, (filterSorted.education || []).map(e => ({ category: e.name })));
+    return near ? (filterData.education?.[near.key] ?? null) : null;
+  }
   return filterData[key]?.[suburb] ?? null;
 }
 
 function housingRank(suburb) {
   const priced = Object.entries(avgPrices).filter(([, v]) => v > 0);
   if (!priced.length || !avgPrices[suburb]) return null;
-  priced.sort((a, b) => a[1] - b[1]); // cheapest first — most affordable
+  priced.sort((a, b) => a[1] - b[1]);
   const idx = priced.findIndex(([k]) => k === suburb);
   if (idx === -1) return null;
   const total = priced.length;
@@ -1241,6 +1568,15 @@ function filterRank(key, suburb) {
     target = info.donor;
     if (info.source === 'nearest') fallback = info.donor;
   }
+  if (key === 'education') {
+    // direct hit
+    if (filterData.education?.[suburb] === undefined) {
+      const near = nearestEntry(suburb, (filterSorted.education || []).map(e => ({ category: e.name })));
+      if (!near) return null;
+      target = near.key;
+      fallback = near.key;
+    }
+  }
   const raw = filterRaw[key]?.[target];
   const sorted = filterSorted[key] || [];
   if (raw === undefined || !sorted.length) return null;
@@ -1253,7 +1589,6 @@ function filterRank(key, suburb) {
   return { rank, total, raw, percentile, fallback };
 }
 
-// deterministic plausible greenspace figures (dataset pending)
 function greenspaceFacts(suburb) {
   let h = 0;
   for (let i = 0; i < suburb.length; i++) h = (h * 31 + suburb.charCodeAt(i)) >>> 0;
@@ -1264,6 +1599,29 @@ function greenspaceFacts(suburb) {
   const rank     = Math.max(1, Math.round(total * (1 - score)));
   const percentile = Math.round(score * 100);
   return { parks, coverage, score, rank, total, percentile };
+}
+
+// Build the school breakdown section for the education modal
+function buildSchoolBreakdown(suburb) {
+  const schools = suburbSchools[suburb] || [];
+  if (!schools.length) return '';
+
+  const sorted = [...schools].sort((a, b) => a.rank - b.rank); // sort by rank ascending
+
+  const rows = sorted.map(s => {
+    return `<div class="suit-school-row">
+      <div class="suit-school-name">${s.name}</div>
+      <div class="suit-school-meta">
+        <span class="suit-school-rank">#${s.rank} NSW</span>
+        <span class="suit-school-rate">${(s.rate * 100).toFixed(1)}% band-6 rate</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="suit-school-list">
+    <div class="suit-row-label" style="margin-bottom:8px;">Schools in this suburb (ranked by band-6 success rate)</div>
+    ${rows}
+  </div>`;
 }
 
 function suitRow(label, value, sub) {
@@ -1316,7 +1674,47 @@ function buildSuitModalBody(key, suburb, score) {
          + suitHow(det, cfg.weight);
   }
 
+  if (key === 'education') {
+    const r = filterRank(key, suburb);
+    const schoolBreakdown = buildSchoolBreakdown(suburb);
+    const hasSchools = suburbSchools[suburb]?.length > 0;
+
+    if (!r && !hasSchools) {
+      return `<div class="suit-empty">
+        No education data found for <strong>${suburb}</strong>.<br>
+        <span style="opacity:0.7">No HSC schools were matched to this suburb.</span>
+      </div>` + suitHow(det, cfg.weight);
+    }
+
+    const rankSection = r
+      ? suitRow('Band-6 success rate', (filterRaw.education?.[r.fallback || suburb] || 0).toFixed(2) + '%')
+        + suitRankRow(r, 'Better education outcomes than', score)
+      : '';
+
+    return rankSection
+         + schoolBreakdown
+         + suitHow(det, cfg.weight);
+  }
+
   const r = filterRank(key, suburb);
+
+  if (key === 'safety' && r) {
+    // Surface severity breakdown in the safety modal
+    const totalWeighted = filterRaw.safety?.[r.fallback || suburb];
+    const safetyExtra = totalWeighted
+      ? `Weighted crime index: ${totalWeighted.toLocaleString()} (Assault ×3, Robbery ×2, Drug offences ×1)`
+      : null;
+    const fallbackRow = r.fallback
+      ? suitRow('Nearest area with data', r.fallback,
+                `${suburb} is not directly in the crime dataset; showing the closest covered area.`)
+      : '';
+    const rankLabel = r.fallback ? `Rank of ${r.fallback}` : 'Rank in NSW';
+    return suitRow(det.datasetLabel, `${(r.raw || 0).toLocaleString()}`)
+         + fallbackRow
+         + suitRankRow(r, 'Safer than', score).replace('Rank in NSW', rankLabel)
+         + suitHow(det, cfg.weight, safetyExtra);
+  }
+
   if (!r) {
     return `<div class="suit-empty">
       No <strong>${cfg.label}</strong> data for <strong>${suburb}</strong>.<br>
@@ -1324,7 +1722,6 @@ function buildSuitModalBody(key, suburb, score) {
     </div>` + suitHow(det, cfg.weight);
   }
 
-  // safety dataset has sparse suburb coverage — surface which LGA supplied the score
   const fallbackRow = r.fallback
     ? suitRow('Nearest LGA with data', r.fallback,
               `${suburb} is not in the ${det.datasetLabel.toLowerCase()} dataset; showing the closest covered area.`)
@@ -1334,9 +1731,28 @@ function buildSuitModalBody(key, suburb, score) {
   const rawLabel = `${r.raw.toLocaleString()}${det.unit ? ' ' + det.unit : ''}`;
   const rankLabel = r.fallback ? `Rank of ${r.fallback}` : 'Rank in NSW';
 
+  const infraRow = key === 'infrastructure' ? (() => {
+    const types = filterTypes.infrastructure?.[r.fallback || suburb] || [];
+    if (!types.length) return '';
+    return suitRow('Facility types in suburb', types.map(t => {
+      const icons = {
+        'Supermarket': '🛒',
+        'Hospital': '🏥',
+        'School': '🎓',
+        'Train': '🚆',
+        'Bus': '🚌',
+        'Light Rail': '🚊',
+        'Ferry': '⛵'
+      };
+      const icon = icons[t] || '📍';
+      return `${icon} ${t}`;
+    }).join('<br>'));
+  })() : '';
+
   return suitRow(det.datasetLabel, rawLabel)
        + fallbackRow
        + suitRankRow(r, verb, score).replace('Rank in NSW', rankLabel)
+       + infraRow
        + suitHow(det, cfg.weight);
 }
 
@@ -1407,12 +1823,11 @@ function initSuitabilityModal() {
   });
 }
 
-// suburb compare modal
-let compareSuburb = null;             // B-side suburb in compare session
+// ─── COMPARE MODAL ───────────────────────────────────────────────────────────
+let compareSuburb = null;
 let lastCompareTrigger = null;
-let cmpSuggestIdx = -1;               // highlighted suggestion index for keyboard nav
+let cmpSuggestIdx = -1;
 
-// metrics compared in the modal (order matters — rendered top to bottom)
 const COMPARE_METRICS = [
   { key: 'price',          label: 'Avg sale price',  kind: 'price', higherIsBetter: false, format: v => fmtAUD(v) },
   { key: 'housing',        label: '🏠 Housing',        kind: 'score' },
@@ -1427,10 +1842,9 @@ function metricValue(def, suburb) {
     const v = avgPrices[suburb];
     return v && v > 0 ? v : null;
   }
-  return scoreForFilter(def.key, suburb); // returns 0-1 or null
+  return scoreForFilter(def.key, suburb);
 }
 
-// compare two raw numbers given a direction; EPS guards floating-point ties
 function compareValues(a, b, higherIsBetter, eps = 1e-6) {
   if (a == null && b == null) return { winner: 'none', a, b };
   if (a == null) return { winner: 'B', onlyOne: true, a, b };
@@ -1486,7 +1900,6 @@ function renderCompareRow(def, aSub, bSub) {
 }
 
 function renderOverallRow(aSub, bSub) {
-  // average of score metrics where both suburbs have data (fair comparison)
   const scoreDefs = COMPARE_METRICS.filter(m => m.kind === 'score');
   let aSum = 0, bSum = 0, n = 0;
   scoreDefs.forEach(def => {
@@ -1503,7 +1916,7 @@ function renderOverallRow(aSub, bSub) {
     </div>`;
   }
   const aAvg = aSum / n, bAvg = bSum / n;
-  const res  = compareValues(aAvg, bAvg, true, 0.005); // 0.5pp tie threshold
+  const res  = compareValues(aAvg, bAvg, true, 0.005);
   let winnerHtml = '<span class="cmp-cell-winner">—</span>';
   let aClass = 'cmp-cell-value', bClass = 'cmp-cell-value';
   if (res.winner === 'A' || res.winner === 'B') {
@@ -1554,7 +1967,6 @@ function renderCompareBody() {
   body.innerHTML = header + rows + overall + note;
 }
 
-// suburb list for picker — sourced from geojson centroids (upper-case keys)
 function getCompareSuburbList() {
   return Object.keys(suburbCentroids).sort();
 }
@@ -1691,7 +2103,71 @@ function initNav() {
   });
 }
 
+// ─── STYLESHEET INJECTION for new education modal elements ───────────────────
+function injectStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .suit-school-list {
+      margin: 12px 0;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .suit-school-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      gap: 8px;
+    }
+    .suit-school-row:last-child { border-bottom: none; }
+    .suit-school-name {
+      font-size: 0.88em;
+      font-weight: 500;
+      flex: 1;
+      line-height: 1.3;
+    }
+    .suit-school-meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .suit-school-rank {
+      font-size: 0.78em;
+      font-weight: 700;
+      background: rgba(30,142,255,0.18);
+      color: #1e8eff;
+      border-radius: 4px;
+      padding: 2px 6px;
+      white-space: nowrap;
+    }
+    .suit-school-rate {
+      font-size: 0.78em;
+      opacity: 0.75;
+      white-space: nowrap;
+    }
+    .year-details {
+      font-size: 0.7em;
+      opacity: 0.6;
+      margin-top: 4px;
+    }
+    .year-detail {
+      margin: 2px 0;
+    }
+    [data-theme="light"] .suit-school-list {
+      border-color: rgba(0,0,0,0.1);
+    }
+    [data-theme="light"] .suit-school-row {
+      border-bottom-color: rgba(0,0,0,0.07);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // boot
+injectStyles();
 initNav();
 initFilterPanel();
 initSuitabilityModal();
