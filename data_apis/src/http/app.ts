@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import express, { Express, Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./generated/routes.js";

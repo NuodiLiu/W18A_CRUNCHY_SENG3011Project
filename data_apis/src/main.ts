@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { loadConfig } from "./config/index.js";
 import { createApp } from "./http/app.js";
 import { logger } from "./infra/logger.js";
