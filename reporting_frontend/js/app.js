@@ -93,7 +93,7 @@ const suitabilityCache = {}; // suburb → combined 0-1 score
 const activeFilters = new Set(['housing']);
 
 // Education-specific stores
-const schoolHscData   = {};  // school_name → { count, rank } (2024 top achievers)
+const schoolHscData   = {};  // school_name → count (2024 top achievers)
 const schoolEnrolData = {};  // school_name → enrolment count
 const suburbSchools   = {};  // UPPER suburb → [{ name, hscCount, enrolCount, rate, rank }]
 
@@ -204,10 +204,37 @@ function safetyFallbackInfo(suburb) {
   return info;
 }
 
+// ─── EDUCATION: resolve the best suburb key we have data for ─────────────────
+// Returns { targetSuburb, usingFallback } — always tries direct hit first,
+// then falls back to nearest suburb that has education data.
+function resolveEducationSuburb(suburb) {
+  const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
+
+  // Direct hit in filterData.education
+  if (filterData.education && filterData.education[u] !== undefined) {
+    return { targetSuburb: u, usingFallback: false };
+  }
+
+  // Direct hit via suburbSchools (may have schools but filterData not yet scored)
+  if (suburbSchools[u] && suburbSchools[u].length > 0) {
+    return { targetSuburb: u, usingFallback: false };
+  }
+
+  // Nearest entry fallback
+  if (filterSorted.education && filterSorted.education.length > 0) {
+    const near = nearestEntry(u, filterSorted.education.map(e => ({ category: e.name })));
+    if (near && near.key) {
+      return { targetSuburb: near.key, usingFallback: true };
+    }
+  }
+
+  return { targetSuburb: u, usingFallback: false };
+}
+
 // drop weak and outlier price points
 function filterPricePoints(points, filter) {
   const kept = (points || [])
-    .filter(p => Number(p.count || 0) >= 0)   // no threshold, show all data points
+    .filter(p => Number(p.count || 0) >= 0)
     .sort((a, b) => (a.period || '').localeCompare(b.period || ''));
   if (filter !== 'purchase_price' || kept.length < 3) return kept;
   return kept.filter((p, i) => {
@@ -456,15 +483,6 @@ async function loadPricesFallback() {
 }
 
 // ─── SAFETY: crime-count scoring ─────────────────────────────────────────────
-// NOTE: The crime API returns an exactly equal 1/3 split of each suburb's total
-// across all three offence categories (Assault, Robbery & Theft, Drug offences).
-// Severity weighting is therefore meaningless — it just multiplies every suburb
-// by the same constant (×6). We fetch the unfiltered total instead (one request)
-// and invert it: fewer total crime records → higher safety score.
-// Scores differ meaningfully between suburbs (e.g. Orange vs Randwick).
-// The "same number" appearance for Sydney suburbs is because most inner-Sydney
-// suburbs are NOT in the crime dataset and all fall back to their nearest
-// covered area — see safetyFallbackInfo().
 async function loadSafetyData() {
   const STATE_SUFFIX = /\s+(NSW|VIC|QLD|SA|WA|TAS|ACT|NT)$/i;
   const normalise = raw => {
@@ -477,14 +495,12 @@ async function loadSafetyData() {
   };
 
   try {
-    // Crime severity weights
     const offenceWeights = {
       'Assault': 3,
       'Drug offences': 1,
       'Robbery and Theft': 2
     };
 
-    // Fetch all crime events to aggregate per suburb per offence
     const allCrimeEvents = [];
     let offset = 0;
     const limit = 1000;
@@ -499,10 +515,8 @@ async function loadSafetyData() {
       offset += limit;
     }
 
-    // Aggregate counts per suburb per offence
     const crimeCounts = {};
     allCrimeEvents.forEach(event => {
-      // Event attributes are nested in event.attributes object
       const attrs = event.attributes || event;
       const suburb = normalise(attrs.suburb);
       const offence = attrs.offence_category;
@@ -511,7 +525,6 @@ async function loadSafetyData() {
       crimeCounts[suburb][offence] = (crimeCounts[suburb][offence] || 0) + (attrs.count || 1);
     });
 
-    // Calculate weighted totals
     const weightedTotals = {};
     Object.entries(crimeCounts).forEach(([suburb, offences]) => {
       let weighted = 0;
@@ -522,7 +535,7 @@ async function loadSafetyData() {
       weightedTotals[suburb] = weighted;
     });
 
-    const entries = Object.entries(weightedTotals); // [[suburb, weightedScore], …]
+    const entries = Object.entries(weightedTotals);
     if (!entries.length) { filterData.safety = {}; return; }
 
     const maxV = Math.max(...entries.map(([, v]) => v));
@@ -531,11 +544,10 @@ async function loadSafetyData() {
 
     entries.forEach(([name, value]) => {
       const rawNorm = Math.min(1, value / maxV);
-      filterData.safety[name] = 1 - rawNorm; // invert: safer → higher score
+      filterData.safety[name] = 1 - rawNorm;
       filterRaw.safety[name] = value;
     });
 
-    // sorted descending by raw weighted crime score (most crime first — for rank labels)
     filterSorted.safety = entries
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
@@ -550,13 +562,6 @@ async function loadSafetyData() {
 }
 
 // ─── EDUCATION: HSC band-6 rate per school mapped to suburbs ─────────────────
-// Strategy:
-//   1. Fetch hsc_top_achiever by school (all years), get 2024 counts per school
-//   2. Fetch school_enrolment by school_name, get enrolment per school
-//   3. Map school → suburb by extracting suburb keywords from school names
-//   4. Score = sum(hsc_count / enrolment) for all schools in suburb, normalised
-
-// Extract a suburb candidate from a school name by removing common school words
 function schoolNameToSuburb(schoolName) {
   if (!schoolName || schoolName === 'unknown') return null;
   const cleaned = schoolName
@@ -569,19 +574,16 @@ function schoolNameToSuburb(schoolName) {
   return cleaned;
 }
 
-// Build suburb→schools index by fuzzy-matching school suburb names to centroid keys
 function buildSuburbSchoolIndex() {
-  const allSuburbKeys = Object.keys(suburbCentroids); // already UPPER-CASE
+  const allSuburbKeys = Object.keys(suburbCentroids);
 
   Object.entries(schoolHscData).forEach(([school, data]) => {
     const candidate = schoolNameToSuburb(school);
     if (!candidate) return;
 
-    // Try exact match first, then starts-with, then contains
     let matched = allSuburbKeys.find(k => k === candidate);
     if (!matched) matched = allSuburbKeys.find(k => candidate.startsWith(k) || k.startsWith(candidate));
     if (!matched) {
-      // Word overlap: find suburb key with most shared words
       const cWords = new Set(candidate.split(' ').filter(w => w.length > 2));
       let bestScore = 0;
       allSuburbKeys.forEach(k => {
@@ -597,23 +599,24 @@ function buildSuburbSchoolIndex() {
     if (!suburbSchools[matched]) suburbSchools[matched] = [];
     suburbSchools[matched].push({
       name: school,
-      hscCount: data.count,
-      enrolCount: data.enrolment,
-      rate: data.rate,
-      rank: data.rank,
+      hscCount: typeof data === 'object' ? data.count : data,
+      enrolCount: typeof data === 'object' ? data.enrolment : null,
+      rate: typeof data === 'object' ? data.rate : null,
+      rank: typeof data === 'object' ? data.rank : null,
     });
   });
 
   console.log(`School index built: ${Object.keys(suburbSchools).length} suburbs have school data`);
 }
 
+function normSuburb(s) {
+  return s.toString().trim().toUpperCase().replace(/\s+NSW$/, '');
+}
+
 async function loadEducationData() {
   try {
     const year = 2024;
 
-
-    // 1. Fetch ALL HSC top achievers (remove limit=500!) and filter client-side for 2024 to get a more complete dataset 
-    // — some schools have very few achievers per year and may be missing from the top 500 list
     const hscUrl = `${API}/api/v1/visualisation/breakdown?dataset_type=hsc_top_achiever&dimension=school&metric=count&aggregation=count&limit=5000&filters[year]=${year}`;
     const hscJ = await fetchCached(hscUrl, 15000);
 
@@ -626,25 +629,18 @@ async function loadEducationData() {
       schoolHscData[school] = Number(e.value || 0);
     });
 
-
-    // 2. Fetch School enrolment
     const enrolUrl = `${API}/api/v1/visualisation/breakdown?dataset_type=school_enrolment&dimension=school_name&metric=count&aggregation=count&limit=5000`;
     const enrolJ = await fetchCached(enrolUrl, 15000);
 
     enrolJ.entries.forEach(e => {
       const school = (e.category || "").toString().trim();
       if (!school || school === "unknown") return;
-
       const total = Number(e.value || e.count || 1);
-      // Estimate Year 12 cohort = total enrolment / 6
       schoolEnrolData[school] = Math.max(5, Math.round(total / 6));
     });
 
-
-    // 3. Map Suburb → Schools by fuzzy-matching school names to suburb centroid keys
     buildSuburbSchoolIndex();
 
-    // 4. Compute Dampened Band 6 Rate per Suburb
     const STATE_AVG_RATE = 0.05;
     const CONF_WEIGHT = 30;
 
@@ -665,7 +661,6 @@ async function loadEducationData() {
 
       if (totalYr12 > 0) {
         const rawRate = totalBand6 / totalYr12;
-
         const dampened =
           (totalBand6 + STATE_AVG_RATE * CONF_WEIGHT) /
           (totalYr12 + CONF_WEIGHT);
@@ -679,8 +674,7 @@ async function loadEducationData() {
       }
     });
 
-
-    // 5. Percentile Ranking (fixes "all red" issue)
+    // Percentile ranking
     const rates = Object.values(suburbStats)
       .map(s => s.rate)
       .sort((a, b) => a - b);
@@ -691,17 +685,17 @@ async function loadEducationData() {
       return idx / (rates.length - 1);
     }
 
+    // Store scores in filterData.education (keyed by suburb name, not dataset name)
     filterData.education = {};
     filterRaw.education = {};
 
     Object.entries(suburbStats).forEach(([suburb, stats]) => {
       const p = percentile(stats.rate);
-      filterData.education[suburb] = p; // 0–1
+      filterData.education[suburb] = p;
       filterRaw.education[suburb] = (stats.rawRate * 100).toFixed(2);
     });
 
-
-    // 6. Sorted list for UI (descending by raw rate for rank labels)
+    // filterSorted.education — sorted descending by rate for rank lookups
     filterSorted.education = Object.entries(suburbStats)
       .map(([name, stats]) => ({ name, value: stats.rate }))
       .sort((a, b) => b.value - a.value);
@@ -757,7 +751,6 @@ async function loadFilterData() {
       filterSorted[key] = [...cleaned].sort((a, b) => b.value - a.value);
       console.log(`${key} data: ${Object.keys(filterData[key]).length} suburbs`);
 
-      // For infrastructure, fetch types per suburb
       if (key === 'infrastructure') {
         try {
           const allInfraEvents = [];
@@ -770,7 +763,6 @@ async function loadFilterData() {
             if (events.length < limit) break;
             offset += limit;
           }
-          // Aggregate distinct types per suburb
           const infraTypes = {};
           allInfraEvents.forEach(event => {
             const suburb = normaliseCategory(event.suburb);
@@ -794,7 +786,6 @@ async function loadFilterData() {
     }
   }));
 
-  // Load safety and education separately (custom logic)
   await Promise.all([
     loadSafetyData(),
     loadEducationData(),
@@ -839,19 +830,19 @@ function computeSuitability() {
       } else if (key === 'safety') {
         const info = safetyFallbackInfo(suburb);
         if (info) val = filterData.safety?.[info.donor] ?? null;
+      } else if (key === 'education') {
+        // Use filterData.education directly (keyed by suburb), with nearest fallback
+        if (filterData.education && filterData.education[suburb] !== undefined) {
+          val = filterData.education[suburb];
+        } else if (filterData.education) {
+          const { targetSuburb } = resolveEducationSuburb(suburb);
+          val = filterData.education[targetSuburb] ?? null;
+        }
+      } else if (key === 'greenspace') {
+        val = suburbStubScore(suburb, 'greenspace');
       } else {
         if (filterData[key] && filterData[key][suburb] !== undefined) {
           val = filterData[key][suburb];
-        } else if (key === 'greenspace') {
-          val = suburbStubScore(suburb, 'greenspace');
-        }
-        // Education: if suburb not directly indexed, try nearest school suburb
-        else if (key === 'education' && filterData.education) {
-          const near = nearestEntry(suburb, (filterSorted.education || []).map(e => ({ category: e.name })));
-          if (near && near.entry) {
-            const donor = near.key;
-            val = filterData.education?.[donor] ?? null;
-          }
         }
       }
 
@@ -908,9 +899,8 @@ async function initHeatmap() {
   }
   if (!geojson || (geojson.features || []).length === 0) geojson = builtInGeoJSON();
 
-  // ── KEY FIX: centroids now populated — safe to build suburb→school index ──
   buildLayer(geojson);
-  loadFilterData();          // moved here, after GeoJSON await completes
+  loadFilterData();
   await pricesPromise;
 
   computeSuitability();
@@ -1016,7 +1006,6 @@ function initFilterPanel() {
   });
 }
 
-// warm the response cache so the first tab click on any suburb is instant
 function prefetchChartSources() {
   const urls = [
     `${API}/api/v1/visualisation/timeseries?dataset_type=housing&metric=purchase_price&aggregation=avg&time_period=year&dimension=suburb`,
@@ -1055,17 +1044,13 @@ let loadingTimer = null;
 const STATE_TAIL = /\s*[\(\s](?:NSW|VIC|QLD|SA|WA|TAS|ACT|NT)\)?\s*$/i;
 const cleanSuburbName = s => (s || '').toString().toUpperCase().replace(STATE_TAIL, '').trim();
 
-// More robust suburb matching: try exact, then without spaces/hyphens, then prefix
 function pickMatch(entries, suburb) {
   const u = cleanSuburbName(suburb);
-  // 1. exact
   let found = (entries || []).find(e => cleanSuburbName(e.category || e.suburb || e.series) === u);
   if (found) return found;
-  // 2. normalised (no spaces/hyphens)
   const uNorm = u.replace(/[\s\-]/g, '');
   found = (entries || []).find(e => cleanSuburbName(e.category || e.suburb || e.series).replace(/[\s\-]/g, '') === uNorm);
   if (found) return found;
-  // 3. starts-with (e.g. "MASCOT" matching "MASCOT NSW")
   found = (entries || []).find(e => {
     const c = cleanSuburbName(e.category || e.suburb || e.series);
     return c.startsWith(u) || u.startsWith(c);
@@ -1073,15 +1058,13 @@ function pickMatch(entries, suburb) {
   return found || null;
 }
 
-// Try multiple suburb name variants for the events endpoint
 async function fetchEventsForSuburb(suburb, timeout = 15000) {
   const variants = [
     suburb,
     suburb.toLowerCase(),
-    suburb.charAt(0) + suburb.slice(1).toLowerCase(), // Title case
+    suburb.charAt(0) + suburb.slice(1).toLowerCase(),
     suburb.split(' ').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' '),
   ];
-  // deduplicate
   const tried = new Set();
   for (const v of variants) {
     if (tried.has(v)) continue;
@@ -1116,7 +1099,6 @@ async function renderChart() {
 
   try {
     if (currentFilter === 'purchase_price' || currentFilter === 'count') {
-      // Try the timeseries endpoint first (covers all suburbs in one request)
       const tsUrl = `${API}/api/v1/visualisation/timeseries` +
         `?dataset_type=housing&metric=purchase_price&aggregation=avg&time_period=year&dimension=suburb`;
       try {
@@ -1134,7 +1116,6 @@ async function renderChart() {
         }
       } catch (e) { console.warn('Timeseries failed:', e.message); }
 
-      // Events fallback with improved suburb name matching
       if (!series.labels.length) {
         try {
           const j = await fetchEventsForSuburb(suburb, 15000);
@@ -1145,7 +1126,6 @@ async function renderChart() {
         } catch (e) { console.warn('Events fallback failed:', e.message); }
       }
 
-      // Last resort: try suburb-filtered timeseries directly
       if (!series.labels.length) {
         try {
           const direct = `${API}/api/v1/visualisation/timeseries` +
@@ -1428,7 +1408,7 @@ function renderSuitabilitySummary() {
   const overallLabel = panel.querySelector('.summary-overall-label');
   if (!grid) return;
 
-  const u = currentSuburb.toUpperCase();
+  const u = currentSuburb.toUpperCase().replace(/\s+NSW$/, '');
   const scores = {};
 
   Object.entries(SUIT_FILTERS).forEach(([key, cfg]) => {
@@ -1444,13 +1424,18 @@ function renderSuitabilitySummary() {
     } else if (key === 'safety') {
       const info = safetyFallbackInfo(u);
       if (info) val = filterData.safety?.[info.donor] ?? null;
-    } else if (filterData[key] && filterData[key][u] !== undefined) {
-      val = filterData[key][u];
+    } else if (key === 'education') {
+      // Use filterData.education directly (never filterData[SUIT_FILTERS.education.dataset])
+      if (filterData.education && filterData.education[u] !== undefined) {
+        val = filterData.education[u];
+      } else if (filterData.education) {
+        const { targetSuburb } = resolveEducationSuburb(u);
+        val = filterData.education[targetSuburb] ?? null;
+      }
     } else if (key === 'greenspace') {
       val = suburbStubScore(u, 'greenspace');
-    } else if (key === 'education' && filterData.education) {
-      const near = nearestEntry(u, (filterSorted.education || []).map(e => ({ category: e.name })));
-      if (near) val = filterData.education?.[near.key] ?? null;
+    } else if (filterData[key] && filterData[key][u] !== undefined) {
+      val = filterData[key][u];
     }
     scores[key] = val;
   });
@@ -1466,6 +1451,8 @@ function renderSuitabilitySummary() {
     const pct = val !== null ? Math.round(val * 100) : null;
     const barColor = val === null ? 'var(--suit-none)' : val >= 0.6 ? 'var(--suit-high)' : val >= 0.3 ? 'var(--suit-mid)' : 'var(--suit-low)';
     const label = val === null ? 'No data' : pct >= 60 ? 'High' : pct >= 30 ? 'Medium' : 'Low';
+
+    // All filters are always clickable — the modal handles missing data gracefully
     return `
       <div class="summary-item" role="button" tabindex="0"
            data-suit-key="${key}"
@@ -1561,33 +1548,41 @@ function builtInGeoJSON() {
 let lastSuitTrigger = null;
 
 function scoreForFilter(key, suburb) {
+  const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
   if (key === 'housing') {
-    const price = avgPrices[suburb];
+    const price = avgPrices[u];
     if (!price || price <= 0) return null;
     const prices = Object.values(avgPrices).filter(p => p > 0).sort((a, b) => a - b);
     const p10 = prices[Math.floor(prices.length * 0.10)] || 500000;
     const p90 = prices[Math.floor(prices.length * 0.90)] || 3000000;
     return 1 - (Math.max(p10, Math.min(p90, price)) - p10) / Math.max(p90 - p10, 1);
   }
-  if (key === 'greenspace') return suburbStubScore(suburb, 'greenspace');
+  if (key === 'greenspace') return suburbStubScore(u, 'greenspace');
   if (key === 'safety') {
-    const info = safetyFallbackInfo(suburb);
+    const info = safetyFallbackInfo(u);
     if (!info) return null;
     return filterData.safety?.[info.donor] ?? null;
   }
   if (key === 'education') {
-    if (filterData.education?.[suburb] !== undefined) return filterData.education[suburb];
-    const near = nearestEntry(suburb, (filterSorted.education || []).map(e => ({ category: e.name })));
-    return near ? (filterData.education?.[near.key] ?? null) : null;
+    // Always use filterData.education (never filterData[SUIT_FILTERS.education.dataset])
+    if (filterData.education && filterData.education[u] !== undefined) {
+      return filterData.education[u];
+    }
+    if (filterData.education) {
+      const { targetSuburb } = resolveEducationSuburb(u);
+      return filterData.education[targetSuburb] ?? null;
+    }
+    return null;
   }
-  return filterData[key]?.[suburb] ?? null;
+  return filterData[key]?.[u] ?? null;
 }
 
 function housingRank(suburb) {
+  const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
   const priced = Object.entries(avgPrices).filter(([, v]) => v > 0);
-  if (!priced.length || !avgPrices[suburb]) return null;
+  if (!priced.length || !avgPrices[u]) return null;
   priced.sort((a, b) => a[1] - b[1]);
-  const idx = priced.findIndex(([k]) => k === suburb);
+  const idx = priced.findIndex(([k]) => k === u);
   if (idx === -1) return null;
   const total = priced.length;
   const rank = idx + 1;
@@ -1596,28 +1591,36 @@ function housingRank(suburb) {
 }
 
 function filterRank(key, suburb) {
-  let target = suburb;
+  const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
+  let target = u;
   let fallback = null;
+
   if (key === 'safety') {
-    const info = safetyFallbackInfo(suburb);
+    const info = safetyFallbackInfo(u);
     if (!info) return null;
     target = info.donor;
     if (info.source === 'nearest') fallback = info.donor;
   }
+
   if (key === 'education') {
-    // direct hit
-    if (filterData.education?.[suburb] === undefined) {
-      const near = nearestEntry(suburb, (filterSorted.education || []).map(e => ({ category: e.name })));
-      if (!near) return null;
-      target = near.key;
-      fallback = near.key;
+    // If no direct hit in filterData.education, use nearest
+    if (!filterData.education || filterData.education[u] === undefined) {
+      const { targetSuburb, usingFallback } = resolveEducationSuburb(u);
+      target = targetSuburb;
+      if (usingFallback) fallback = targetSuburb;
     }
   }
-  const raw = filterRaw[key]?.[target];
+
+  const raw = key === 'education'
+    ? filterRaw.education?.[target]
+    : filterRaw[key]?.[target];
+
   const sorted = filterSorted[key] || [];
   if (raw === undefined || !sorted.length) return null;
+
   const descIdx = sorted.findIndex(e => e.name === target);
   if (descIdx === -1) return null;
+
   const total = sorted.length;
   const higherIsBetter = SUIT_DETAIL[key]?.higherIsBetter !== false;
   const rank = higherIsBetter ? (descIdx + 1) : (total - descIdx);
@@ -1626,11 +1629,12 @@ function filterRank(key, suburb) {
 }
 
 function greenspaceFacts(suburb) {
+  const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
   let h = 0;
-  for (let i = 0; i < suburb.length; i++) h = (h * 31 + suburb.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) >>> 0;
   const parks    = 8  + (h % 43);
   const coverage = 6  + ((h >> 4) % 38);
-  const score    = suburbStubScore(suburb, 'greenspace');
+  const score    = suburbStubScore(u, 'greenspace');
   const total    = 450;
   const rank     = Math.max(1, Math.round(total * (1 - score)));
   const percentile = Math.round(score * 100);
@@ -1639,23 +1643,31 @@ function greenspaceFacts(suburb) {
 
 // Build the school breakdown section for the education modal
 function buildSchoolBreakdown(suburb) {
-  const schools = suburbSchools[suburb] || [];
+  const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
+  const schools = suburbSchools[u] || [];
   if (!schools.length) return '';
 
-  const sorted = [...schools].sort((a, b) => a.rank - b.rank); // sort by rank ascending
+  // Sort by hsc count descending
+  const sorted = [...schools].sort((a, b) => (b.hscCount || 0) - (a.hscCount || 0));
 
   const rows = sorted.map(s => {
+    const enrol = schoolEnrolData[s.name];
+    const band6 = schoolHscData[s.name];
+    const rateDisplay = (enrol && band6 != null)
+      ? ((band6 / enrol) * 100).toFixed(1) + '% band-6 rate'
+      : (s.rate != null ? (s.rate * 100).toFixed(1) + '% band-6 rate' : '');
+    const rankDisplay = s.rank ? `#${s.rank} NSW` : (band6 != null ? `${band6} achievers` : '');
     return `<div class="suit-school-row">
       <div class="suit-school-name">${s.name}</div>
       <div class="suit-school-meta">
-        <span class="suit-school-rank">#${s.rank} NSW</span>
-        <span class="suit-school-rate">${(s.rate * 100).toFixed(1)}% band-6 rate</span>
+        ${rankDisplay ? `<span class="suit-school-rank">${rankDisplay}</span>` : ''}
+        ${rateDisplay ? `<span class="suit-school-rate">${rateDisplay}</span>` : ''}
       </div>
     </div>`;
   }).join('');
 
   return `<div class="suit-school-list">
-    <div class="suit-row-label" style="margin-bottom:8px;">Schools in this suburb (ranked by band-6 success rate)</div>
+    <div class="suit-row-label" style="margin-bottom:8px;">Schools in this suburb</div>
     ${rows}
   </div>`;
 }
@@ -1693,9 +1705,10 @@ function suitHow(detail, weight, extra) {
 function buildSuitModalBody(key, suburb, score) {
   const cfg = SUIT_FILTERS[key];
   const det = SUIT_DETAIL[key] || {};
+  const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
 
   if (key === 'housing') {
-    const rk = housingRank(suburb);
+    const rk = housingRank(u);
     if (!rk) return `<div class="suit-empty">No housing sales data for <strong>${suburb}</strong>.</div>`;
     return suitRow('Average sale price', fmtAUD(rk.raw))
          + suitRankRow(rk, 'More affordable than', score)
@@ -1703,40 +1716,53 @@ function buildSuitModalBody(key, suburb, score) {
   }
 
   if (key === 'greenspace') {
-    const g = greenspaceFacts(suburb);
+    const g = greenspaceFacts(u);
     return suitRow('Estimated parks & reserves', `~${g.parks}`)
          + suitRow('Estimated green coverage',   `~${g.coverage}%`)
          + suitRankRow({ rank: g.rank, total: g.total, percentile: g.percentile }, 'Greener than', g.score)
          + suitHow(det, cfg.weight);
   }
 
+  // ─── EDUCATION ───────────────────────────────────────────────────────────
   if (key === 'education') {
-    const r = filterRank(key, suburb);
-    const schoolBreakdown = buildSchoolBreakdown(suburb);
-    const hasSchools = suburbSchools[suburb]?.length > 0;
+    // Resolve the best suburb we have data for
+    const { targetSuburb, usingFallback } = resolveEducationSuburb(u);
 
-    if (!r && !hasSchools) {
+    const r = filterRank('education', u); // filterRank internally resolves fallback
+    const schoolBreakdown = buildSchoolBreakdown(targetSuburb);
+    const hasSchools = (suburbSchools[targetSuburb] || []).length > 0;
+    const hasScore = filterData.education && filterData.education[targetSuburb] !== undefined;
+
+    if (!hasScore && !hasSchools) {
       return `<div class="suit-empty">
         No education data found for <strong>${suburb}</strong>.<br>
         <span style="opacity:0.7">No HSC schools were matched to this suburb.</span>
       </div>` + suitHow(det, cfg.weight);
     }
 
+    const fallbackNote = usingFallback
+      ? suitRow('Nearest suburb with data', targetSuburb,
+                `${suburb} has no directly matched schools — showing nearest suburb with HSC data.`)
+      : '';
+
+    const rawRate = filterRaw.education?.[targetSuburb];
     const rankSection = r
-      ? suitRow('Band-6 success rate', (filterRaw.education?.[r.fallback || suburb] || 0).toFixed(2) + '%')
+      ? suitRow('Band-6 success rate', rawRate != null ? rawRate + '%' : '—',
+                `2024 HSC top achievers as a % of estimated Year 12 cohort`)
         + suitRankRow(r, 'Better education outcomes than', score)
       : '';
 
-    return rankSection
+    return fallbackNote
+         + rankSection
          + schoolBreakdown
          + suitHow(det, cfg.weight);
   }
 
-  const r = filterRank(key, suburb);
+  // ─── SAFETY ──────────────────────────────────────────────────────────────
+  const r = filterRank(key, u);
 
   if (key === 'safety' && r) {
-    // Surface severity breakdown in the safety modal
-    const totalWeighted = filterRaw.safety?.[r.fallback || suburb];
+    const totalWeighted = filterRaw.safety?.[r.fallback || u];
     const safetyExtra = totalWeighted
       ? `Weighted crime index: ${totalWeighted.toLocaleString()} (Assault ×3, Robbery ×2, Drug offences ×1)`
       : null;
@@ -1768,7 +1794,7 @@ function buildSuitModalBody(key, suburb, score) {
   const rankLabel = r.fallback ? `Rank of ${r.fallback}` : 'Rank in NSW';
 
   const infraRow = key === 'infrastructure' ? (() => {
-    const types = filterTypes.infrastructure?.[r.fallback || suburb] || [];
+    const types = filterTypes.infrastructure?.[r.fallback || u] || [];
     if (!types.length) return '';
     return suitRow('Facility types in suburb', types.map(t => {
       const icons = {
@@ -1832,18 +1858,20 @@ function closeSuitabilityModal() {
 }
 
 function initSuitabilityModal() {
-  const grid = document.getElementById('summary-grid');
-  if (grid) {
-    grid.addEventListener('click', e => {
-      const item = e.target.closest('.summary-item[data-suit-key]');
-      if (item) openSuitabilityModal(item.dataset.suitKey);
-    });
-    grid.addEventListener('keydown', e => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      const item = e.target.closest('.summary-item[data-suit-key]');
-      if (item) { e.preventDefault(); openSuitabilityModal(item.dataset.suitKey); }
-    });
-  }
+  // Use event delegation on the document — robust regardless of when grid is rendered
+  document.addEventListener('click', e => {
+    const item = e.target.closest('.summary-item[data-suit-key]');
+    if (item) openSuitabilityModal(item.dataset.suitKey);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeSuitabilityModal();
+      return;
+    }
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const item = e.target.closest('.summary-item[data-suit-key]');
+    if (item) { e.preventDefault(); openSuitabilityModal(item.dataset.suitKey); }
+  });
 
   const modal = document.getElementById('suit-modal');
   if (modal) {
@@ -1853,10 +1881,6 @@ function initSuitabilityModal() {
   }
   const closeBtn = document.getElementById('suit-modal-close');
   if (closeBtn) closeBtn.addEventListener('click', closeSuitabilityModal);
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeSuitabilityModal();
-  });
 }
 
 // ─── COMPARE MODAL ───────────────────────────────────────────────────────────
@@ -1875,7 +1899,8 @@ const COMPARE_METRICS = [
 
 function metricValue(def, suburb) {
   if (def.kind === 'price') {
-    const v = avgPrices[suburb];
+    const u = suburb.toUpperCase().replace(/\s+NSW$/, '');
+    const v = avgPrices[u];
     return v && v > 0 ? v : null;
   }
   return scoreForFilter(def.key, suburb);
@@ -2113,10 +2138,6 @@ function initCompareModal() {
       if (item && item.dataset.suburb) pickCompareSuburb(item.dataset.suburb);
     });
   }
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeCompareModal();
-  });
 }
 
 // nav event listeners
@@ -2139,7 +2160,7 @@ function initNav() {
   });
 }
 
-// ─── STYLESHEET INJECTION for new education modal elements ───────────────────
+// ─── STYLESHEET INJECTION ────────────────────────────────────────────────────
 function injectStyles() {
   const style = document.createElement('style');
   style.textContent = `
@@ -2183,14 +2204,6 @@ function injectStyles() {
       font-size: 0.78em;
       opacity: 0.75;
       white-space: nowrap;
-    }
-    .year-details {
-      font-size: 0.7em;
-      opacity: 0.6;
-      margin-top: 4px;
-    }
-    .year-detail {
-      margin: 2px 0;
     }
     [data-theme="light"] .suit-school-list {
       border-color: rgba(0,0,0,0.1);
